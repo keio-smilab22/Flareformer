@@ -2,7 +2,7 @@
     "wandb_name": "id13-4b_2014_with_mae",
     "epochs": 40,
     "lr": 0.0000007,
-    "bs":10,
+    "bs":25,
     "lambda": {
         "GMGS": 0.0001,
         "BS": 10
@@ -59,14 +59,14 @@
     },
     "MM": {
         "N": 1,
-        "d_model": 128,
+        "d_model": 132,
         "h": 4,
         "d_ff": 16,
         "dropout": 0.1
     },
     "SFM": {
         "N": 1,
-        "d_model": 128,
+        "d_model": 132,
         "h": 4,
         "d_ff": 16,
         "dropout": 0.1

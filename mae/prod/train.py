@@ -150,10 +150,10 @@ def get_args_parser():
     parser = argparse.ArgumentParser('MAE pre-training', add_help=False)
     parser.add_argument(
         '--batch_size',
-        default=28,
+        default=85,
         type=int,
         help='Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus')
-    parser.add_argument('--epochs', default=2, type=int)
+    parser.add_argument('--epochs', default=10, type=int)
     parser.add_argument(
         '--accum_iter',
         default=1,
@@ -285,9 +285,9 @@ def main(args, dataset_train):
         if args.wandb:
             wandb.log(log)
 
-        if args.output_dir and epoch % 1 == 0:
+        if args.output_dir and (epoch+1) % 5 == 0:
             output_dir = Path(args.output_dir)
-            epoch_name = str(epoch)
+            epoch_name = str(epoch+1)
             if loss_scaler is not None:
                 checkpoint_paths = [output_dir /
                                     ('checkpoint-%s.pth' % epoch_name)]

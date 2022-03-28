@@ -83,7 +83,7 @@ def run_one_image(img, model):
 
 class MaskedAutoEncoder:
     def __init__(self):
-        chkpt_dir = '/home/initial/Dropbox/flare_transformer/output_dir/checkpoint-1.pth' # パス注意
+        chkpt_dir = '/home/initial/Dropbox/flare_transformer/output_dir/checkpoint-10.pth' # パス注意
         self.model = prepare_model(chkpt_dir)
 
     def get_model(self):

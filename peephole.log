@@ -95,3 +95,7 @@ v2: execute 'python ../flare_transformer/train.py --params params/params_2014.js
 config.yaml: Something changed!
 killed process.
 current state: inactive
+config.yaml: Something changed!
+killed process.
+v1: execute 'python ../flare_transformer/train.py --params params/params_2014.json --wandb'
+config.yaml: Something changed!
