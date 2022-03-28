@@ -1,0 +1,97 @@
+peephole server is started ... !
+peephole server is started ... !
+peephole server is started ... !
+peephole server is started ... !
+peephole server is started ... !
+peephole server is started ... !
+config.yaml: Something changed!
+v1s: execute 'python run.py'
+config.yaml: Something changed!
+v1: execute 'python run.py'
+files.py: Something changed!
+v1: execute 'python run.py'
+peephole.py: Something changed!
+v1: execute 'python run.py'
+peephole server is started ... !
+peephole server is started ... !
+peephole server is started ... !
+peephole server is started ... !
+peephole server is started ... !
+peephole server is started ... !
+peephole server is started ... !
+peephole server is started ... !
+peephole server is started ... !
+peephole server is started ... !
+peephole server is started ... !
+peephole server is started ... !
+config.yaml: Something changed!
+v123345422: execute 'python run.py'
+config.yaml: Something changed!
+v123345422: execute 'python train.py --params params/params_2014.json'
+peephole server is started ... !
+config.yaml: Something changed!
+v100: execute 'python train.py --params params/params_2014.json'
+peephole server is started ... !
+config.yaml: Something changed!
+v12: execute 'python train.py --params params/params_2014.json'
+config.yaml: Something changed!
+v123: execute 'python train.py --params params/params_2014.json'
+peephole server is started ... !
+config.yaml: Something changed!
+v123: execute 'python train.py --params params/params_2014.json'
+config.yaml: Something changed!
+v123: execute 'python train.py --params params/params_2014.json &'
+config.yaml: Something changed!
+v1: execute 'python train.py --params params/params_2014.json &'
+config.yaml: Something changed!
+v1: execute 'python train.py --params params/params_2014.json --wandb &'
+peephole server is started ... !
+config.yaml: Something changed!
+killed process.
+v2: execute 'python train.py --params params/params_2014.json --wandb &'
+config.yaml: Something changed!
+killed process.
+v2: execute 'python train.py --params params/params_2014.json --wandb'
+config.yaml: Something changed!
+killed process.
+v3: execute 'python train.py --params params/params_2014.json --wandb'
+peephole server is started ... !
+peephole server is started ... !
+config.yaml: Something changed!
+killed process.
+v1: execute 'python train.py --params params/params_2014.json --wandb'
+config.yaml: Something changed!
+killed process.
+v2: execute 'python train.py --params params/params_2014.json --wandb'
+config.yaml: Something changed!
+killed process.
+v3: execute 'python train.py --params params/params_2014.json --wandb'
+config.yaml: Something changed!
+killed process.
+peephole server is started ... !
+config.yaml: Something changed!
+killed process.
+v3: execute 'python ../flare_transformer/'
+config.yaml: Something changed!
+killed process.
+v3: execute 'python ../flare_transformer/train.py --params params/params_2014.json'
+config.yaml: Something changed!
+killed process.
+v3: execute 'python ../flare_transformer/train.py --params params/params_2014.json --wandb'
+config.yaml: Something changed!
+killed process.
+v3: execute 'python ../flare_transformer/train.py --params params/params_2014.json --wandb'
+config.yaml: Something changed!
+killed process.
+v3: execute 'python ../flare_transformer/train.py --params params/params_2014.json --wandb'
+peephole server is started ... !
+config.yaml: Something changed!
+killed process.
+current state: inactive
+peephole server is started ... !
+config.yaml: Something changed!
+killed process.
+v2: execute 'python ../flare_transformer/train.py --params params/params_2014.json --wandb'
+config.yaml: Something changed!
+killed process.
+current state: inactive
