@@ -98,13 +98,17 @@ class MaskedAutoencoderViT(nn.Module):
 
         # for module in decoder_modules:
         #     module.requires_grad = False
-
-        # del self.decoder_embed
-        # del self.decoder_blocks
-        # del self.decoder_norm
-        # del self.decoder_pred
+        #     del module
         # import gc
         # gc.collect()
+
+
+        del self.decoder_embed
+        del self.decoder_blocks
+        del self.decoder_norm
+        del self.decoder_pred
+        import gc
+        gc.collect()
 
     def initialize_weights(self):
         # initialization

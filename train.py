@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import wandb
 
-from src.model import FlareTransformer, FlareTransformerLikeViLBERT, FlareTransformerReplacedViTWithMAE, FlareTransformerWithMAE, FlareTransformerWithPositonalEncoding, FlareTransformerWithoutMM, FlareTransformerWithoutPE, PureTransformerSFM
+from src.model import FlareTransformer, FlareTransformerLikeViLBERT, FlareTransformerReplacedFreezeViTWithMAE, FlareTransformerReplacedViTWithMAE, FlareTransformerWithMAE, FlareTransformerWithPositonalEncoding, FlareTransformerWithoutMM, FlareTransformerWithoutPE, PureTransformerSFM
 from src.Dataloader import CombineDataloader, TrainDataloader, TrainDataloader256
 from src.eval_utils import calc_score
 from src.BalancedBatchSampler import TrainBalancedBatchSampler
@@ -200,7 +200,7 @@ if __name__ == "__main__":
         wandb.init(project=args.project_name, name=params["wandb_name"])
 
     print("==========================================")
-    print(params)
+    print(json.dumps(params, indent=2))
     print("==========================================")
 
     # Initialize Dataset
@@ -217,11 +217,6 @@ if __name__ == "__main__":
     mean, std = train_dataset.calc_mean()
     print(mean, std)
     train_dataset.set_mean(mean, std)
-    # train_dataset.mean = 0
-    # train_dataset.std = 1
-
-    # aug_train_dataset.set_mean(*aug_train_dataset.calc_mean())
-    # train_dataset = CombineDataloader([train_dataset,aug_train_dataset])
     
     validation_dataset = TrainDataloader256("valid", params["dataset"])
     validation_dataset.set_mean(mean, std)
@@ -241,7 +236,7 @@ if __name__ == "__main__":
     gmgs_criterion = gmgs_loss_function
     bs_criterion = bs_loss_function
 
-    model = FlareTransformerReplacedViTWithMAE(input_channel=params["input_channel"],
+    model = FlareTransformer(input_channel=params["input_channel"],
                              output_channel=params["output_channel"],
                              sfm_params=params["SFM"],
                              mm_params=params["MM"],

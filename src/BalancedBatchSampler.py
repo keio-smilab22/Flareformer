@@ -1,5 +1,6 @@
 from torch.utils.data.sampler import BatchSampler
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 import numpy as np
 import torch
 
@@ -67,8 +68,9 @@ class TrainBalancedBatchSampler(BatchSampler):
     def __init__(self, dataset, n_classes, n_samples):
         loader = DataLoader(dataset)
         self.labels_list = []
-        for _, label, _ in loader:
+        for _, label, _ in tqdm(loader):
             self.labels_list.append(np.argmax(label)) # argmaxを取るように変更
+
         self.labels = torch.LongTensor(self.labels_list)
         self.labels_set = list(set(self.labels.numpy()))
         self.label_to_indices = {

@@ -6,7 +6,7 @@ import numpy as np
 import os
 from torch.utils.data import Dataset
 from skimage.transform import resize
-
+from tqdm import tqdm
 
 class CombineDataloader(Dataset):
     def __init__(self, dataloaders):
@@ -172,6 +172,7 @@ class TrainDataloader256(Dataset):
         year_split = params["year_split"]
 
         # get x
+        print("loading images ...")
         self.img = self.get_multiple_year_image(year_split[split], image_type)
         self.img = torch.Tensor(self.img)
         if self.augmentation:
@@ -242,8 +243,8 @@ class TrainDataloader256(Dataset):
         """
             concatenate data of multiple years [image]
         """
-        for i, year in enumerate(range(year_dict["start"],
-                                 year_dict["end"]+1)):
+        for i, year in enumerate(tqdm(range(year_dict["start"],
+                                 year_dict["end"]+1))):
             data_path_256 = self.path + str(year) + "_" + image_type + "_256.npy"
             data_path_512 = self.path + str(year) + "_" + image_type + ".npy"
             # image_data = np.load(data_path_512)
@@ -254,8 +255,8 @@ class TrainDataloader256(Dataset):
                 image_data = np.load(data_path_512)
                 N,C,H,W = image_data.shape
                 _image_data = np.empty((N,1,256,256))
-                source = image_data[n,0,:,:].astype(np.uint8)
                 for n in range(N):
+                    source = image_data[n,0,:,:].astype(np.uint8)
                     _image_data[n,0,:,:] = resize(source,(256,256))
                 
                 image_data = _image_data
@@ -323,11 +324,11 @@ class TrainDataloader256(Dataset):
         ndata = np.ravel(self.img)
         mean = np.mean(ndata)
         std = 0
-        for i in range(ndata.shape[0] // bs + 1):
+        for i in tqdm(range(ndata.shape[0] // bs + 1)):
             tmp = ndata[bs*i:bs*(i+1)] - mean
             tmp = np.power(tmp, 2)
             std += np.sum(tmp)
-            print("Calculating std : ", i, "/", ndata.shape[0] // bs)
+            # print("Calculating std : ", i, "/", ndata.shape[0] // bs)
         std = np.sqrt(std / len(ndata))
         return mean, std
 

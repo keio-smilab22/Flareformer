@@ -22,7 +22,7 @@ show_image(torch.tensor(img))
 # download checkpoint if not exist
 # !wget -nc https://dl.fbaipublicfiles.com/mae/visualize/mae_visualize_vit_large.pth
  
-chkpt_dir = '/home/initial/Dropbox/flare_transformer/output_dir/checkpoint-1.pth'
+chkpt_dir = '/home/initial/Dropbox/flare_transformer/output_dir/checkpoint-10.pth'
 model_mae = prepare_model(chkpt_dir)
 print('Model loaded.')
 

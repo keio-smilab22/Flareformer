@@ -1,4 +1,5 @@
 import copy
+from heapq import merge
 import math
 import sys
 import numpy as np
@@ -687,6 +688,118 @@ class FlareTransformerReplacedViTWithMAE(nn.Module): # MAEで事前学習させ�
         )
 
         # Image Feature Extractor
+        # self.magnetogram_feature_extractor = CNNModel(
+        #     output_channel=output_channel, pretrain=False)
+        
+
+
+        self.generator = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
+                                   output_channel)
+
+        self.linear = nn.Linear(
+            window*mm_params["d_model"]*2, sfm_params["d_model"])
+        self.softmax = nn.Softmax(dim=1)
+
+        self.generator_image = nn.Linear(
+            mm_params["d_model"]*window, mm_params["d_model"])
+
+        self.generator_phys = nn.Linear(
+            sfm_params["d_model"]*window, sfm_params["d_model"])
+        self.relu = torch.nn.ReLU()
+        self.linear_in_1 = torch.nn.Linear(
+            input_channel, sfm_params["d_model"])  # 79 -> 128
+        self.bn1 = torch.nn.BatchNorm1d(window)  # 128
+
+        mae = MaskedAutoEncoder()
+        self.mae_encoder = mae.get_model()
+        self.mae_encoder.set_train_flag_encoeder()
+
+    def forward(self, img_list, feat):
+        # img_feat[bs, k, mm_d_model]
+        for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
+            # import numpy as np
+            # print(np.max(img.cpu().numpy()))
+            # import cv2
+            # x = np.empty((256,256,3))
+            # for i in range(3): x[:,:,i] = img[0,:,:].cpu().numpy()
+            # # print(result.shape)
+            # cv2.namedWindow('window')
+            # cv2.imshow('window', x)
+            # cv2.waitKey(0)
+            # cv2.destroyAllWindows()
+            # assert np.max(img.cpu().numpy()) <= 1
+            latent, _, _ = self.mae_encoder.forward_encoder(img, 0)
+            img_output = latent[:,0,:] # CLSトークンのみ使用
+            # exit(0)
+            if i == 0:
+                img_feat = img_output.unsqueeze(0)
+            else:
+                img_feat = torch.cat(
+                    [img_feat, img_output.unsqueeze(0)], dim=0)
+         
+        # mae_feat = mae_feat.cuda()
+        # img_feat = torch.cat([img_feat, mae_feat], dim=2) # 1024 + 128
+
+        # physical feat
+        phys_feat = self.linear_in_1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+
+        # concat
+        # print(img_feat.shape,phys_feat.shape)  # maeをconcatしたら: torch.Size([8, 4, 1152]) torch.Size([8, 4, 128])
+        merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+        # print(img_feat.shape,phys_feat.shape,merged_feat.shape)
+
+        # SFM
+        feat_output = self.sunspot_feature_module(phys_feat, merged_feat)  # todo: なんかここでエラーでるので修正する
+        feat_output = torch.flatten(feat_output, 1, 2)  # [bs, k*SFM_d_model]
+        feat_output = self.generator_phys(feat_output)  # [bs, SFM_d_model]
+
+        # MM
+        img_output = self.magnetogram_module(img_feat, merged_feat)  #
+        img_output = torch.flatten(img_output, 1, 2)  # [bs, k*SFM_d_model]
+        img_output = self.generator_image(img_output)  # [bs, MM_d_model]
+
+        # Late fusion
+        output = torch.cat((feat_output, img_output), 1)
+        output = self.generator(output)
+
+        output = self.softmax(output)
+
+        return output
+
+class FlareTransformerViTWithMaeAndPositionalEncoding(nn.Module): # MAEで事前学習させたViTで書き換えたFT
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24):
+        super(FlareTransformerViTWithMaeAndPositionalEncoding, self).__init__()
+
+        # mae_dim = 128
+        # mm_params["d_model"] += mae_dim
+        # sfm_params["d_model"] += mae_dim # こっちにも足しておかないとattentionの内積が計算できない
+
+       
+        self.mm_pos_encoder = PositionalEncoding(mm_params["d_model"], mm_params["dropout"])
+        self.sfm_pos_encoder = PositionalEncoding(sfm_params["d_model"], sfm_params["dropout"])
+
+        # Informer
+        self.magnetogram_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
+                           d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
+            mm_params["d_model"],
+            mm_params["d_ff"],
+            dropout=mm_params["dropout"],
+            activation="relu"
+        )
+
+        self.sunspot_feature_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
+                           d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
+            sfm_params["d_model"],
+            sfm_params["d_ff"],
+            dropout=sfm_params["dropout"],
+            activation="relu"
+        )
+
+        # Image Feature Extractor
         self.magnetogram_feature_extractor = CNNModel(
             output_channel=output_channel, pretrain=False)
         
@@ -712,6 +825,111 @@ class FlareTransformerReplacedViTWithMAE(nn.Module): # MAEで事前学習させ�
         mae = MaskedAutoEncoder()
         self.mae_encoder = mae.get_model()
         self.mae_encoder.set_train_flag_encoeder()
+
+    def forward(self, img_list, feat):
+        # img_feat[bs, k, mm_d_model]
+        for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
+            latent, _, _ = self.mae_encoder.forward_encoder(img, 0)
+            img_output = latent[:,0,:] # CLSトークンのみ使用
+            # exit(0)
+            if i == 0:
+                img_feat = img_output.unsqueeze(0)
+            else:
+                img_feat = torch.cat(
+                    [img_feat, img_output.unsqueeze(0)], dim=0)
+         
+        # mae_feat = mae_feat.cuda()
+        # img_feat = torch.cat([img_feat, mae_feat], dim=2) # 1024 + 128
+
+        # physical feat
+        phys_feat = self.linear_in_1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+
+        img_feat = self.mm_pos_encoder(img_feat)
+        phys_feat = self.sfm_pos_encoder(phys_feat)
+
+        # concat
+        # print(img_feat.shape,phys_feat.shape)  # maeをconcatしたら: torch.Size([8, 4, 1152]) torch.Size([8, 4, 128])
+        merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+        # print(img_feat.shape,phys_feat.shape,merged_feat.shape)
+
+        # SFM
+        feat_output = self.sunspot_feature_module(phys_feat, merged_feat)  # todo: なんかここでエラーでるので修正する
+        feat_output = torch.flatten(feat_output, 1, 2)  # [bs, k*SFM_d_model]
+        feat_output = self.generator_phys(feat_output)  # [bs, SFM_d_model]
+
+        # MM
+        img_output = self.magnetogram_module(img_feat, merged_feat)  #
+        img_output = torch.flatten(img_output, 1, 2)  # [bs, k*SFM_d_model]
+        img_output = self.generator_image(img_output)  # [bs, MM_d_model]
+
+        # Late fusion
+        output = torch.cat((feat_output, img_output), 1)
+        output = self.generator(output)
+
+        output = self.softmax(output)
+
+        return output
+
+
+
+
+class FlareTransformerReplacedFreezeViTWithMAE(nn.Module):
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24):
+        super(FlareTransformerReplacedFreezeViTWithMAE, self).__init__()
+
+        # mae_dim = 128
+        # mm_params["d_model"] += mae_dim
+        # sfm_params["d_model"] += mae_dim # こっちにも足しておかないとattentionの内積が計算できない
+
+        # Informer
+        self.magnetogram_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
+                           d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
+            mm_params["d_model"],
+            mm_params["d_ff"],
+            dropout=mm_params["dropout"],
+            activation="relu"
+        )
+
+        self.sunspot_feature_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
+                           d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
+            sfm_params["d_model"],
+            sfm_params["d_ff"],
+            dropout=sfm_params["dropout"],
+            activation="relu"
+        )
+
+        # Image Feature Extractor
+        # self.magnetogram_feature_extractor = CNNModel(
+        #     output_channel=output_channel, pretrain=False)
+        
+
+
+        self.generator = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
+                                   output_channel)
+
+        self.linear = nn.Linear(
+            window*mm_params["d_model"]*2, sfm_params["d_model"])
+        self.softmax = nn.Softmax(dim=1)
+
+        self.generator_image = nn.Linear(
+            mm_params["d_model"]*window, mm_params["d_model"])
+
+        self.generator_phys = nn.Linear(
+            sfm_params["d_model"]*window, sfm_params["d_model"])
+        self.relu = torch.nn.ReLU()
+        self.linear_in_1 = torch.nn.Linear(
+            input_channel, sfm_params["d_model"])  # 79 -> 128
+        self.bn1 = torch.nn.BatchNorm1d(window)  # 128
+
+        mae = MaskedAutoEncoder()
+        self.mae_encoder = mae.get_model()
+        self.mae_encoder.set_train_flag_encoeder()
+        for param in self.mae_encoder.parameters():
+            param.requires_grad = False
 
     def forward(self, img_list, feat):
         # img_feat[bs, k, mm_d_model]
