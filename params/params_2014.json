@@ -1,8 +1,8 @@
 {
-    "wandb_name": "id13-4b_2014_with_mae",
+    "wandb_name": "id13-4b_2014_256x256_lr0.0000021",
     "epochs": 40,
-    "lr": 0.0000007,
-    "bs":10,
+    "lr": 0.0000021,
+    "bs":128,
     "lambda": {
         "GMGS": 0.0001,
         "BS": 10

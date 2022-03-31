@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import wandb
 
-from src.model import FlareTransformer, FlareTransformerLikeViLBERT, FlareTransformerReplacedFreezeViTWithMAE, FlareTransformerReplacedViTWithMAE, FlareTransformerWithMAE, FlareTransformerWithPositonalEncoding, FlareTransformerWithoutMM, FlareTransformerWithoutPE, PureTransformerSFM
+from src.model import FlareTransformer, FlareTransformerLikeViLBERT, FlareTransformerReplacedFreezeViTWithMAE, FlareTransformerReplacedViTWithMAE, FlareTransformerWithConvNext, FlareTransformerWithMAE, FlareTransformerWithPositonalEncoding, FlareTransformerWithoutMM, FlareTransformerWithoutPE, PureTransformerSFM
 from src.Dataloader import CombineDataloader, TrainDataloader, TrainDataloader256
 from src.eval_utils import calc_score
 from src.BalancedBatchSampler import TrainBalancedBatchSampler
@@ -129,6 +129,52 @@ def eval_epoch(model, validation_dl):
                            params["dataset"]["climatology"])
         score = calc_test_score(score, "valid")
     return score, valid_loss/n
+
+
+
+
+def calc_model_update(model, dl,model_update_dict): # モデルの更新量を計算する
+    model.eval()
+    with torch.no_grad():
+        for _, (x, y, feat) in enumerate(tqdm(dl)):
+            x = x.cuda().to(torch.float)
+            feat = feat.cuda().to(torch.float)
+            mm_extractor = model.forward_mm_feature_extractor
+            sfm_extractor = model.forward_sfm_feature_extractor
+            mm_output = mm_extractor(x,feat).cpu().numpy() # (B, W, d_model)
+            sfm_output = sfm_extractor(x,feat).cpu().numpy()
+            # mm_mean = mm_output.cpu().numpy().mean(axis=0)
+            # sfm_mean = sfm_output.cpu().numpy().mean(axis=0)
+
+            # print(mm_output.shape)
+            # print(sfm_output.shape)
+            
+            if "mm" not in model_update_dict: model_update_dict["mm"] = [mm_output]
+            else:
+                z = model_update_dict["mm"][0]
+                z = z - mm_output
+                t = [np.linalg.norm(z[i,0,:]) for i in range(z.shape[0])] # ウィンドウのheadだけ
+                model_update_dict["mm"].append(np.mean(t))
+
+            if "sfm" not in model_update_dict: model_update_dict["sfm"] = [sfm_output]
+            else:
+                z = model_update_dict["sfm"][0]
+                z = z - sfm_output
+                t = [np.linalg.norm(z[i,0,:]) for i in range(z.shape[0])] # ウィンドウのheadだけ
+                model_update_dict["sfm"].append(np.mean(t))
+
+            break
+        # for pred, o in zip(output.cpu().numpy().tolist(),
+        #                     y.numpy().tolist()):
+        #     predictions.append(pred)
+        #     observations.append(np.argmax(o))
+
+    print("+-- model update --+")
+    for k,v in model_update_dict.items():
+        print(f" {k} = ", end='')
+        print(v[1:])
+
+    print("+------------------+\n")
 
 
 def test_epoch(model, test_dl):
@@ -249,6 +295,7 @@ if __name__ == "__main__":
     best_score = {}
     best_score["valid_"+params["main_metric"]] = -10
     best_epoch = 0
+    model_update_dict = {}
     for e, epoch in enumerate(range(params["epochs"])):
         print("====== Epoch ", e, " ======")
         train_score, train_loss = train_epoch(model, train_dl)
@@ -274,6 +321,8 @@ if __name__ == "__main__":
 
         print("Epoch {}: Train loss:{:.4f}  Valid loss:{:.4f}".format(
               e, train_loss, valid_loss), test_score)
+
+        calc_model_update(model,train_dl,model_update_dict)
 
     # Output Test Score
     print("========== TEST ===========")
