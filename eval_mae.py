@@ -1,10 +1,23 @@
 from mae.prod.eval import *
+from train_mae import FashionMnistDataLoader
+import argparse
+
+parser = argparse.ArgumentParser('MAE pre-training', add_help=False)
+parser.add_argument('--input_size', default=256, type=int)
+parser.add_argument('--checkpoint', default=10, type=int)
+parser.add_argument('--baseline', default="linear")
+args = parser.parse_args()
 
 dl = TrainDataloader()
 img, _ = dl[0]
 img = img.transpose((1, 2, 0))
-# img = resize(img,(224,224))
-print(img.shape)
+
+
+# dl = FashionMnistDataLoader()
+# img, _, _ = dl[0]
+# print(img.shape)
+# img = img.transpose(0,1).transpose(1,2)
+# print(img.shape)
 
 # assert img.shape == (224, 224, 3)
 
@@ -22,8 +35,10 @@ show_image(torch.tensor(img))
 # download checkpoint if not exist
 # !wget -nc https://dl.fbaipublicfiles.com/mae/visualize/mae_visualize_vit_large.pth
  
-chkpt_dir = '/home/initial/Dropbox/flare_transformer/output_dir/checkpoint-10.pth'
-model_mae = prepare_model(chkpt_dir)
+chkpt_dir = f'/home/initial/workspace/flare_transformer/output_dir/checkpoint-{args.checkpoint}.pth'
+# chkpt_dir = f'/home/initial/Dropbox/flare_transformer/output_dir/attn/checkpoint-5.pth'
+
+model_mae = prepare_model(chkpt_dir,img_size=args.input_size,baseline=args.baseline)
 print('Model loaded.')
 
 # make random mask reproducible (comment out to make it change)

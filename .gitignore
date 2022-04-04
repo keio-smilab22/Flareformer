@@ -8,3 +8,5 @@ __pycache__/
 .pth
 .json
 output_dir/
+*.log
+.tmp0.txt

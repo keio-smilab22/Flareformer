@@ -1,6 +1,4 @@
-==========================================
-{'wandb_name': 'id13-4b_2014_with_mae', 'epochs': 40, 'lr': 7e-07, 'bs': 19, 'lambda': {'GMGS': 0.0001, 'BS': 10}, 'save_model_path': 'models/id1-4b.pth', 'dataset': {'window': 4, 'year_split': {'train': {'start': 2010, 'end': 2013}, 'valid': {'start': 2014, 'end': 2014}, 'test': {'start': 2014, 'end': 2014}}, 'mean': 91.0729, 'std': 57.5899, 'GMGS_score_matrix': [[0.32253222, -0.29649121, -0.66356076, -1], [-0.29649121, 0.42576394, 0.05869439, -0.27774485], [-0.66356076, 0.05869439, 3.68555451, 3.34911527], [-1, -0.27774485, 3.34911527, 39.45652268]], 'climatology': [0.9081, 0.0919]}, 'MM': {'N': 1, 'd_model': 128, 'h': 4, 'd_ff': 16, 'dropout': 0.1}, 'SFM': {'N': 1, 'd_model': 128, 'h': 4, 'd_ff': 16, 'dropout': 0.1}, 'input_channel': 90, 'output_channel': 4, 'main_metric': 'GMGS'}
-==========================================
+loading images ...
 data/data_2010_label.csv
 data/data_2011_label.csv
 data/data_2012_label.csv
@@ -14,120 +12,300 @@ data/data_2011_window_48.csv
 data/data_2012_window_48.csv
 data/data_2013_window_48.csv
 img: torch.Size([29247, 1, 256, 256]) label: (29247, 4) feat: (29247, 90) window: (29247, 4)
-Calculating std :  0 / 1
-Calculating std :  1 / 1
 0.35716575 0.22504742444964324
-data/data_2014_label.csv
-data/data_2014_feat.csv
-data/data_2014_window_48.csv
-img: torch.Size([8127, 1, 256, 256]) label: (8127, 4) feat: (8127, 90) window: (8127, 4)
-data/data_2014_label.csv
-data/data_2014_feat.csv
-data/data_2014_window_48.csv
-img: torch.Size([8127, 1, 256, 256]) label: (8127, 4) feat: (8127, 90) window: (8127, 4)
-Batch Sampling
-<All keys matched successfully>
+job dir: /home/initial/Dropbox/flare_transformer/mae/prod
+Namespace(accum_iter=1,
+baseline='lambda',
+batch_size=23,
+batch_size_search=False,
+blr=0.001,
+device='cuda',
+epochs=40,
+input_size=256,
+lr=0.0002,
+mask_ratio=0.75,
+min_lr=0.0,
+model='vit_for_FT',
+norm_pix_loss=False,
+num_workers=10,
+output_dir='output_dir',
+pin_mem=True,
+seed=0,
+wandb=True,
+warmup_epochs=40,
+weight_decay=0.05)
+Sampler_train = <torch.utils.data.distributed.DistributedSampler object at 0x7fc408e1c580>
 =================================================================
 Layer (type:depth-idx)                   Param #
 =================================================================
-FlareTransformerReplacedViTWithMAE       --
-├─InformerEncoderLayer: 1-1              --
-│    └─AttentionLayer: 2-1               --
-│    │    └─ProbAttention: 3-1           --
-│    │    └─Linear: 3-2                  16,512
-│    │    └─Linear: 3-3                  16,512
-│    │    └─Linear: 3-4                  16,512
-│    │    └─Linear: 3-5                  16,512
-│    └─Conv1d: 2-2                       2,064
-│    └─Conv1d: 2-3                       2,176
-│    └─LayerNorm: 2-4                    256
-│    └─LayerNorm: 2-5                    256
-│    └─Dropout: 2-6                      --
-├─InformerEncoderLayer: 1-2              --
-│    └─AttentionLayer: 2-7               --
-│    │    └─ProbAttention: 3-6           --
-│    │    └─Linear: 3-7                  16,512
-│    │    └─Linear: 3-8                  16,512
-│    │    └─Linear: 3-9                  16,512
-│    │    └─Linear: 3-10                 16,512
-│    └─Conv1d: 2-8                       2,064
-│    └─Conv1d: 2-9                       2,176
-│    └─LayerNorm: 2-10                   256
-│    └─LayerNorm: 2-11                   256
-│    └─Dropout: 2-12                     --
-├─CNNModel: 1-3                          --
-│    └─Conv2d: 2-13                      784
-│    └─BatchNorm2d: 2-14                 32
-│    └─ReLU: 2-15                        --
-│    └─MaxPool2d: 2-16                   --
-│    └─Bottleneck: 2-17                  --
-│    │    └─Conv2d: 3-11                 128
-│    │    └─BatchNorm2d: 3-12            16
-│    │    └─Conv2d: 3-13                 576
-│    │    └─BatchNorm2d: 3-14            16
-│    │    └─Conv2d: 3-15                 256
-│    │    └─BatchNorm2d: 3-16            64
-│    │    └─ReLU: 3-17                   --
-│    │    └─Sequential: 3-18             576
-│    └─AdaptiveAvgPool2d: 2-18           --
-│    └─Flatten: 2-19                     --
-│    └─Softmax: 2-20                     --
-│    └─Linear: 2-21                      4,128
-│    └─Linear: 2-22                      132
-│    └─BatchNorm2d: 2-23                 64
-│    └─Dropout: 2-24                     --
-├─Linear: 1-4                            1,028
-├─Linear: 1-5                            131,200
-├─Softmax: 1-6                           --
-├─Linear: 1-7                            65,664
-├─Linear: 1-8                            65,664
-├─ReLU: 1-9                              --
-├─Linear: 1-10                           11,648
-├─BatchNorm1d: 1-11                      8
-├─MaskedAutoencoderViT: 1-12             --
-│    └─PatchEmbed: 2-25                  --
-│    │    └─Conv2d: 3-19                 32,896
-│    └─ModuleList: 2-26                  --
-│    │    └─Block: 3-20                  198,272
-│    │    └─Block: 3-21                  198,272
-│    │    └─Block: 3-22                  198,272
-│    │    └─Block: 3-23                  198,272
-│    │    └─Block: 3-24                  198,272
-│    │    └─Block: 3-25                  198,272
-│    │    └─Block: 3-26                  198,272
-│    │    └─Block: 3-27                  198,272
-│    │    └─Block: 3-28                  198,272
-│    │    └─Block: 3-29                  198,272
-│    │    └─Block: 3-30                  198,272
-│    │    └─Block: 3-31                  198,272
-│    │    └─Block: 3-32                  198,272
-│    │    └─Block: 3-33                  198,272
-│    │    └─Block: 3-34                  198,272
-│    │    └─Block: 3-35                  198,272
-│    │    └─Block: 3-36                  198,272
-│    │    └─Block: 3-37                  198,272
-│    │    └─Block: 3-38                  198,272
-│    │    └─Block: 3-39                  198,272
-│    │    └─Block: 3-40                  198,272
-│    │    └─Block: 3-41                  198,272
-│    │    └─Block: 3-42                  198,272
-│    │    └─Block: 3-43                  198,272
-│    └─LayerNorm: 2-27                   256
-│    └─Linear: 2-28                      66,048
-│    └─ModuleList: 2-29                  --
-│    │    └─Block: 3-44                  3,152,384
-│    │    └─Block: 3-45                  3,152,384
-│    │    └─Block: 3-46                  3,152,384
-│    │    └─Block: 3-47                  3,152,384
-│    │    └─Block: 3-48                  3,152,384
-│    │    └─Block: 3-49                  3,152,384
-│    │    └─Block: 3-50                  3,152,384
-│    │    └─Block: 3-51                  3,152,384
-│    └─LayerNorm: 2-30                   1,024
-│    └─Linear: 2-31                      131,328
+MaskedAutoencoderViT                     --
+├─PatchEmbed: 1-1                        --
+│    └─Conv2d: 2-1                       33,280
+│    └─Identity: 2-2                     --
+├─ModuleList: 1-2                        --
+│    └─Block: 2-3                        --
+│    │    └─LayerNorm: 3-1               1,024
+│    │    └─LambdaLayer: 3-2             108,192
+│    │    └─Identity: 3-3                --
+│    │    └─Identity: 3-4                --
+│    │    └─LayerNorm: 3-5               1,024
+│    │    └─Mlp: 3-6                     2,099,712
+│    │    └─Identity: 3-7                --
+│    │    └─Identity: 3-8                --
+│    └─Block: 2-4                        --
+│    │    └─LayerNorm: 3-9               1,024
+│    │    └─LambdaLayer: 3-10            108,192
+│    │    └─Identity: 3-11               --
+│    │    └─Identity: 3-12               --
+│    │    └─LayerNorm: 3-13              1,024
+│    │    └─Mlp: 3-14                    2,099,712
+│    │    └─Identity: 3-15               --
+│    │    └─Identity: 3-16               --
+│    └─Block: 2-5                        --
+│    │    └─LayerNorm: 3-17              1,024
+│    │    └─LambdaLayer: 3-18            108,192
+│    │    └─Identity: 3-19               --
+│    │    └─Identity: 3-20               --
+│    │    └─LayerNorm: 3-21              1,024
+│    │    └─Mlp: 3-22                    2,099,712
+│    │    └─Identity: 3-23               --
+│    │    └─Identity: 3-24               --
+│    └─Block: 2-6                        --
+│    │    └─LayerNorm: 3-25              1,024
+│    │    └─LambdaLayer: 3-26            108,192
+│    │    └─Identity: 3-27               --
+│    │    └─Identity: 3-28               --
+│    │    └─LayerNorm: 3-29              1,024
+│    │    └─Mlp: 3-30                    2,099,712
+│    │    └─Identity: 3-31               --
+│    │    └─Identity: 3-32               --
+│    └─Block: 2-7                        --
+│    │    └─LayerNorm: 3-33              1,024
+│    │    └─LambdaLayer: 3-34            108,192
+│    │    └─Identity: 3-35               --
+│    │    └─Identity: 3-36               --
+│    │    └─LayerNorm: 3-37              1,024
+│    │    └─Mlp: 3-38                    2,099,712
+│    │    └─Identity: 3-39               --
+│    │    └─Identity: 3-40               --
+│    └─Block: 2-8                        --
+│    │    └─LayerNorm: 3-41              1,024
+│    │    └─LambdaLayer: 3-42            108,192
+│    │    └─Identity: 3-43               --
+│    │    └─Identity: 3-44               --
+│    │    └─LayerNorm: 3-45              1,024
+│    │    └─Mlp: 3-46                    2,099,712
+│    │    └─Identity: 3-47               --
+│    │    └─Identity: 3-48               --
+│    └─Block: 2-9                        --
+│    │    └─LayerNorm: 3-49              1,024
+│    │    └─LambdaLayer: 3-50            108,192
+│    │    └─Identity: 3-51               --
+│    │    └─Identity: 3-52               --
+│    │    └─LayerNorm: 3-53              1,024
+│    │    └─Mlp: 3-54                    2,099,712
+│    │    └─Identity: 3-55               --
+│    │    └─Identity: 3-56               --
+│    └─Block: 2-10                       --
+│    │    └─LayerNorm: 3-57              1,024
+│    │    └─LambdaLayer: 3-58            108,192
+│    │    └─Identity: 3-59               --
+│    │    └─Identity: 3-60               --
+│    │    └─LayerNorm: 3-61              1,024
+│    │    └─Mlp: 3-62                    2,099,712
+│    │    └─Identity: 3-63               --
+│    │    └─Identity: 3-64               --
+│    └─Block: 2-11                       --
+│    │    └─LayerNorm: 3-65              1,024
+│    │    └─LambdaLayer: 3-66            108,192
+│    │    └─Identity: 3-67               --
+│    │    └─Identity: 3-68               --
+│    │    └─LayerNorm: 3-69              1,024
+│    │    └─Mlp: 3-70                    2,099,712
+│    │    └─Identity: 3-71               --
+│    │    └─Identity: 3-72               --
+│    └─Block: 2-12                       --
+│    │    └─LayerNorm: 3-73              1,024
+│    │    └─LambdaLayer: 3-74            108,192
+│    │    └─Identity: 3-75               --
+│    │    └─Identity: 3-76               --
+│    │    └─LayerNorm: 3-77              1,024
+│    │    └─Mlp: 3-78                    2,099,712
+│    │    └─Identity: 3-79               --
+│    │    └─Identity: 3-80               --
+│    └─Block: 2-13                       --
+│    │    └─LayerNorm: 3-81              1,024
+│    │    └─LambdaLayer: 3-82            108,192
+│    │    └─Identity: 3-83               --
+│    │    └─Identity: 3-84               --
+│    │    └─LayerNorm: 3-85              1,024
+│    │    └─Mlp: 3-86                    2,099,712
+│    │    └─Identity: 3-87               --
+│    │    └─Identity: 3-88               --
+│    └─Block: 2-14                       --
+│    │    └─LayerNorm: 3-89              1,024
+│    │    └─LambdaLayer: 3-90            108,192
+│    │    └─Identity: 3-91               --
+│    │    └─Identity: 3-92               --
+│    │    └─LayerNorm: 3-93              1,024
+│    │    └─Mlp: 3-94                    2,099,712
+│    │    └─Identity: 3-95               --
+│    │    └─Identity: 3-96               --
+├─LayerNorm: 1-3                         1,024
+├─Linear: 1-4                            262,656
+├─ModuleList: 1-5                        --
+│    └─Block: 2-15                       --
+│    │    └─LayerNorm: 3-97              1,024
+│    │    └─LambdaLayer: 3-98            108,192
+│    │    └─Identity: 3-99               --
+│    │    └─Identity: 3-100              --
+│    │    └─LayerNorm: 3-101             1,024
+│    │    └─Mlp: 3-102                   2,099,712
+│    │    └─Identity: 3-103              --
+│    │    └─Identity: 3-104              --
+│    └─Block: 2-16                       --
+│    │    └─LayerNorm: 3-105             1,024
+│    │    └─LambdaLayer: 3-106           108,192
+│    │    └─Identity: 3-107              --
+│    │    └─Identity: 3-108              --
+│    │    └─LayerNorm: 3-109             1,024
+│    │    └─Mlp: 3-110                   2,099,712
+│    │    └─Identity: 3-111              --
+│    │    └─Identity: 3-112              --
+│    └─Block: 2-17                       --
+│    │    └─LayerNorm: 3-113             1,024
+│    │    └─LambdaLayer: 3-114           108,192
+│    │    └─Identity: 3-115              --
+│    │    └─Identity: 3-116              --
+│    │    └─LayerNorm: 3-117             1,024
+│    │    └─Mlp: 3-118                   2,099,712
+│    │    └─Identity: 3-119              --
+│    │    └─Identity: 3-120              --
+│    └─Block: 2-18                       --
+│    │    └─LayerNorm: 3-121             1,024
+│    │    └─LambdaLayer: 3-122           108,192
+│    │    └─Identity: 3-123              --
+│    │    └─Identity: 3-124              --
+│    │    └─LayerNorm: 3-125             1,024
+│    │    └─Mlp: 3-126                   2,099,712
+│    │    └─Identity: 3-127              --
+│    │    └─Identity: 3-128              --
+│    └─Block: 2-19                       --
+│    │    └─LayerNorm: 3-129             1,024
+│    │    └─LambdaLayer: 3-130           108,192
+│    │    └─Identity: 3-131              --
+│    │    └─Identity: 3-132              --
+│    │    └─LayerNorm: 3-133             1,024
+│    │    └─Mlp: 3-134                   2,099,712
+│    │    └─Identity: 3-135              --
+│    │    └─Identity: 3-136              --
+│    └─Block: 2-20                       --
+│    │    └─LayerNorm: 3-137             1,024
+│    │    └─LambdaLayer: 3-138           108,192
+│    │    └─Identity: 3-139              --
+│    │    └─Identity: 3-140              --
+│    │    └─LayerNorm: 3-141             1,024
+│    │    └─Mlp: 3-142                   2,099,712
+│    │    └─Identity: 3-143              --
+│    │    └─Identity: 3-144              --
+│    └─Block: 2-21                       --
+│    │    └─LayerNorm: 3-145             1,024
+│    │    └─LambdaLayer: 3-146           108,192
+│    │    └─Identity: 3-147              --
+│    │    └─Identity: 3-148              --
+│    │    └─LayerNorm: 3-149             1,024
+│    │    └─Mlp: 3-150                   2,099,712
+│    │    └─Identity: 3-151              --
+│    │    └─Identity: 3-152              --
+│    └─Block: 2-22                       --
+│    │    └─LayerNorm: 3-153             1,024
+│    │    └─LambdaLayer: 3-154           108,192
+│    │    └─Identity: 3-155              --
+│    │    └─Identity: 3-156              --
+│    │    └─LayerNorm: 3-157             1,024
+│    │    └─Mlp: 3-158                   2,099,712
+│    │    └─Identity: 3-159              --
+│    │    └─Identity: 3-160              --
+├─LayerNorm: 1-6                         1,024
+├─Linear: 1-7                            32,832
 =================================================================
-Total params: 30,632,736
-Trainable params: 30,632,736
+Total params: 44,529,856
+Trainable params: 44,529,856
 Non-trainable params: 0
 =================================================================
-====== Epoch  0  ======
+base lr: 2.23e-03
+actual lr: 2.00e-04
+accumulate grad iterations: 1
+effective batch size: 23
+Start training for 40 epochs
+====== Epoch  1  ======
+time: 433.353s
+====== Epoch  2  ======
+time: 432.276s
+====== Epoch  3  ======
+time: 433.131s
+====== Epoch  4  ======
+time: 432.974s
+====== Epoch  5  ======
+time: 432.780s
+====== Epoch  6  ======
+time: 432.372s
+====== Epoch  7  ======
+time: 432.597s
+====== Epoch  8  ======
+time: 432.789s
+====== Epoch  9  ======
+time: 432.486s
+====== Epoch  10  ======
+time: 432.076s
+====== Epoch  11  ======
+time: 432.760s
+====== Epoch  12  ======
+time: 432.430s
+====== Epoch  13  ======
+time: 433.018s
+====== Epoch  14  ======
+time: 432.877s
+====== Epoch  15  ======
+time: 432.643s
+====== Epoch  16  ======
+time: 432.250s
+====== Epoch  17  ======
+time: 432.496s
+====== Epoch  18  ======
+time: 432.987s
+====== Epoch  19  ======
+time: 432.696s
+====== Epoch  20  ======
+time: 433.445s
+====== Epoch  21  ======
+time: 432.909s
+====== Epoch  22  ======
+time: 432.399s
+====== Epoch  23  ======
+time: 432.355s
+====== Epoch  24  ======
+time: 432.728s
+====== Epoch  25  ======
+time: 433.412s
+====== Epoch  26  ======
+time: 432.318s
+====== Epoch  27  ======
+time: 432.764s
+====== Epoch  28  ======
+time: 432.613s
+====== Epoch  29  ======
+time: 433.076s
+====== Epoch  30  ======
+time: 433.333s
+====== Epoch  31  ======
+time: 432.432s
+====== Epoch  32  ======
+time: 433.126s
+====== Epoch  33  ======
+time: 432.725s
+====== Epoch  34  ======
+time: 433.574s
+====== Epoch  35  ======
+time: 432.672s
+====== Epoch  36  ======

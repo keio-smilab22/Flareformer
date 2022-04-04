@@ -99,3 +99,64 @@ config.yaml: Something changed!
 killed process.
 v1: execute 'python ../flare_transformer/train.py --params params/params_2014.json --wandb'
 config.yaml: Something changed!
+peephole server is started ... !
+config.yaml: Something changed!
+killed process.
+v2: execute 'python ../flare_transformer/train.py --params params/params_2014.json --wandb'
+config.yaml: Something changed!
+killed process.
+current state: inactive
+config.yaml: Something changed!
+killed process.
+current state: inactive
+config.yaml: Something changed!
+killed process.
+v3: execute 'python ../flare_transformer/train.py --params params/params_2014.json --wandb'
+config.yaml: Something changed!
+killed process.
+v4: execute 'python ../flare_transformer/train.py --params params/params_2014.json --wandb'
+config.yaml: Something changed!
+killed process.
+v5: execute 'python ../flare_transformer/train_mae.py'
+config.yaml: Something changed!
+killed process.
+current state: inactive
+config.yaml: Something changed!
+killed process.
+current state: inactive
+config.yaml: Something changed!
+killed process.
+current state: inactive
+config.yaml: Something changed!
+killed process.
+current state: inactive
+config.yaml: Something changed!
+killed process.
+v7: execute 'python ../train_mae.py --input_size=256 --epoch=20 --batch_size=13 --baseline=attn --wandb'
+config.yaml: Something changed!
+killed process.
+current state: inactive
+config.yaml: Something changed!
+killed process.
+v7: execute 'python ../flare_transformer/train_mae.py --input_size=256 --epoch=20 --batch_size=13 --baseline=attn --wandb'
+config.yaml: Something changed!
+killed process.
+v7: execute 'python ../flare_transformer/train_mae.py --input_size=256 --epoch=20 --batch_size=13 --baseline=attn --output_dir=output_dir --wandb'
+config.yaml: Something changed!
+killed process.
+v7: execute 'python ../flare_transformer/train_mae.py --input_size=256 --epoch=20 --batch_size=28 --baseline=lambda --output_dir=output_dir --wandb'
+config.yaml: Something changed!
+killed process.
+v7: execute 'python ../flare_transformer/train_mae.py --input_size=256 --epoch=20 --batch_size=47 --baseline=linear --output_dir=output_dir --wandb'
+config.yaml: Something changed!
+killed process.
+v7: execute 'python ../flare_transformer/binsearch.py'
+config.yaml: Something changed!
+killed process.
+v7: execute 'python ../flare_transformer/train_mae.py --input_size=256 --epoch=40 --batch_size=23 --baseline=linear --output_dir=output_dir --wandb'
+config.yaml: Something changed!
+killed process.
+v7: execute 'python ../flare_transformer/train_mae.py --input_size=256 --epoch=40 --batch_size=23 --baseline=attn --output_dir=output_dir --wandb'
+config.yaml: Something changed!
+killed process.
+v7: execute 'python ../flare_transformer/train_mae.py --input_size=256 --epoch=40 --batch_size=23 --baseline=lambda --output_dir=output_dir --wandb'

@@ -25,9 +25,13 @@ from pathlib import Path
 import torch
 import torch.backends.cudnn as cudnn
 import wandb
+from torchinfo import summary
+
 
 import timm
-assert timm.__version__ == "0.3.2"  # version check
+# assert timm.__version__ == "0.3.2"  # version check
+
+import colored_traceback.always
 
 
 def adjust_learning_rate(optimizer, epoch, args):
@@ -131,6 +135,8 @@ def train_one_epoch(model: torch.nn.Module,
             optimizer.zero_grad()
 
         torch.cuda.synchronize()
+        # import time
+        # time.sleep(100000)
 
         lr = optimizer.param_groups[0]["lr"]
         if (data_iter_step + 1) % accum_iter == 0:
@@ -142,6 +148,9 @@ def train_one_epoch(model: torch.nn.Module,
             # print("{:.20f}".format(lr))
             # if args.wandb: wandb.log({"epoch_1000x": epoch_1000x, "loss": loss_value_reduce})
 
+        if args.batch_size_search:
+            break
+
     # gather the stats from all processes
     return None, loss_value
 
@@ -150,10 +159,11 @@ def get_args_parser():
     parser = argparse.ArgumentParser('MAE pre-training', add_help=False)
     parser.add_argument(
         '--batch_size',
-        default=85,
+        default=130,
         type=int,
         help='Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus')
-    parser.add_argument('--epochs', default=10, type=int)
+    parser.add_argument('--epochs', default=20, type=int)
+    parser.add_argument('--baseline', default="vit")
     parser.add_argument(
         '--accum_iter',
         default=1,
@@ -198,7 +208,7 @@ def get_args_parser():
                         help='epochs to warmup LR')
 
     # Dataset parameters
-    parser.add_argument('--output_dir', default='./output_dir',
+    parser.add_argument('--output_dir', default='../../workspace/flare_transformer/output_dir',
                         help='path where to save, empty for no saving')
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
@@ -209,7 +219,8 @@ def get_args_parser():
         action='store_true',
         help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
     parser.add_argument('--no_pin_mem', action='store_false', dest='pin_mem')
-    parser.add_argument('--wandb', action='store_false')
+    parser.add_argument('--wandb', default=False, action='store_true')
+    parser.add_argument('--batch_size_search', default=False, action='store_true')
     parser.set_defaults(pin_mem=True)
 
     return parser
@@ -245,11 +256,14 @@ def main(args, dataset_train):
     )
 
     # define the model
-    model = mae.prod.models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss)
+    model = mae.prod.models_mae.__dict__[args.model](baseline=args.baseline, # attn, lambda, linear
+                                                     img_size=args.input_size,
+                                                     norm_pix_loss=args.norm_pix_loss)
     model.to(device)
 
     model_without_ddp = model
-    print("Model = %s" % str(model_without_ddp))
+    # print("Model = %s" % str(model_without_ddp))
+    summary(model)
 
     eff_batch_size = args.batch_size * args.accum_iter
 
@@ -264,22 +278,26 @@ def main(args, dataset_train):
         model_without_ddp, args.weight_decay)
 
     optimizer = torch.optim.AdamW(param_groups, lr=args.lr, betas=(0.9, 0.95))
-    print(optimizer)
+    # print(optimizer)
     loss_scaler = NativeScaler()
 
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
     if args.wandb:
         wandb.init(
-            project="flare_transformer_MAE",
-            name="mae_256x256_div255_n100")
+            project="flare_transformer_MAE_exp",
+            name=f"flare_{args.baseline}_b{args.batch_size}")
 
     for epoch in range(args.epochs):
+        print("====== Epoch ", (epoch+1), " ======")
+        epoch_start = time.time()
         _, last_loss = train_one_epoch(
             model, data_loader_train,
             optimizer, device, epoch, loss_scaler,
             args=args
         )
+        elapsed_epoch_time = time.time() - epoch_start
+        print("time:","{:.3f}s".format(elapsed_epoch_time))
 
         log = {'epoch': epoch, 'train_loss': last_loss}
         if args.wandb:
@@ -289,7 +307,7 @@ def main(args, dataset_train):
             output_dir = Path(args.output_dir)
             epoch_name = str(epoch+1)
             if loss_scaler is not None:
-                checkpoint_paths = [output_dir /
+                checkpoint_paths = [output_dir / args.baseline / 
                                     ('checkpoint-%s.pth' % epoch_name)]
                 for checkpoint_path in checkpoint_paths:
                     to_save = {
@@ -308,6 +326,8 @@ def main(args, dataset_train):
                     tag="checkpoint-%s" %
                     epoch_name,
                     client_state=client_state)
+
+            
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))

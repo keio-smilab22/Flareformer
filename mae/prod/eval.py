@@ -23,9 +23,9 @@ def show_image(image, title=''):
     plt.axis('off') 
     return
 
-def prepare_model(chkpt_dir, arch='vit_for_FT'):
+def prepare_model(chkpt_dir, img_size=256,baseline="attn", arch='vit_for_FT'):
     # build model
-    model = getattr(mae.prod.models_mae, arch)()
+    model = getattr(mae.prod.models_mae, arch)(img_size=img_size, baseline=baseline)
     # load model
     checkpoint = torch.load(chkpt_dir, map_location=torch.device('cuda'))
     msg = model.load_state_dict(checkpoint['model'], strict=False)
