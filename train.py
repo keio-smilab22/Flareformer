@@ -282,11 +282,13 @@ if __name__ == "__main__":
     gmgs_criterion = gmgs_loss_function
     bs_criterion = bs_loss_function
 
-    model = FlareTransformer(input_channel=params["input_channel"],
+    model = FlareTransformerWithMAE(input_channel=params["input_channel"],
                              output_channel=params["output_channel"],
                              sfm_params=params["SFM"],
                              mm_params=params["MM"],
-                             window=params["dataset"]["window"]).to("cuda")
+                             window=params["dataset"]["window"],
+                             baseline="linear",
+                             has_vit_head=True).to("cuda")
 
     summary(model)
     optimizer = torch.optim.Adam(model.parameters(), lr=params["lr"])
@@ -322,7 +324,7 @@ if __name__ == "__main__":
         print("Epoch {}: Train loss:{:.4f}  Valid loss:{:.4f}".format(
               e, train_loss, valid_loss), test_score)
 
-        calc_model_update(model,train_dl,model_update_dict)
+        # calc_model_update(model,train_dl,model_update_dict)
 
     # Output Test Score
     print("========== TEST ===========")

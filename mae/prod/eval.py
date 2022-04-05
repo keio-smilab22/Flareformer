@@ -29,7 +29,6 @@ def prepare_model(chkpt_dir, img_size=256,baseline="attn", arch='vit_for_FT'):
     # load model
     checkpoint = torch.load(chkpt_dir, map_location=torch.device('cuda'))
     msg = model.load_state_dict(checkpoint['model'], strict=False)
-    print(msg)
     model.cuda()
     return model
 
@@ -82,9 +81,10 @@ def run_one_image(img, model):
 
 
 class MaskedAutoEncoder:
-    def __init__(self):
-        chkpt_dir = '/home/initial/Dropbox/flare_transformer/output_dir/checkpoint-10.pth' # パス注意
-        self.model = prepare_model(chkpt_dir)
+    def __init__(self,baseline):
+        chkpt_dir = f'/home/initial/workspace/flare_transformer/output_dir/b23/{baseline}/checkpoint-40.pth' # パス注意
+        self.model = prepare_model(chkpt_dir,baseline=baseline)
+        self.dim = self.model.embed_dim
 
     def get_model(self):
         return self.model
@@ -93,66 +93,15 @@ class MaskedAutoEncoder:
         self.model.train(flag)
 
     def encode(self,img):
-        if img.shape[1] == 1:
-            img = torch.cat((img,img,img),1)
+        # if img.shape[1] == 1:
+        #     img = torch.cat((img,img,img),1)
         
-        assert img.shape[1] == 3 and img.shape[-1] == img.shape[-2], "shape: {}".format(img.shape)
-
-        # img = img.transpose((1, 2, 0))
-        # print(img.shape)
-
-        # x = torch.tensor(img)
-        # x = x.unsqueeze(dim=0)
-        # x = torch.einsum('nhwc->nchw', x)
-
-
-        # x = img.cpu()
+        # assert img.shape[1] == 3 and img.shape[-1] == img.shape[-2], "shape: {}".format(img.shape)
         x = img
-
-        # run MAE
-        # loss, y, mask = self.model(x.float(), mask_ratio=P)
         latent, _, _ = self.model.forward_encoder(x, 0)
-        # print(x.shape,latent.shape)
-        # print(latent.shape)
-        # y = self.model.unpatchify(latent)
-        # print(y.shape)
 
         return latent[:,0,:] # CLSトークンのみ使用
-        # y = torch.einsum('nchw->nhwc', y).detach().cpu()
-        # print("loss", loss)
 
-        # # visualize the mask
-        # mask = mask.detach()
-        # # (N, H*W, p*p*3)
-        # mask = mask.unsqueeze(-1).repeat(1, 1,
-        #                                 self.model.patch_embed.patch_size[0]**2 * 3)
-        # mask = self.model.unpatchify(mask)  # 1 is removing, 0 is keeping
-        # mask = torch.einsum('nchw->nhwc', mask).detach().cpu()
-
-        # x = torch.einsum('nchw->nhwc', x)
-
-        # # masked image
-        # im_masked = x * (1 - mask)
-
-        # # MAE reconstruction pasted with visible patches
-        # im_paste = x * (1 - mask) + y * mask
-
-        # # make the plt figure larger
-        # plt.rcParams['figure.figsize'] = [24, 24]
-
-        # plt.subplot(1, 4, 1)
-        # show_image(x[0], "original")
-
-        # plt.subplot(1, 4, 2)
-        # show_image(im_masked[0], "masked")
-
-        # plt.subplot(1, 4, 3)
-        # show_image(y[0], "reconstruction")
-
-        # plt.subplot(1, 4, 4)
-        # show_image(im_paste[0], "reconstruction + visible")
-
-        # plt.show()
 
 
 # dl = TrainDataloader()

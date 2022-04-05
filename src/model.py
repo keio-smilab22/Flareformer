@@ -573,13 +573,24 @@ class PositionalEncoding(nn.Module):
 
 
 class FlareTransformerWithMAE(nn.Module):  # MAEを持つFT
-    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24):
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24, baseline="attn", has_vit_head=False):
         super(FlareTransformerWithMAE, self).__init__()
 
-        mae_dim = 128
-        mm_params["d_model"] += mae_dim
-        sfm_params["d_model"] += mae_dim # こっちにも足しておかないとattentionの内積が計算できない
+        mae_encoder = MaskedAutoEncoder(baseline=baseline)
+        mae_encoder.model.requires_grad = False
 
+        if has_vit_head:
+            d_out = mm_params["d_model"]
+            self.vit_head = nn.Linear(mae_encoder.dim,d_out) # todo: window分headを用意する？
+            mm_params["d_model"] += d_out
+            sfm_params["d_model"] += d_out
+        else:
+            self.vit_head = None
+            mm_params["d_model"] += mae_encoder.dim
+            sfm_params["d_model"] += mae_encoder.dim
+
+        self.mae_encoder = mae_encoder
+        
         # Informer
         self.magnetogram_module = InformerEncoderLayer(
             AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
@@ -622,22 +633,20 @@ class FlareTransformerWithMAE(nn.Module):  # MAEを持つFT
             input_channel, sfm_params["d_model"])  # 79 -> 128
         self.bn1 = torch.nn.BatchNorm1d(window)  # 128
 
-        self.mae_encoder = MaskedAutoEncoder()
 
     def forward(self, img_list, feat): 
-        # img_feat[bs, k, mm_d_model]
+        vit_head = self.vit_head or nn.Identity()
         for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
             img_output = self.magnetogram_feature_extractor(img)
-            # exit(0)
             if i == 0:
                 img_feat = img_output.unsqueeze(0)
-                mae_feat = self.mae_encoder.encode(img).unsqueeze(0)
+                mae_feat = vit_head(self.mae_encoder.encode(img).unsqueeze(0))
             else:
                 img_feat = torch.cat(
                     [img_feat, img_output.unsqueeze(0)], dim=0)
 
                 mae_feat = torch.cat(
-                    [mae_feat, self.mae_encoder.encode(img).unsqueeze(0)], dim=0) # 1024次元の潜在ベクトル
+                    [mae_feat, vit_head(self.mae_encoder.encode(img).unsqueeze(0))], dim=0) # 1024次元の潜在ベクトル
          
         mae_feat = mae_feat.cuda()
         img_feat = torch.cat([img_feat, mae_feat], dim=2) # 1024 + 128
@@ -1212,8 +1221,6 @@ class FlareTransformerWithConvNext(nn.Module):
         output = self.softmax(output)
 
         return output
-
-
 
 
 

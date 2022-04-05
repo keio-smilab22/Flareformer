@@ -309,3 +309,14 @@ time: 433.574s
 ====== Epoch  35  ======
 time: 432.672s
 ====== Epoch  36  ======
+time: 432.978s
+====== Epoch  37  ======
+time: 433.037s
+====== Epoch  38  ======
+time: 432.776s
+====== Epoch  39  ======
+time: 432.924s
+====== Epoch  40  ======
+time: 432.905s
+Training time 4:48:36
+

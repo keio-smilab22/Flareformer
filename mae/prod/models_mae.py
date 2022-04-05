@@ -320,6 +320,7 @@ class MaskedAutoencoderViT(nn.Module):
             img_size, patch_size, in_chans, embed_dim)
         num_patches = self.patch_embed.num_patches
 
+        self.embed_dim = embed_dim
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_embed = nn.Parameter(
             torch.zeros(
