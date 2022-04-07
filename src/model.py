@@ -573,10 +573,10 @@ class PositionalEncoding(nn.Module):
 
 
 class FlareTransformerWithMAE(nn.Module):  # MAEを持つFT
-    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24, baseline="attn", has_vit_head=False):
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24, baseline="attn", embed_dim=512, has_vit_head=False):
         super(FlareTransformerWithMAE, self).__init__()
 
-        mae_encoder = MaskedAutoEncoder(baseline=baseline)
+        mae_encoder = MaskedAutoEncoder(baseline=baseline, embed_dim=embed_dim)
         mae_encoder.model.requires_grad = False
 
         if has_vit_head:
@@ -613,7 +613,6 @@ class FlareTransformerWithMAE(nn.Module):  # MAEを持つFT
         # Image Feature Extractor
         self.magnetogram_feature_extractor = CNNModel(
             output_channel=output_channel, pretrain=False)
-        
 
 
         self.generator = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
@@ -637,19 +636,18 @@ class FlareTransformerWithMAE(nn.Module):  # MAEを持つFT
     def forward(self, img_list, feat): 
         vit_head = self.vit_head or nn.Identity()
         for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
-            img_output = self.magnetogram_feature_extractor(img)
+            img_output = self.magnetogram_feature_extractor(img).unsqueeze(0)
+            vit_output = vit_head(self.mae_encoder.encode(img)).unsqueeze(0)
             if i == 0:
-                img_feat = img_output.unsqueeze(0)
-                mae_feat = vit_head(self.mae_encoder.encode(img).unsqueeze(0))
+                img_feat = img_output
+                mae_feat = vit_output
             else:
-                img_feat = torch.cat(
-                    [img_feat, img_output.unsqueeze(0)], dim=0)
-
-                mae_feat = torch.cat(
-                    [mae_feat, vit_head(self.mae_encoder.encode(img).unsqueeze(0))], dim=0) # 1024次元の潜在ベクトル
+                img_feat = torch.cat([img_feat, img_output], dim=0)
+                mae_feat = torch.cat([mae_feat, vit_output], dim=0)
          
         mae_feat = mae_feat.cuda()
-        img_feat = torch.cat([img_feat, mae_feat], dim=2) # 1024 + 128
+        img_feat = torch.cat([img_feat, mae_feat], dim=2) 
+        # img_feat = mae_feat
 
         # physical feat
         phys_feat = self.linear_in_1(feat)
@@ -657,9 +655,7 @@ class FlareTransformerWithMAE(nn.Module):  # MAEを持つFT
         phys_feat = self.relu(phys_feat)
 
         # concat
-        # print(img_feat.shape,phys_feat.shape)  # maeをconcatしたら: torch.Size([8, 4, 1152]) torch.Size([8, 4, 128])
         merged_feat = torch.cat([phys_feat, img_feat], dim=1)
-        # print(img_feat.shape,phys_feat.shape,merged_feat.shape)
 
         # SFM
         feat_output = self.sunspot_feature_module(phys_feat, merged_feat)  # todo: なんかここでエラーでるので修正する

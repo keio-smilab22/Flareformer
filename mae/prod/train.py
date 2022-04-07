@@ -163,6 +163,7 @@ def get_args_parser():
         type=int,
         help='Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus')
     parser.add_argument('--epochs', default=20, type=int)
+    parser.add_argument('--dim', default=512, type=int)
     parser.add_argument('--baseline', default="vit")
     parser.add_argument(
         '--accum_iter',
@@ -256,7 +257,8 @@ def main(args, dataset_train):
     )
 
     # define the model
-    model = mae.prod.models_mae.__dict__[args.model](baseline=args.baseline, # attn, lambda, linear
+    model = mae.prod.models_mae.__dict__[args.model](embed_dim=args.dim,
+                                                     baseline=args.baseline, # attn, lambda, linear
                                                      img_size=args.input_size,
                                                      norm_pix_loss=args.norm_pix_loss)
     model.to(device)
@@ -286,7 +288,7 @@ def main(args, dataset_train):
     if args.wandb:
         wandb.init(
             project="flare_transformer_MAE_exp",
-            name=f"flare_{args.baseline}_b{args.batch_size}")
+            name=f"flare_{args.baseline}_b{args.batch_size}_dim{args.dim}")
 
     for epoch in range(args.epochs):
         print("====== Epoch ", (epoch+1), " ======")
@@ -303,7 +305,7 @@ def main(args, dataset_train):
         if args.wandb:
             wandb.log(log)
 
-        if args.output_dir and (epoch+1) % 5 == 0:
+        if args.output_dir and ((epoch+1) == 25 or (epoch+1) == 30):
             output_dir = Path(args.output_dir)
             epoch_name = str(epoch+1)
             if loss_scaler is not None:

@@ -23,9 +23,9 @@ def show_image(image, title=''):
     plt.axis('off') 
     return
 
-def prepare_model(chkpt_dir, img_size=256,baseline="attn", arch='vit_for_FT'):
+def prepare_model(chkpt_dir, img_size=256,baseline="attn",embed_dim=512, arch='vit_for_FT'):
     # build model
-    model = getattr(mae.prod.models_mae, arch)(img_size=img_size, baseline=baseline)
+    model = getattr(mae.prod.models_mae, arch)(img_size=img_size, baseline=baseline, embed_dim=embed_dim)
     # load model
     checkpoint = torch.load(chkpt_dir, map_location=torch.device('cuda'))
     msg = model.load_state_dict(checkpoint['model'], strict=False)
@@ -81,9 +81,9 @@ def run_one_image(img, model):
 
 
 class MaskedAutoEncoder:
-    def __init__(self,baseline):
-        chkpt_dir = f'/home/initial/workspace/flare_transformer/output_dir/b23/{baseline}/checkpoint-40.pth' # パス注意
-        self.model = prepare_model(chkpt_dir,baseline=baseline)
+    def __init__(self,baseline,embed_dim):
+        chkpt_dir = f'/home/initial/Dropbox/flare_transformer/output_dir/{baseline}/checkpoint-30.pth' # パス注意
+        self.model = prepare_model(chkpt_dir,baseline=baseline,embed_dim=embed_dim)
         self.dim = self.model.embed_dim
 
     def get_model(self):
