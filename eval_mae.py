@@ -1,7 +1,9 @@
 from mae.prod.eval import *
 from train_mae import FashionMnistDataLoader
 import argparse
-from 
+import json
+from mae.prod.datasets import *
+
 
 parser = argparse.ArgumentParser('MAE pre-training', add_help=False)
 parser.add_argument('--input_size', default=256, type=int)
@@ -9,13 +11,14 @@ parser.add_argument('--checkpoint', default=10, type=int)
 parser.add_argument('--baseline', default="linear")
 args = parser.parse_args()
 
+params = json.loads(open("params/params_2014.json").read())
 # dl = TrainDataloader()
 # img, _ = dl[0]
 # img = img.transpose((1, 2, 0))
-dl = TrainDataloader256("train", params["dataset"],has_window=False)
+dl = TrainDataloader256(split="train", params=params["dataset"],has_window=False)
 dl.set_mean(*dl.calc_mean())
 
-img, _ = dl[0]
+img, _ = dl[-2]
 print(img.shape)
 img = img.transpose(0,1).transpose(1,2)
 
@@ -41,10 +44,10 @@ show_image(torch.tensor(img))
 # download checkpoint if not exist
 # !wget -nc https://dl.fbaipublicfiles.com/mae/visualize/mae_visualize_vit_large.pth
  
-chkpt_dir = f'/home/katsuyuki/temp/flare_transformer/output_dir/attn/checkpoint-20.pth'
+chkpt_dir = f'/home/katsuyuki/temp/flare_transformer/output_dir/attn/checkpoint-vit_for_FT64d4b_lkd09.pth'
 # chkpt_dir = f'/home/initial/Dropbox/flare_transformer/output_dir/attn/checkpoint-5.pth'
 
-model_mae = prepare_model(chkpt_dir,img_size=args.input_size,baseline=args.baseline)
+model_mae = prepare_model(chkpt_dir,img_size=args.input_size,baseline=args.baseline, embed_dim=64)
 print('Model loaded.')
 
 # make random mask reproducible (comment out to make it change)
