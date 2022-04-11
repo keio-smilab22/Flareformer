@@ -105,10 +105,15 @@ if __name__ == '__main__':
 
     params = json.loads(open("params/params_2014.json").read())
     train_dataset = TrainDataloader256("train", params["dataset"],has_window=False)
+    val_dataset = TrainDataloader256("valid", params["dataset"],has_window=False)
     # train_dataset = FashionMnistDataLoader()
     
     mean, std = train_dataset.calc_mean()
     print(mean, std)
     train_dataset.set_mean(mean, std)
 
-    main(args,train_dataset)
+    mean, std = val_dataset.calc_mean()
+    print(mean, std)
+    val_dataset.set_mean(mean, std)
+
+    main(args,train_dataset, val_dataset)

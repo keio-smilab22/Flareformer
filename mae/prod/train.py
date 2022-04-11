@@ -109,7 +109,7 @@ def train_one_epoch(model: torch.nn.Module,
                     args=None):
     model.train(True)
     accum_iter = args.accum_iter
- 
+
     optimizer.zero_grad()
 
     for data_iter_step, (samples, _,_) in enumerate(tqdm(data_loader)):
@@ -154,12 +154,32 @@ def train_one_epoch(model: torch.nn.Module,
     # gather the stats from all processes
     return None, loss_value
 
+def eval_epoch(model: torch.nn.Module,
+                    data_loader: Iterable, optimizer: torch.optim.Optimizer,
+                    loss_scaler ,args=None):
+    """Return val loss and score for val set"""
+    model.eval()
+    accum_iter = args.accum_iter
+    with torch.no_grad():
+        for data_iter_step, (samples, _,_) in enumerate(tqdm(data_loader)):
+            loss, _, _ = model(samples.cuda().to(torch.float), mask_ratio=args.mask_ratio)
+            loss_value = loss.item()
+
+            if not math.isfinite(loss_value):
+                print("Loss is {}, stopping training".format(loss_value))
+                sys.exit(1)
+
+        loss /= accum_iter
+        # loss_scaler(loss, optimizer, parameters=model.parameters(),
+        #             update_grad=(data_iter_step + 1) % accum_iter == 0)
+        loss_value = loss.item()
+    return None, loss_value
 
 def get_args_parser():
     parser = argparse.ArgumentParser('MAE pre-training', add_help=False)
     parser.add_argument(
         '--batch_size',
-        default=130,
+        default=8,
         type=int,
         help='Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus')
     parser.add_argument('--epochs', default=20, type=int)
@@ -209,7 +229,7 @@ def get_args_parser():
                         help='epochs to warmup LR')
 
     # Dataset parameters
-    parser.add_argument('--output_dir', default='../../workspace/flare_transformer/output_dir',
+    parser.add_argument('--output_dir', default='/home/katsuyuki/temp/flare_transformer/output_dir',
                         help='path where to save, empty for no saving')
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
@@ -221,13 +241,14 @@ def get_args_parser():
         help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
     parser.add_argument('--no_pin_mem', action='store_false', dest='pin_mem')
     parser.add_argument('--wandb', default=False, action='store_true')
+    parser.add_argument('--name', default='', type=str)
     parser.add_argument('--batch_size_search', default=False, action='store_true')
     parser.set_defaults(pin_mem=True)
 
     return parser
 
 
-def main(args, dataset_train):
+def main(args, dataset_train, dataset_val=None):
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
 
@@ -244,12 +265,22 @@ def main(args, dataset_train):
 
     sampler_train = torch.utils.data.DistributedSampler(
         dataset_train, num_replicas=1, rank=0, shuffle=True)
+    sampler_val = torch.utils.data.DistributedSampler(
+        dataset_val, num_replicas=1, rank=0, shuffle=False)
     print("Sampler_train = %s" % str(sampler_train))
 
     # os.makedirs(args.log_dir, exist_ok=True)
 
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train, sampler=sampler_train,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        pin_memory=args.pin_mem,
+        drop_last=True,
+    )
+
+    data_loader_val = torch.utils.data.DataLoader(
+        dataset_val, sampler=sampler_val,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
@@ -288,7 +319,7 @@ def main(args, dataset_train):
     if args.wandb:
         wandb.init(
             project="flare_transformer_MAE_exp",
-            name=f"flare_{args.baseline}_b{args.batch_size}_dim{args.dim}")
+            name=f"flare_{args.baseline}_b{args.batch_size}_dim{args.dim}_{args.name}")
 
     for epoch in range(args.epochs):
         print("====== Epoch ", (epoch+1), " ======")
@@ -300,17 +331,24 @@ def main(args, dataset_train):
         )
         elapsed_epoch_time = time.time() - epoch_start
         print("time:","{:.3f}s".format(elapsed_epoch_time))
-
+        if epoch % 4 == 0:
+            _, val_loss = eval_epoch(
+                model, data_loader_val, device, loss_scaler,
+                args=args
+            )
+            print("val_loss:", "{:.3f}".format(val_loss))
+            if args.wandb:
+                wandb.log({"val_loss": val_loss})
         log = {'epoch': epoch, 'train_loss': last_loss}
         if args.wandb:
             wandb.log(log)
 
-        if args.output_dir and ((epoch+1) == 25 or (epoch+1) == 30):
+        if args.output_dir and ((epoch+1) == 20 or (epoch+1) == 30):
             output_dir = Path(args.output_dir)
             epoch_name = str(epoch+1)
             if loss_scaler is not None:
                 checkpoint_paths = [output_dir / args.baseline / 
-                                    ('checkpoint-%s.pth' % epoch_name)]
+                                    f'checkpoint-{args.name}.pth']
                 for checkpoint_path in checkpoint_paths:
                     to_save = {
                         'model': model_without_ddp.state_dict(),
