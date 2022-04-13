@@ -8,12 +8,14 @@
 # DeiT: https://github.com/facebookresearch/deit
 # BEiT: https://github.com/microsoft/unilm/tree/master/beit
 # --------------------------------------------------------
+from multiprocessing import reduction
 from tqdm import tqdm
 from typing import Iterable
 import sys
 import math
 from mae.prod.datasets import TrainDataloader
 import mae.prod.models_mae
+import mae.prod.models_seq_mae
 import timm.optim.optim_factory as optim_factory
 import argparse
 import datetime
@@ -265,8 +267,6 @@ def main(args, dataset_train, dataset_val=None):
 
     sampler_train = torch.utils.data.DistributedSampler(
         dataset_train, num_replicas=1, rank=0, shuffle=True)
-    sampler_val = torch.utils.data.DistributedSampler(
-        dataset_val, num_replicas=1, rank=0, shuffle=False)
     print("Sampler_train = %s" % str(sampler_train))
 
     # os.makedirs(args.log_dir, exist_ok=True)
@@ -278,14 +278,17 @@ def main(args, dataset_train, dataset_val=None):
         pin_memory=args.pin_mem,
         drop_last=True,
     )
+    if dataset_val is not None:
+        sampler_val = torch.utils.data.DistributedSampler(
+            dataset_val, num_replicas=1, rank=0, shuffle=False)
 
-    data_loader_val = torch.utils.data.DataLoader(
-        dataset_val, sampler=sampler_val,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        pin_memory=args.pin_mem,
-        drop_last=True,
-    )
+        data_loader_val = torch.utils.data.DataLoader(
+            dataset_val, sampler=sampler_val,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory=args.pin_mem,
+            drop_last=True,
+        )
 
     # define the model
     model = mae.prod.models_mae.__dict__[args.model](embed_dim=args.dim,
@@ -296,7 +299,8 @@ def main(args, dataset_train, dataset_val=None):
 
     model_without_ddp = model
     # print("Model = %s" % str(model_without_ddp))
-    summary(model)
+    print(f"dataset_train = {dataset_train[0][0].shape}")
+    # summary(model, (args.batch_size, *dataset_train[0][0]))
 
     eff_batch_size = args.batch_size * args.accum_iter
 
@@ -331,15 +335,15 @@ def main(args, dataset_train, dataset_val=None):
         )
         elapsed_epoch_time = time.time() - epoch_start
         print("time:","{:.3f}s".format(elapsed_epoch_time))
-        if epoch % 4 == 0:
+        if epoch % 4 == 0 and dataset_val is not None:
             _, val_loss = eval_epoch(
                 model, data_loader_val, device, loss_scaler,
                 args=args
             )
             print("val_loss:", "{:.3f}".format(val_loss))
             if args.wandb:
-                wandb.log({"val_loss": val_loss})
-        log = {'epoch': epoch, 'train_loss': last_loss}
+                wandb.log({"test_loss_not_normalize": val_loss})
+        log = {'epoch': epoch, 'train_loss_not_normalize': last_loss}
         if args.wandb:
             wandb.log(log)
 
