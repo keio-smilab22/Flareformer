@@ -6,7 +6,7 @@ from skimage.transform import resize
 
 class FashionMnistDataLoader:
     def __init__(self):
-        images, labels = self.load_mnist("/home/initial/workspace/flare_transformer/fashion-mnist/data/fashion")
+        images, labels = self.load_mnist("/home/katsuyuki/temp/flare_transformer/fashion-mnist/data/fashion")
         self.images = torch.Tensor(images).unsqueeze(1)
         self.labels = torch.Tensor(labels)
         
@@ -105,7 +105,7 @@ if __name__ == '__main__':
 
     params = json.loads(open("params/params_2014.json").read())
     train_dataset = TrainDataloader256("train", params["dataset"],has_window=False)
-    val_dataset = TrainDataloader256("valid", params["dataset"],has_window=False)
+    val_dataset = TrainDataloader256("test", params["dataset"],has_window=False)
     # train_dataset = FashionMnistDataLoader()
     
     mean, std = train_dataset.calc_mean()
@@ -117,3 +117,4 @@ if __name__ == '__main__':
     val_dataset.set_mean(mean, std)
 
     main(args,train_dataset, val_dataset)
+    # main(args,train_dataset)
