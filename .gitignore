@@ -10,3 +10,8 @@ __pycache__/
 output_dir/
 *.log
 .tmp0.txt
+peephole.log
+command_memo.txt
+mae/*.md
+mae/*.py
+mae/*.log
