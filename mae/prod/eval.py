@@ -1,3 +1,4 @@
+from json import decoder
 import sys
 sys.path.append('..')
 sys.path.append('../../')
@@ -23,9 +24,9 @@ def show_image(image, title=''):
     plt.axis('off') 
     return
 
-def prepare_model(chkpt_dir, img_size=256,baseline="attn",embed_dim=512, arch='vit_for_FT'):
+def prepare_model(chkpt_dir, img_size=256,baseline="attn",embed_dim=512, arch='vit_for_FT',depth=12,decoder_depth=8):
     # build model
-    model = getattr(mae.prod.models_mae, arch)(img_size=img_size, baseline=baseline, embed_dim=embed_dim)
+    model = getattr(mae.prod.models_mae, arch)(img_size=img_size, baseline=baseline, embed_dim=embed_dim, depth=depth, decoder_depth=decoder_depth)
     # load model
     checkpoint = torch.load(chkpt_dir, map_location=torch.device('cuda'))
     msg = model.load_state_dict(checkpoint['model'], strict=False)
@@ -33,7 +34,7 @@ def prepare_model(chkpt_dir, img_size=256,baseline="attn",embed_dim=512, arch='v
     return model
 
 
-def run_one_image(img, model):
+def run_one_image(img, model,mean,std):
     x = torch.tensor(img).cuda()
     
     # make it a batch-like
@@ -55,6 +56,8 @@ def run_one_image(img, model):
     mask = torch.einsum('nchw->nhwc', mask).detach()
 
     x = torch.einsum('nchw->nhwc', x)
+    x = mean + std * x
+    y = mean + std * y
 
     # masked image
     im_masked = x * (1 - mask)
@@ -81,9 +84,9 @@ def run_one_image(img, model):
 
 
 class MaskedAutoEncoder:
-    def __init__(self,baseline,embed_dim):
-        chkpt_dir = f'/home/initial/Dropbox/flare_transformer/output_dir/{baseline}/checkpoint-30.pth' # パス注意
-        self.model = prepare_model(chkpt_dir,baseline=baseline,embed_dim=embed_dim)
+    def __init__(self,baseline,embed_dim,enc_depth,dec_depth):
+        chkpt_dir = f'/home/initial/Dropbox/flare_transformer/output_dir/depth4/{baseline}/checkpoint-30.pth' # パス注意
+        self.model = prepare_model(chkpt_dir,baseline=baseline,embed_dim=embed_dim,depth=enc_depth,decoder_depth=dec_depth)
         self.dim = self.model.embed_dim
 
     def get_model(self):

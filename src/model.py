@@ -8,9 +8,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Type, Any, Callable, Union, List, Optional
 from torch import Tensor
+from mae.prod.models_mae import SeqentialMaskedAutoencoderViT
 from src.attn import FullAttention, ProbAttention, AttentionLayer
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from mae.prod.eval import MaskedAutoEncoder
+from mae.prod.models_1dmae import OneDimMaskedAutoencoder
 
 # early fusion 
 class FlareTransformer(nn.Module):
@@ -73,6 +75,144 @@ class FlareTransformer(nn.Module):
         phys_feat = self.bn1(phys_feat)
         phys_feat = self.relu(phys_feat)
         return phys_feat
+
+
+    def forward(self, img_list, feat):
+        # img_feat[bs, k, mm_d_model]
+        img_feat = self.forward_mm_feature_extractor(img_list,feat)
+
+        # physical feat
+        phys_feat = self.forward_sfm_feature_extractor(img_list,feat)
+
+        # concat
+        merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+
+        # SFM
+        feat_output = self.sunspot_feature_module(phys_feat, merged_feat)  #
+        feat_output = torch.flatten(feat_output, 1, 2)  # [bs, k*SFM_d_model]
+        feat_output = self.generator_phys(feat_output)  # [bs, SFM_d_model]
+
+        # MM
+        img_output = self.magnetogram_module(img_feat, merged_feat)  #
+        img_output = torch.flatten(img_output, 1, 2)  # [bs, k*SFM_d_model]
+        img_output = self.generator_image(img_output)  # [bs, MM_d_model]
+
+        # Late fusion
+        output = torch.cat((feat_output, img_output), 1)
+        output = self.generator(output)
+
+        output = self.softmax(output)
+
+        return output
+
+
+
+class FlareTransformerWith1dMAE(nn.Module):
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, token_window=4, window=24):
+        super(FlareTransformerWith1dMAE, self).__init__()
+        D = window // token_window
+
+        # Informer``
+        self.magnetogram_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
+                           d_model=90, n_heads=mm_params["h"], mix=False),
+            90,
+            mm_params["d_ff"],
+            dropout=mm_params["dropout"],
+            activation="relu"
+        )
+
+        self.sunspot_feature_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
+                           d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
+            sfm_params["d_model"],
+            sfm_params["d_ff"],
+            dropout=sfm_params["dropout"],
+            activation="relu"
+        )
+
+        # Image Feature Extractor
+        self.magnetogram_feature_extractor = CNNModel(
+            output_channel=output_channel, pretrain=False)
+
+        self.generator = nn.Linear(sfm_params["d_model"]+90,
+                                   output_channel)
+
+        self.linear = nn.Linear(
+            D*90*2, sfm_params["d_model"])
+        self.softmax = nn.Softmax(dim=1)
+
+        self.generator_image = nn.Linear(
+            90*D, 90)
+
+        self.generator_phys = nn.Linear(
+            sfm_params["d_model"]*D, sfm_params["d_model"])
+
+        self.squeeze_linear = nn.Linear(mm_params["d_model"] * token_window, sfm_params["d_model"])
+        
+        self.one_dim_mae = OneDimMaskedAutoencoder(embed_dim=token_window,
+                                                    num_heads=1,
+                                                    baseline="attn", # attn, lambda, linear
+                                                    dim=sfm_params["d_model"],
+                                                    window=window,
+                                                    token_window=token_window,
+                                                    depth=4,
+                                                    decoder_depth=4,
+                                                    norm_pix_loss=False) # todo: encoderだけにする
+        chkpt_dir = f'/home/initial/Dropbox/flare_transformer/output_dir/1dmae/attn/checkpoint-20.pth' # パス注意
+        checkpoint = torch.load(chkpt_dir, map_location=torch.device('cuda'))
+        self.one_dim_mae.load_state_dict(checkpoint['model'], strict=True)
+        # self.one_dim_mae.requires_grad = False
+
+        self.window = window
+        self.token_window = token_window
+
+        embed_dim, offset = self.token_window, 0
+        while embed_dim % 4 != 0:
+            embed_dim += 1
+            offset += 1
+
+        if offset > 0:
+            self.dim_decoder = nn.Linear(embed_dim,embed_dim-offset)
+        else:
+            self.dim_decoder = nn.Identity()
+
+
+    def forward_mm_feature_extractor(self, img_list, feat):
+        window, token_window = self.window, self.token_window
+        D = window//token_window
+        
+        for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
+            img_output = self.magnetogram_feature_extractor(img)
+            K, _ = img_output.shape
+            x = None 
+            for j in range(0,K,token_window):
+                img_subset = img_output[j:j+token_window].flatten()
+                img_subset = self.squeeze_linear(img_subset).unsqueeze(0)
+                x = torch.cat([x, img_subset], dim=0) if x is not None else img_subset
+
+            x = x.unsqueeze(0)
+            if i == 0:
+                img_feat = x
+            else:
+                img_feat = torch.cat([img_feat, x], dim=0)
+
+        return img_feat
+
+
+    def forward_sfm_feature_extractor(self, img_list, feat):
+        # phys_feat = self.linear_in_1(feat)
+        # phys_feat = self.bn1(phys_feat)
+        # phys_feat = self.relu(phys_feat)
+
+        B, _, _ = feat.shape
+        latent, _, _ = self.one_dim_mae.forward_encoder(feat, 0) # latent (B,window*d_phy/token_window+1,token_window)
+        x = self.dim_decoder(latent)            
+        x = x.reshape(B,-1,self.window).transpose(-1,-2) # (B,k,d)
+        x = x.unsqueeze(1) # (B,C,k,d)       
+        avgpool = nn.AvgPool2d((self.token_window, 1), stride=(self.token_window, 1))
+        x = avgpool(x).squeeze(1)
+        return x
 
 
     def forward(self, img_list, feat):
@@ -573,11 +713,11 @@ class PositionalEncoding(nn.Module):
 
 
 class FlareTransformerWithMAE(nn.Module):  # MAEを持つFT
-    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24, baseline="attn", embed_dim=512, has_vit_head=False):
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24, baseline="attn", embed_dim=512, enc_depth=12, dec_depth=8, has_vit_head=False):
         super(FlareTransformerWithMAE, self).__init__()
 
-        mae_encoder = MaskedAutoEncoder(baseline=baseline, embed_dim=embed_dim)
-        mae_encoder.model.requires_grad = False
+        mae_encoder = MaskedAutoEncoder(baseline=baseline, embed_dim=embed_dim, enc_depth=enc_depth, dec_depth=dec_depth)
+        # mae_encoder.model.requires_grad = False
 
         if has_vit_head:
             d_out = mm_params["d_model"]
@@ -674,6 +814,373 @@ class FlareTransformerWithMAE(nn.Module):  # MAEを持つFT
         output = self.softmax(output)
 
         return output
+
+
+
+class FlareTransformerWithGAPMAE(nn.Module):  # MAEを持つFT
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24, baseline="attn", embed_dim=512, enc_depth=12, dec_depth=8):
+        super(FlareTransformerWithGAPMAE, self).__init__()
+
+        mae_encoder = MaskedAutoEncoder(baseline=baseline, embed_dim=embed_dim, enc_depth=enc_depth, dec_depth=dec_depth)
+        # mae_encoder.model.requires_grad = False
+
+        d_out = mm_params["d_model"]
+        img_size, patch_size = 256, 8
+        patch_length = (img_size * img_size) // (patch_size ** 2) 
+        self.vit_head = nn.Linear(patch_length,d_out)
+        mm_params["d_model"] += d_out
+        sfm_params["d_model"] += d_out
+
+        self.mae_encoder = mae_encoder.get_model()
+        
+        # Informer
+        self.magnetogram_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
+                           d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
+            mm_params["d_model"],
+            mm_params["d_ff"],
+            dropout=mm_params["dropout"],
+            activation="relu"
+        )
+
+        self.sunspot_feature_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
+                           d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
+            sfm_params["d_model"],
+            sfm_params["d_ff"],
+            dropout=sfm_params["dropout"],
+            activation="relu"
+        )
+
+        # Image Feature Extractor
+        self.magnetogram_feature_extractor = CNNModel(
+            output_channel=output_channel, pretrain=False)
+
+
+        self.generator = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
+                                   output_channel)
+
+        self.linear = nn.Linear(
+            window*mm_params["d_model"]*2, sfm_params["d_model"])
+        self.softmax = nn.Softmax(dim=1)
+
+        self.generator_image = nn.Linear(
+            mm_params["d_model"]*window, mm_params["d_model"])
+
+        self.generator_phys = nn.Linear(
+            sfm_params["d_model"]*window, sfm_params["d_model"])
+        self.relu = torch.nn.ReLU()
+        self.linear_in_1 = torch.nn.Linear(
+            input_channel, sfm_params["d_model"])  # 79 -> 128
+        self.bn1 = torch.nn.BatchNorm1d(window)  # 128
+
+    def forward_one_vit(self,x):
+        latent, _, _ = self.mae_encoder.forward_encoder(x, 0) # (B,L,D)
+        x = latent[:,1:,:]
+
+        K, L, D = x.shape
+        avgpool = nn.AvgPool2d((1,D), stride=(1, D))
+        x = avgpool(x).squeeze(-1)
+        return x
+
+    def forward(self, img_list, feat): 
+        vit_head = self.vit_head or nn.Identity()
+        for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
+            img_output = self.magnetogram_feature_extractor(img).unsqueeze(0)
+            vit_output = vit_head(self.forward_one_vit(img)).unsqueeze(0)
+            if i == 0:
+                img_feat = img_output
+                mae_feat = vit_output
+            else:
+                img_feat = torch.cat([img_feat, img_output], dim=0)
+                mae_feat = torch.cat([mae_feat, vit_output], dim=0)
+         
+        mae_feat = mae_feat.cuda()
+        img_feat = torch.cat([img_feat, mae_feat], dim=2) 
+        # img_feat = mae_feat
+
+        # physical feat
+        phys_feat = self.linear_in_1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+
+        # concat
+        merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+
+        # SFM
+        feat_output = self.sunspot_feature_module(phys_feat, merged_feat)  # todo: なんかここでエラーでるので修正する
+        feat_output = torch.flatten(feat_output, 1, 2)  # [bs, k*SFM_d_model]
+        feat_output = self.generator_phys(feat_output)  # [bs, SFM_d_model]
+
+        # MM
+        img_output = self.magnetogram_module(img_feat, merged_feat)  #
+        img_output = torch.flatten(img_output, 1, 2)  # [bs, k*SFM_d_model]
+        img_output = self.generator_image(img_output)  # [bs, MM_d_model]
+
+        # Late fusion
+        output = torch.cat((feat_output, img_output), 1)
+        output = self.generator(output)
+
+        output = self.softmax(output)
+
+        return output
+
+
+
+from functools import partial
+
+class FlareTransformerWithGAPSeqMAE(nn.Module):  # seqMAEを持つFT
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24, baseline="attn", embed_dim=512, enc_depth=12, dec_depth=8, need_cnn=True):
+        super(FlareTransformerWithGAPSeqMAE, self).__init__()
+        mae_encoder = SeqentialMaskedAutoencoderViT(baseline=baseline,
+                                                    embed_dim=embed_dim,
+                                                    depth=enc_depth,
+                                                    decoder_depth=dec_depth,
+                                                    norm_pix_loss=False,
+                                                    patch_size=16,
+                                                    num_heads=8, 
+                                                    decoder_embed_dim=512,
+                                                    decoder_num_heads=8,
+                                                    mlp_ratio=4,
+                                                    norm_layer=partial(nn.LayerNorm, eps=1e-6))
+        checkpoint = torch.load(f"output_dir/{baseline}/checkpoint-100.pth", map_location=torch.device('cuda'))
+        _ = mae_encoder.load_state_dict(checkpoint['model'], strict=True)
+        mae_encoder.cuda()
+
+        for param in mae_encoder.parameters():
+            param.requires_grad = False # 重み固定
+        
+        self.mae_encoder = mae_encoder
+            
+        # mae_encoder.model.requires_grad = False
+
+        d_out = mm_params["d_model"]
+        img_size, patch_size = 256, 16 # seq_maeの場合はpatch_size=16
+        patch_length = (img_size * img_size) // (patch_size ** 2) 
+        self.vit_head = nn.Linear(patch_length,d_out)
+        if need_cnn:
+            mm_params["d_model"] += d_out
+            sfm_params["d_model"] += d_out
+
+        # Informer
+        self.magnetogram_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
+                           d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
+            mm_params["d_model"],
+            mm_params["d_ff"],
+            dropout=mm_params["dropout"],
+            activation="relu"
+        )
+
+        self.sunspot_feature_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
+                           d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
+            sfm_params["d_model"],
+            sfm_params["d_ff"],
+            dropout=sfm_params["dropout"],
+            activation="relu"
+        )
+
+        # Image Feature Extractor
+        if need_cnn:
+            self.magnetogram_feature_extractor = CNNModel(
+                output_channel=output_channel, pretrain=False)
+
+
+        self.generator = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
+                                   output_channel)
+
+        self.linear = nn.Linear(
+            window*mm_params["d_model"]*2, sfm_params["d_model"])
+        self.softmax = nn.Softmax(dim=1)
+
+        self.generator_image = nn.Linear(
+            mm_params["d_model"]*window, mm_params["d_model"])
+
+        self.generator_phys = nn.Linear(
+            sfm_params["d_model"]*window, sfm_params["d_model"])
+        self.relu = torch.nn.ReLU()
+        self.linear_in_1 = torch.nn.Linear(
+            input_channel, sfm_params["d_model"])  # 79 -> 128
+        self.bn1 = torch.nn.BatchNorm1d(window)  # 128
+
+        self.need_cnn = need_cnn
+
+    def forward_one_vit(self,x):
+        x, _, _ = self.mae_encoder.forward_encoder(x) # (B,L,D)
+        # x = latent[:,1:,:]
+
+        K, L, D = x.shape
+        avgpool = nn.AvgPool2d((1,D), stride=(1, D))
+        x = avgpool(x).squeeze(-1)
+        return x
+
+    def forward(self, img_list, feat): 
+        vit_head = self.vit_head or nn.Identity()
+
+        if self.need_cnn:
+            # cnn
+            for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
+                img_output = self.magnetogram_feature_extractor(img).unsqueeze(0)
+                if i == 0:
+                    img_feat = img_output
+                else:
+                    img_feat = torch.cat([img_feat, img_output], dim=0)
+
+        # vit
+        for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
+            vit_output = vit_head(self.forward_one_vit(img)).unsqueeze(0)
+            if i == 0:
+                mae_feat = vit_output
+            else:
+                mae_feat = torch.cat([mae_feat, vit_output], dim=0)
+         
+        mae_feat = mae_feat.cuda()
+        
+        if self.need_cnn:
+            img_feat = torch.cat([img_feat, mae_feat], dim=2)
+        else:
+            img_feat = mae_feat 
+        # img_feat = mae_feat
+
+        # physical feat
+        phys_feat = self.linear_in_1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+
+        # concat
+        merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+
+        # SFM
+        feat_output = self.sunspot_feature_module(phys_feat, merged_feat)  # todo: なんかここでエラーでるので修正する
+        feat_output = torch.flatten(feat_output, 1, 2)  # [bs, k*SFM_d_model]
+        feat_output = self.generator_phys(feat_output)  # [bs, SFM_d_model]
+
+        # MM
+        img_output = self.magnetogram_module(img_feat, merged_feat)  #
+        img_output = torch.flatten(img_output, 1, 2)  # [bs, k*SFM_d_model]
+        img_output = self.generator_image(img_output)  # [bs, MM_d_model]
+
+        # Late fusion
+        output = torch.cat((feat_output, img_output), 1)
+        output = self.generator(output)
+
+        output = self.softmax(output)
+
+        return output
+
+
+
+class _FlareTransformerWithGAPMAE(nn.Module):  # MAEを持つFT
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24, baseline="attn", embed_dim=512, enc_depth=12, dec_depth=8):
+        super(_FlareTransformerWithGAPMAE, self).__init__()
+
+        mae_encoder = MaskedAutoEncoder(baseline=baseline, embed_dim=embed_dim, enc_depth=enc_depth, dec_depth=dec_depth)
+        # mae_encoder.model.requires_grad = False
+
+        d_out = mm_params["d_model"]
+        img_size, patch_size = 256, 8
+        patch_length = (img_size * img_size) // (patch_size ** 2) 
+        self.vit_head = nn.Linear(patch_length,d_out)
+        mm_params["d_model"] += d_out
+        sfm_params["d_model"] += d_out
+
+        self.mae_encoder = mae_encoder.get_model()
+        for param in self.mae_encoder.parameters():
+            param.requires_grad = False
+        
+        # Informer
+        self.magnetogram_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
+                           d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
+            mm_params["d_model"],
+            mm_params["d_ff"],
+            dropout=mm_params["dropout"],
+            activation="relu"
+        )
+
+        self.sunspot_feature_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
+                           d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
+            sfm_params["d_model"],
+            sfm_params["d_ff"],
+            dropout=sfm_params["dropout"],
+            activation="relu"
+        )
+
+        # Image Feature Extractor
+        self.magnetogram_feature_extractor = CNNModel(
+            output_channel=output_channel, pretrain=False)
+
+
+        self.generator = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
+                                   output_channel)
+
+        self.linear = nn.Linear(
+            window*mm_params["d_model"]*2, sfm_params["d_model"])
+        self.softmax = nn.Softmax(dim=1)
+
+        self.generator_image = nn.Linear(
+            mm_params["d_model"]*window, mm_params["d_model"])
+
+        self.generator_phys = nn.Linear(
+            sfm_params["d_model"]*window, sfm_params["d_model"])
+        self.relu = torch.nn.ReLU()
+        self.linear_in_1 = torch.nn.Linear(
+            input_channel, sfm_params["d_model"])  # 79 -> 128
+        self.bn1 = torch.nn.BatchNorm1d(window)  # 128
+
+    def forward_one_vit(self,x):
+        latent, _, _ = self.mae_encoder.forward_encoder(x, 0) # (B,L,D)
+        x = latent[:,1:,:]
+
+        K, L, D = x.shape
+        avgpool = nn.AvgPool2d((1,D), stride=(1, D))
+        x = avgpool(x).squeeze(-1)
+        return x
+
+    def forward(self, img_list, feat): 
+        vit_head = self.vit_head or nn.Identity()
+        for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
+            img_output = self.magnetogram_feature_extractor(img).unsqueeze(0)
+            vit_output = vit_head(self.forward_one_vit(img)).unsqueeze(0)
+            if i == 0:
+                img_feat = img_output
+                mae_feat = vit_output
+            else:
+                img_feat = torch.cat([img_feat, img_output], dim=0)
+                mae_feat = torch.cat([mae_feat, vit_output], dim=0)
+         
+        mae_feat = mae_feat.cuda()
+        img_feat = torch.cat([img_feat, mae_feat], dim=2) 
+        # img_feat = mae_feat
+
+        # physical feat
+        phys_feat = self.linear_in_1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+
+        # concat
+        merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+
+        # SFM
+        feat_output = self.sunspot_feature_module(phys_feat, merged_feat)  # todo: なんかここでエラーでるので修正する
+        feat_output = torch.flatten(feat_output, 1, 2)  # [bs, k*SFM_d_model]
+        feat_output = self.generator_phys(feat_output)  # [bs, SFM_d_model]
+
+        # MM
+        img_output = self.magnetogram_module(img_feat, merged_feat)  #
+        img_output = torch.flatten(img_output, 1, 2)  # [bs, k*SFM_d_model]
+        img_output = self.generator_image(img_output)  # [bs, MM_d_model]
+
+        # Late fusion
+        output = torch.cat((feat_output, img_output), 1)
+        output = self.generator(output)
+
+        output = self.softmax(output)
+
+        return output
+
 
 class FlareTransformerReplacedViTWithMAE(nn.Module): # MAEで事前学習させたViTで書き換えたFT
     def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24):

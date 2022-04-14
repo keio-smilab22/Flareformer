@@ -13,7 +13,8 @@ from typing import Iterable
 import sys
 import math
 from mae.prod.datasets import TrainDataloader
-import mae.prod.models_mae
+import mae.prod.models_1dmae
+from mae.prod.models_1dmae import *
 import timm.optim.optim_factory as optim_factory
 import argparse
 import datetime
@@ -112,7 +113,7 @@ def train_one_epoch(model: torch.nn.Module,
  
     optimizer.zero_grad()
 
-    for data_iter_step, (samples, _,_) in enumerate(tqdm(data_loader)):
+    for data_iter_step, (_, _,samples) in enumerate(tqdm(data_loader)):
         if data_iter_step % accum_iter == 0:
             adjust_learning_rate(
                 optimizer, data_iter_step / len(data_loader) + epoch, args)
@@ -185,13 +186,18 @@ def main(args, dataset_train):
     )
 
     # define the model
-    model = mae.prod.models_mae.__dict__[args.model](embed_dim=args.dim,
-                                                     baseline=args.baseline, # attn, lambda, linear
-                                                     img_size=args.input_size,
-                                                     depth=args.enc_depth,
-                                                     decoder_depth=args.dec_depth,
-                                                     norm_pix_loss=args.norm_pix_loss)
+    token_window = args.token_window
+    model = OneDimMaskedAutoencoder(embed_dim=token_window,
+                                    num_heads=1,
+                                    baseline=args.baseline, # attn, lambda, linear
+                                    dim=90,
+                                    window=12,
+                                    token_window=token_window,
+                                    depth=args.enc_depth,
+                                    decoder_depth=args.dec_depth,
+                                    norm_pix_loss=args.norm_pix_loss)
     model.to(device)
+    model.double()
 
     model_without_ddp = model
     # print("Model = %s" % str(model_without_ddp))
@@ -217,8 +223,8 @@ def main(args, dataset_train):
     start_time = time.time()
     if args.wandb:
         wandb.init(
-            project="flare_transformer_MAE_exp",
-            name=f"flare_{args.baseline}_b{args.batch_size}_dim{args.dim}_depth{args.enc_depth}-{args.dec_depth}")
+            project="flare_transformer_1dMAE",
+            name=f"flare_{args.baseline}_b{args.batch_size}_dim{args.dim}_depth{args.enc_depth}-{args.dec_depth}_T{args.token_window}_mask{args.mask_ratio}")
 
     for epoch in range(args.epochs):
         print("====== Epoch ", (epoch+1), " ======")
@@ -236,7 +242,7 @@ def main(args, dataset_train):
         if args.wandb:
             wandb.log(log)
 
-        if args.output_dir and ((epoch+1) == 25 or (epoch+1) == 30):
+        if args.output_dir and (epoch+1) >= 20 and (epoch+1) % 5 == 0:
             output_dir = Path(args.output_dir)
             epoch_name = str(epoch+1)
             if loss_scaler is not None:
@@ -265,11 +271,3 @@ def main(args, dataset_train):
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
-
-
-if __name__ == '__main__':
-    args = get_args_parser()
-    args = args.parse_args()
-    if args.output_dir:
-        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    main(args)

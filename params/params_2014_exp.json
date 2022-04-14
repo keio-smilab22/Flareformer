@@ -2,7 +2,7 @@
     "wandb_name": "id19_2014_dim64_depth_4-4,lr0.0000021_100epoch",
     "epochs": 40,
     "lr": 0.0000021,
-    "bs":128,
+    "bs":3,
     "lambda": {
         "GMGS": 0.0001,
         "BS": 10

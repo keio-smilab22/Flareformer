@@ -8,6 +8,7 @@
 # DeiT: https://github.com/facebookresearch/deit
 # BEiT: https://github.com/microsoft/unilm/tree/master/beit
 # --------------------------------------------------------
+from cgi import test
 from tqdm import tqdm
 from typing import Iterable
 import sys
@@ -21,6 +22,8 @@ import numpy as np
 import os
 import time
 from pathlib import Path 
+from functools import partial
+import torch.nn as nn
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -155,7 +158,23 @@ def train_one_epoch(model: torch.nn.Module,
     return None, loss_value
 
 
-def main(args, dataset_train):
+def eval_test(model: torch.nn.Module, data_loader: Iterable, args):
+    model.eval()
+    test_loss, n = 0, 0
+    with torch.no_grad():
+        for _, (samples, _, _) in enumerate(tqdm(data_loader)):
+            samples = samples.cuda()
+            loss, _, _ = model(samples, mask_ratio=args.mask_ratio)
+            loss_value = loss.item()
+            test_loss += loss_value
+            n += samples.shape[0]
+
+    test_loss /= n
+    return test_loss
+
+
+
+def main(args, dataset_train, dataset_test):
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
 
@@ -170,9 +189,9 @@ def main(args, dataset_train):
 
     # dataset_train = TrainDataloader()
 
-    sampler_train = torch.utils.data.DistributedSampler(
-        dataset_train, num_replicas=1, rank=0, shuffle=True)
-    print("Sampler_train = %s" % str(sampler_train))
+    sampler_train = torch.utils.data.DistributedSampler(dataset_train, num_replicas=1, rank=0, shuffle=True)
+    sampler_test = torch.utils.data.DistributedSampler(dataset_test, num_replicas=1, rank=0, shuffle=True)
+    # print("Sampler_train = %s" % str(sampler_train))
 
     # os.makedirs(args.log_dir, exist_ok=True)
 
@@ -184,13 +203,28 @@ def main(args, dataset_train):
         drop_last=True,
     )
 
+    data_loader_test = torch.utils.data.DataLoader(
+        dataset_test, sampler=sampler_test,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        pin_memory=args.pin_mem,
+        drop_last=True,
+    )
+
     # define the model
-    model = mae.prod.models_mae.__dict__[args.model](embed_dim=args.dim,
-                                                     baseline=args.baseline, # attn, lambda, linear
-                                                     img_size=args.input_size,
-                                                     depth=args.enc_depth,
-                                                     decoder_depth=args.dec_depth,
-                                                     norm_pix_loss=args.norm_pix_loss)
+    model = mae.prod.models_mae.SeqentialMaskedAutoencoderViT(embed_dim=args.dim,
+                                                            baseline=args.baseline, # attn, lambda, linear
+                                                            img_size=args.input_size,
+                                                            depth=args.enc_depth,
+                                                            decoder_depth=args.dec_depth,
+                                                            norm_pix_loss=False,
+                                                            patch_size=16,
+                                                            num_heads=8, 
+                                                            decoder_embed_dim=512,
+                                                            decoder_num_heads=8,
+                                                            mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6),)
+
+        
     model.to(device)
 
     model_without_ddp = model
@@ -218,7 +252,7 @@ def main(args, dataset_train):
     if args.wandb:
         wandb.init(
             project="flare_transformer_MAE_exp",
-            name=f"flare_{args.baseline}_b{args.batch_size}_dim{args.dim}_depth{args.enc_depth}-{args.dec_depth}")
+            name=f"seqmae_{args.baseline}_b{args.batch_size}_dim{args.dim}_depth{args.enc_depth}-{args.dec_depth}")
 
     for epoch in range(args.epochs):
         print("====== Epoch ", (epoch+1), " ======")
@@ -229,14 +263,21 @@ def main(args, dataset_train):
             args=args
         )
         elapsed_epoch_time = time.time() - epoch_start
-        print("loss: {:.3f}".format(last_loss))
+        print("loss: {:.8f}".format(last_loss))
         print("time:","{:.3f}s".format(elapsed_epoch_time))
+
+        # test_loss = eval_test(model,data_loader_test)
+        # log = {'epoch': epoch, 'train_loss': last_loss, "test_loss" : test_loss}
 
         log = {'epoch': epoch, 'train_loss': last_loss}
         if args.wandb:
             wandb.log(log)
 
-        if args.output_dir and ((epoch+1) == 25 or (epoch+1) == 30):
+        saved_flag = False
+        for i in range(5):
+            saved_flag = saved_flag or (epoch+1) == args.epochs // (i+1)
+        
+        if args.output_dir and saved_flag:
             output_dir = Path(args.output_dir)
             epoch_name = str(epoch+1)
             if loss_scaler is not None:
@@ -265,11 +306,3 @@ def main(args, dataset_train):
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
-
-
-if __name__ == '__main__':
-    args = get_args_parser()
-    args = args.parse_args()
-    if args.output_dir:
-        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    main(args)

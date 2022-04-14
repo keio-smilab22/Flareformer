@@ -18,7 +18,7 @@ import torch.nn as nn
 from timm.models.vision_transformer import PatchEmbed, Mlp, DropPath, Attention
 
 
-from mae.prod.util.pos_embed import get_2d_sincos_pos_embed
+from mae.prod.util.pos_embed import get_2d_sincos_pos_embed, get_2d_sincos_pos_embed_ex
 
 
 import torch
@@ -180,22 +180,22 @@ class TokenEmbed(nn.Module):
         self.dim = dim
         self.window = window
         self.token_window = token_window
-        self.token_num = dim * window / window
+        self.token_num = dim * window // token_window
         
-        # self.mlp
+        self.mlp = nn.Linear(token_window,embed_dim)
         self.norm = norm_layer(embed_dim) if norm_layer else nn.Identity()
 
-    def forward(self, x): # とりあえずMLPなしで
+    def forward(self, x):
         B,W,D = x.shape
         x = self.tokenize(x) 
 
-        # x = self.mlp(x)
+        x = self.mlp(x)
         x = self.norm(x)
         return x
 
     def tokenize(self,x: torch.Tensor): # x: (B,W,D) -> (B,L,D)
         B,W,D = x.shape
-        x = x.transpose(-1,-2).view(B,-1,self.window) # (B,token_num,token_window)
+        x = x.transpose(-1,-2).contiguous().view(B,-1,self.token_window) # (B,token_num,token_window) todo: ここチェック
         return x
 
     def detokenize(self,x:torch.Tensor):
@@ -210,22 +210,25 @@ class OneDimMaskedAutoencoder(nn.Module):
     """ Masked Autoencoder with VisionTransformer backbone
     """
 
-    def __init__(self, img_size=256, patch_size=16, in_chans=1,
-                 embed_dim=1024, depth=24, num_heads=16,
-                 decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
+    def __init__(self, dim, window, token_window=2,
+                 embed_dim=90, depth=12, num_heads=16,
+                 decoder_embed_dim=128, decoder_depth=8, decoder_num_heads=4,
                  mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False, baseline="attn"):
         super().__init__()
 
+        while embed_dim % 4 != 0:
+            embed_dim += 1
+
         # --------------------------------------------------------------------------
         # MAE encoder specifics
-        self.token_embed = TokenEmbed()
-        num_patches = self.patch_embed.num_patches
+        self.token_embed = TokenEmbed(dim=dim, window=window, token_window=token_window, embed_dim=embed_dim)
+        num_patches = self.token_embed.token_num
 
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        # self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_embed = nn.Parameter(
             torch.zeros(
                 1,
-                num_patches + 1,
+                num_patches,
                 embed_dim),
             requires_grad=False)  # fixed sin-cos embedding
 
@@ -245,7 +248,7 @@ class OneDimMaskedAutoencoder(nn.Module):
         self.decoder_pos_embed = nn.Parameter(
             torch.zeros(
                 1,
-                num_patches + 1,
+                num_patches,
                 decoder_embed_dim),
             requires_grad=False)  # fixed sin-cos embedding
 
@@ -262,11 +265,15 @@ class OneDimMaskedAutoencoder(nn.Module):
         self.decoder_norm = norm_layer(decoder_embed_dim)
         self.decoder_pred = nn.Linear(
             decoder_embed_dim,
-            patch_size**2 * in_chans,
+            token_window,
             bias=True)  # decoder to patch
         # --------------------------------------------------------------------------
 
         self.norm_pix_loss = norm_pix_loss
+        self.embed_dim = embed_dim
+        self.window = window
+        self.token_window = token_window
+        self.dim = dim
 
         self.initialize_weights()
 
@@ -274,23 +281,23 @@ class OneDimMaskedAutoencoder(nn.Module):
     def initialize_weights(self):
         # initialization
         # initialize (and freeze) pos_embed by sin-cos embedding
-        pos_embed = get_2d_sincos_pos_embed(
-            self.pos_embed.shape[-1], int(self.patch_embed.num_patches**.5), cls_token=True)
+        print(self.token_embed.token_num,  self.window // self.token_window, self.dim, self.pos_embed.data.shape)
+        pos_embed = get_2d_sincos_pos_embed_ex(self.pos_embed.shape[-1], self.window // self.token_window, self.dim, cls_token=False)
+
         self.pos_embed.data.copy_(
-            torch.from_numpy(pos_embed).float().unsqueeze(0))
+            torch.from_numpy(pos_embed).float().unsqueeze(0)) # todo: ここチェック → 多分OK
 
-        decoder_pos_embed = get_2d_sincos_pos_embed(
-            self.decoder_pos_embed.shape[-1], int(self.patch_embed.num_patches**.5), cls_token=True)
+        decoder_pos_embed = get_2d_sincos_pos_embed_ex(self.decoder_pos_embed.shape[-1], self.window // self.token_window, self.dim, cls_token=False)
         self.decoder_pos_embed.data.copy_(
-            torch.from_numpy(decoder_pos_embed).float().unsqueeze(0))
+            torch.from_numpy(decoder_pos_embed).float().unsqueeze(0))  # todo: ここチェック
 
-        # initialize patch_embed like nn.Linear (instead of nn.Conv2d)
-        w = self.patch_embed.proj.weight.data
-        torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
+        # initialize token_embed like nn.Linear (instead of nn.Conv2d)
+        # w = self.token_embed.proj.weight.data
+        # torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
 
         # timm's trunc_normal_(std=.02) is effectively normal_(std=0.02) as
         # cutoff is too big (2.)
-        torch.nn.init.normal_(self.cls_token, std=.02)
+        # torch.nn.init.normal_(self.cls_token, std=.02)
         torch.nn.init.normal_(self.mask_token, std=.02)
 
         # initialize nn.Linear and nn.LayerNorm
@@ -363,17 +370,17 @@ class OneDimMaskedAutoencoder(nn.Module):
     def forward_encoder(self,x,mask_ratio):
         # embed patches
         x = self.token_embed(x) # (B,L,D)
-        
+
         # add pos embed w/o cls token
-        x = x + self.pos_embed[:, 1:, :]
+        x = x + self.pos_embed
 
         # masking: length -> length * mask_ratio
         x, mask, ids_restore = self.random_masking(x, mask_ratio)
 
         # append cls token
-        cls_token = self.cls_token + self.pos_embed[:, :1, :]
-        cls_tokens = cls_token.expand(x.shape[0], -1, -1)
-        x = torch.cat((cls_tokens, x), dim=1)
+        # cls_token = self.cls_token + self.pos_embed[:, :1, :]
+        # cls_tokens = cls_token.expand(x.shape[0], -1, -1)
+        # x = torch.cat((cls_tokens, x), dim=1)
 
         # apply Transformer blocks
         for blk in self.blocks:
@@ -389,13 +396,13 @@ class OneDimMaskedAutoencoder(nn.Module):
         # append mask tokens to sequence
         mask_tokens = self.mask_token.repeat(
             x.shape[0], ids_restore.shape[1] + 1 - x.shape[1], 1)
-        x_ = torch.cat([x[:, 1:, :], mask_tokens], dim=1)  # no cls token
+        x_ = torch.cat([x, mask_tokens], dim=1)  # no cls token
         x_ = torch.gather(x_,
                           dim=1,
                           index=ids_restore.unsqueeze(-1).repeat(1,
                                                                  1,
                                                                  x.shape[2]))  # unshuffle
-        x = torch.cat([x[:, :1, :], x_], dim=1)  # append cls token
+        x = x_
 
         # add pos embed
         x = x + self.decoder_pos_embed
@@ -408,9 +415,6 @@ class OneDimMaskedAutoencoder(nn.Module):
 
         # predictor projection
         x = self.decoder_pred(x)
-
-        # remove cls token
-        x = x[:, 1:, :]
 
         return x
 
@@ -433,22 +437,3 @@ class OneDimMaskedAutoencoder(nn.Module):
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
         loss = self.forward_loss(imgs, pred, mask)
         return loss, pred, mask
-
-
-def vit_for_FT512d8b(**kwargs):
-    model = MaskedAutoencoderViT(
-        patch_size=8, embed_dim=512, depth=12, num_heads=8, # embed_dim % num_heads == 0 にしないとだめなので注意
-        decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=8,
-        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
-    return model
- 
-
-
-# set recommended archs
-mae_vit_base_patch16 = mae_vit_base_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
-mae_vit_large_patch16 = mae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
-mae_vit_huge_patch14 = mae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks
-
-
-
-vit_for_FT = vit_for_FT512d8b  # decoder: 512 dim, 8 blocks, latent dim = 128

@@ -1,7 +1,7 @@
 {
-    "wandb_name": "id19_2014_dim64_depth_4-4,lr0.0000021_100epoch",
+    "wandb_name": "id19_2014_1dmae",
     "epochs": 40,
-    "lr": 0.0000021,
+    "lr": 0.000006,
     "bs":128,
     "lambda": {
         "GMGS": 0.0001,
@@ -9,7 +9,7 @@
     },
     "save_model_path": "models/id1-4b.pth",
     "dataset": {
-        "window": 4,
+        "window": 12,
         "year_split": {
             "train": {
                 "start": 2010,
@@ -66,7 +66,7 @@
     },
     "SFM": {
         "N": 1,
-        "d_model": 128,
+        "d_model": 90,
         "h": 4,
         "d_ff": 16,
         "dropout": 0.1

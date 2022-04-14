@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import wandb
 
-from src.model import FlareTransformer, FlareTransformerLikeViLBERT, FlareTransformerReplacedFreezeViTWithMAE, FlareTransformerReplacedViTWithMAE, FlareTransformerWithConvNext, FlareTransformerWithMAE, FlareTransformerWithPositonalEncoding, FlareTransformerWithoutMM, FlareTransformerWithoutPE, PureTransformerSFM
+from src.model import FlareTransformer, _FlareTransformerWithGAPMAE, FlareTransformerLikeViLBERT, FlareTransformerReplacedFreezeViTWithMAE, FlareTransformerReplacedViTWithMAE, FlareTransformerWith1dMAE, FlareTransformerWithConvNext, FlareTransformerWithGAPMAE, FlareTransformerWithGAPSeqMAE, FlareTransformerWithMAE, FlareTransformerWithPositonalEncoding, FlareTransformerWithoutMM, FlareTransformerWithoutPE, PureTransformerSFM
 from src.Dataloader import CombineDataloader, TrainDataloader, TrainDataloader256
 from src.eval_utils import calc_score
 from src.BalancedBatchSampler import TrainBalancedBatchSampler
@@ -238,6 +238,10 @@ if __name__ == "__main__":
     parser.add_argument('--baseline', default='attn')
     parser.add_argument('--has_vit_head', action='store_true')
     parser.add_argument('--dim', default=512, type=int)
+    parser.add_argument('--enc_depth', default=12, type=int)
+    parser.add_argument('--dec_depth', default=8, type=int)
+    parser.add_argument('--token_window', default=4, type=int)
+    
     args = parser.parse_args()
     wandb_flag = args.wandb
 
@@ -285,16 +289,56 @@ if __name__ == "__main__":
     gmgs_criterion = gmgs_loss_function
     bs_criterion = bs_loss_function
 
-    model = FlareTransformerWithMAE(input_channel=params["input_channel"],
+    # model = FlareTransformerWithMAE(input_channel=params["input_channel"],
+    #                          output_channel=params["output_channel"],
+    #                          sfm_params=params["SFM"],
+    #                          mm_params=params["MM"],
+    #                          window=params["dataset"]["window"],
+    #                          baseline=args.baseline,
+    #                          embed_dim = args.dim,
+    #                          enc_depth=args.enc_depth,
+    #                          dec_depth=args.dec_depth,
+    #                          has_vit_head=args.has_vit_head).to("cuda")
+
+
+    # model = FlareTransformerWith1dMAE(input_channel=params["input_channel"],
+    #                          output_channel=params["output_channel"],
+    #                          sfm_params=params["SFM"],
+    #                          mm_params=params["MM"],
+    #                          window=params["dataset"]["window"],
+    #                          token_window=args.token_window).to("cuda")
+
+
+    # model = _FlareTransformerWithGAPMAE(input_channel=params["input_channel"],
+    #                          output_channel=params["output_channel"],
+    #                          sfm_params=params["SFM"],
+    #                          mm_params=params["MM"],
+    #                          window=params["dataset"]["window"],
+    #                          baseline=args.baseline,
+    #                          embed_dim = args.dim,
+    #                          enc_depth=args.enc_depth,
+    #                          dec_depth=args.dec_depth).to("cuda")
+
+
+    model = FlareTransformer(input_channel=params["input_channel"],
                              output_channel=params["output_channel"],
                              sfm_params=params["SFM"],
                              mm_params=params["MM"],
-                             window=params["dataset"]["window"],
-                             baseline=args.baseline,
-                             embed_dim = args.dim,
-                             has_vit_head=args.has_vit_head).to("cuda")
+                             window=params["dataset"]["window"]).to("cuda")
 
-    summary(model)
+    # model = FlareTransformerWithGAPSeqMAE(input_channel=params["input_channel"],
+    #                                     output_channel=params["output_channel"],
+    #                                     sfm_params=params["SFM"],
+    #                                     mm_params=params["MM"],
+    #                                     window=params["dataset"]["window"],
+    #                                     baseline=args.baseline,
+    #                                     embed_dim = args.dim,
+    #                                     enc_depth=args.enc_depth,
+    #                                     dec_depth=args.dec_depth,
+    #                                     need_cnn=False).to("cuda")
+
+
+    summary(model,[(params["bs"], *train_dataset[0][0].shape),(params["bs"], *train_dataset[0][2].shape)])
     optimizer = torch.optim.Adam(model.parameters(), lr=params["lr"])
 
     # Start Training
