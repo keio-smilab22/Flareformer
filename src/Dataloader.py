@@ -514,7 +514,8 @@ class TrainDatasetSparse(Dataset):
         """
         for i, year in enumerate(tqdm(range(year_dict["start"],
                                  year_dict["end"]+1))):
-            data_path_sp = self.path + str(year) + "_" + image_type + "_sparse_" + str(grid_size) +  ".npy"
+            # data_path_sp = self.path + str(year) + "_" + image_type + "_sparse_" + str(grid_size) +  ".npy"
+            data_path_sp = f"{self.path}{year}_{image_type}_sparse_{grid_size}_{keep_ratio}.npy"
             data_path_512 = self.path + str(year) + "_" + image_type + ".npy"
             # image_data = np.load(data_path_512)
             # print(np.max(image_data[0,0,:,:]))
