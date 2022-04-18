@@ -646,11 +646,11 @@ class MaskedAutoencoderViT(nn.Module):
         # x, mask, ids_restore = self.random_masking_vit(x, mask_ratio)
         x_masked, x_not_masked, mask, ids_restore = self.random_pyramid_masking_vit(x, mask_ratio)
         # print(x.shape)
-
+        x = torch.cat([x_masked, x_not_masked], dim=1)
         # append cls token
         cls_token = self.cls_token + self.pos_embed[:, :1, :]
         cls_tokens = cls_token.expand(x.shape[0], -1, -1)
-        x = torch.cat((cls_tokens, x_masked), dim=1)
+        x = torch.cat((cls_tokens, x), dim=1)
 
         # apply Transformer blocks
         for blk in self.blocks:
@@ -758,9 +758,9 @@ class MaskedAutoencoderViT(nn.Module):
 
         return x
 
-    def forward_decoder_pyramid(self, x_masked, x_not_masked, ids_restore):
+    def forward_decoder_pyramid(self, x, x_not_masked, ids_restore):
         # embed tokens
-        x = torch.cat([x_masked, x_not_masked], dim=1)
+        # x = torch.cat([x_masked, x_not_masked], dim=1)
         x = self.decoder_embed(x)
 
         # append mask tokens to sequence
@@ -809,14 +809,39 @@ class MaskedAutoencoderViT(nn.Module):
         loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
         return loss
 
+    def forward_loss_sparse(self, imgs, pred, mask):
+        """
+        imgs: [N, 3, H, W]
+        pred: [N, L, p*p*3]
+        mask: [N, L], 0 is keep, 1 is remove,
+        """
+        target = self.patchify(imgs)
+        if self.norm_pix_loss:
+            mean = target.mean(dim=-1, keepdim=True)
+            var = target.var(dim=-1, keepdim=True)
+            target = (target - mean) / (var + 1.e-6)**.5
+        
+        loss = (pred - target) ** 2
+        loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
+
+        # loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
+        loss = loss.mean()
+        
+        return loss
+
     def forward(self, imgs, mask_ratio=0.75):
         # print(imgs.shape)
-        # latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
-        # pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
-        x_masked, x_not_masked, mask, ids_restore = self.forward_encoder_pyramid(imgs, mask_ratio)
-        pred = self.forward_decoder_pyramid(x_masked, x_not_masked, ids_restore)  # [N, L, p*p*3]
+        latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
+        pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
+        # x_masked, x_not_masked, mask, ids_restore = self.forward_encoder_pyramid(imgs, mask_ratio)
+        # pred = self.forward_decoder_pyramid(x_masked, x_not_masked, ids_restore)  # [N, L, p*p*3]
+        # x, x_not_masked, mask, ids_restore = self.forward_encoder_pyramid(imgs, mask_ratio)
+        # pred = self.forward_decoder_pyramid(x, x_not_masked, ids_restore)  # [N, L, p*p*3]
+
 
         loss = self.forward_loss(imgs, pred, mask)
+        # loss = self.forward_loss_sparse(imgs, pred, mask)
+        
         return loss, pred, mask
 
 
@@ -856,6 +881,12 @@ def vit_for_FT64d1b(embed_dim=64, **kwargs):
         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
+def vit_for_FT128db(embed_dim=128, **kwargs):
+    model = MaskedAutoencoderViT(
+        patch_size=8, embed_dim=embed_dim, depth=8, num_heads=8, # embed_dim % num_heads == 0 にしないとだめなので注意
+        decoder_embed_dim=128, decoder_depth=8, decoder_num_heads=8,
+        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+    return model
 
 def mae_vit_huge_patch14_dec512d8b(**kwargs):
     model = MaskedAutoencoderViT(

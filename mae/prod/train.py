@@ -120,6 +120,7 @@ def train_one_epoch(model: torch.nn.Module,
                 optimizer, data_iter_step / len(data_loader) + epoch, args)
 
         samples = samples.cuda()
+        # print(samples.shape)
         # samples = samples.cpu()
         with torch.cuda.amp.autocast():
             loss, _, _ = model(samples, mask_ratio=args.mask_ratio)
@@ -227,7 +228,7 @@ def get_args_parser():
     parser.add_argument('--min_lr', type=float, default=0., metavar='LR',
                         help='lower lr bound for cyclic schedulers that hit 0')
 
-    parser.add_argument('--warmup_epochs', type=int, default=40, metavar='N',
+    parser.add_argument('--warmup_epochs', type=int, default=5, metavar='N',
                         help='epochs to warmup LR')
 
     # Dataset parameters
@@ -245,6 +246,9 @@ def get_args_parser():
     parser.add_argument('--wandb', default=False, action='store_true')
     parser.add_argument('--name', default='', type=str)
     parser.add_argument('--batch_size_search', default=False, action='store_true')
+
+    parser.add_argument('--grid_size', default=16, type=int)
+    parser.add_argument('--keep_ratio', default=0.1, type=float)
     parser.set_defaults(pin_mem=True)
 
     return parser
@@ -300,7 +304,7 @@ def main(args, dataset_train, dataset_val=None):
     model_without_ddp = model
     # print("Model = %s" % str(model_without_ddp))
     print(f"dataset_train = {dataset_train[0][0].shape}")
-    # summary(model, (args.batch_size, *dataset_train[0][0]))
+    # summary(model, (args.batch_size, dataset_train[0][0].shape[0], dataset_train[0][0].shape[1], dataset_train[0][0].shape[2], dataset_train[0][0].shape[3]))
 
     eff_batch_size = args.batch_size * args.accum_iter
 
@@ -347,12 +351,12 @@ def main(args, dataset_train, dataset_val=None):
         if args.wandb:
             wandb.log(log)
 
-        if args.output_dir and ((epoch+1) == 20 or (epoch+1) == 30):
+        if args.output_dir and ((epoch+1) == 20 or (epoch+1) == 50 or (epoch+1) == 100):
             output_dir = Path(args.output_dir)
             epoch_name = str(epoch+1)
             if loss_scaler is not None:
                 checkpoint_paths = [output_dir / args.baseline / 
-                                    f'checkpoint-{args.name}.pth']
+                                    f'checkpoint-{epoch+1}-{args.name}.pth']
                 for checkpoint_path in checkpoint_paths:
                     to_save = {
                         'model': model_without_ddp.state_dict(),

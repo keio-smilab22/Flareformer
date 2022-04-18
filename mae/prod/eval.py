@@ -9,16 +9,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mae.prod.datasets import TrainDataloader
 
-P = 0.75
+P = 0
 
 def show_image(image, title=''):
     # image is [H, W, 3]
     # assert image.shape[2] == 3
     print(image.shape)
-    img = np.empty((image.shape[0],image.shape[1],3))
-    for i in range(3): img[:,:,i] = image[:,:,0]
+    # img = np.empty((image.shape[0],image.shape[1],3))
+    # for i in range(3): img[:,:,i] = image[:,:,0]
 
-    plt.imshow(img)
+    plt.imshow(image, cmap='gray')
     plt.title(title, fontsize=16)
     plt.axis('off') 
     return
@@ -33,7 +33,7 @@ def prepare_model(chkpt_dir, img_size=256,baseline="attn",embed_dim=512, arch='v
     return model
 
 
-def run_one_image(img, model):
+def run_one_image(img, model, mean=None, std=None):
     x = torch.tensor(img).cuda()
     
     # make it a batch-like
@@ -55,6 +55,12 @@ def run_one_image(img, model):
     mask = torch.einsum('nchw->nhwc', mask).detach()
 
     x = torch.einsum('nchw->nhwc', x)
+    
+    # reverse normalization
+    if mean is not None and std is not None:
+        print(f"x.shape: {x.shape}")
+        x = x * std + mean
+        y = y * std + mean
 
     # masked image
     im_masked = x * (1 - mask)
@@ -80,9 +86,62 @@ def run_one_image(img, model):
     plt.show()
 
 
+def run_one_image_sp(img, model, mean=None, std=None):
+    x = torch.tensor(img).cuda()
+    
+    # make it a batch-like
+    x = x.unsqueeze(dim=0)
+    x = torch.einsum('nhwc->nchw', x)
+
+    # run MAE
+    loss, y, mask = model(x, mask_ratio=P)
+    y = model.unpatchify(y)
+    y = torch.einsum('nchw->nhwc', y).detach()
+    print("loss", loss)
+
+    # visualize the mask
+    mask = mask.detach()
+    # (N, H*W, p*p*3)
+    mask = mask.unsqueeze(-1).repeat(1, 1,
+                                     model.patch_embed.patch_size[0]**2)
+    mask = model.unpatchify(mask)  # 1 is removing, 0 is keeping
+    mask = torch.einsum('nchw->nhwc', mask).detach()
+
+    x = torch.einsum('nchw->nhwc', x)
+    
+    # reverse normalization
+    if mean is not None and std is not None:
+        print(f"x.shape: {x.shape}")
+        x = x * std + mean
+        y = y * std + mean
+
+    # masked image
+    im_masked = x * (1 - mask)
+
+    # MAE reconstruction pasted with visible patches
+    im_paste = x * (1 - mask) + y * mask
+
+    # make the plt figure larger
+    plt.rcParams['figure.figsize'] = [24, 24]
+    
+    plt.subplot(1, 2, 1)
+    show_image(x[0].cpu(), "original")
+
+    # plt.subplot(1, 3, 2)
+    # show_image(im_masked[0].cpu(), "masked")
+
+    plt.subplot(1, 2, 2)
+    show_image(y[0].cpu(), "reconstruction")
+
+    # plt.subplot(1, 3, 3)
+    # show_image(im_paste[0].cpu(), "reconstruction + visible")
+
+    plt.show()
+
+
 class MaskedAutoEncoder:
     def __init__(self,baseline,embed_dim):
-        chkpt_dir = f'/home/katsuyuki/temp/flare_transformer/output_dir/{baseline}/checkpoint-20.pth' # パス注意
+        chkpt_dir = f'/home/katsuyuki/temp/flare_transformer/output_dir/{baseline}/checkpoint-' # パス注意
         self.model = prepare_model(chkpt_dir,baseline=baseline,embed_dim=embed_dim)
         self.dim = self.model.embed_dim
 
