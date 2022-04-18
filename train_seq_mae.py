@@ -103,9 +103,9 @@ if __name__ == '__main__':
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
-    params = json.loads(open("params/params_2014.json").read())
+    params = json.loads(open("params/params_2014_seq_mae.json").read())
     train_dataset = TrainDataloader256("train", params["dataset"],has_window=True)
-    val_dataset = TrainDataloader256("valid", params["dataset"],has_window=True)
+    val_dataset = TrainDataloader256("test", params["dataset"],has_window=True)
     # train_dataset = FashionMnistDataLoader()
     
     mean, std = train_dataset.calc_mean()

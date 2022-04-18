@@ -10,6 +10,7 @@
 # --------------------------------------------------------
 
 from functools import partial
+from xml.etree.ElementPath import xpath_tokenizer
  
 import torch
 import torch.nn as nn
@@ -19,8 +20,8 @@ from typing import Type, Any, Callable, Union, List, Optional
 from timm.models.vision_transformer import PatchEmbed, Mlp, DropPath, Attention
 
 
-from mae.prod.util.pos_embed import get_2d_sincos_pos_embed
-from models_mae import LambdaResnet, Block
+from mae.prod.util.pos_embed import get_2d_sincos_pos_embed, get_2d_sincos_pos_embed_seq
+from mae.prod.models_mae import LambdaResnet, Block
 
 import torch
 from torch import nn
@@ -42,16 +43,20 @@ class SequenceMaskedAutoencoderViT(nn.Module):
 
         # --------------------------------------------------------------------------
         # MAE encoder specifics
-        self.patch_embed = PatchEmbed(
+        self.patch_embed1 = PatchEmbed(
             img_size, patch_size, in_chans, embed_dim)
-        num_patches = self.patch_embed.num_patches
+        num_patches = self.patch_embed1.num_patches
+
+        self.patch_embed2 = PatchEmbed(
+            img_size, patch_size, in_chans, embed_dim)
+        num_patches = self.patch_embed2.num_patches
 
         self.embed_dim = embed_dim
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_embed = nn.Parameter(
             torch.zeros(
                 1,
-                num_patches + 1,
+                num_patches * 2 + 1,
                 embed_dim),
             requires_grad=False)  # fixed sin-cos embedding
 
@@ -133,18 +138,19 @@ class SequenceMaskedAutoencoderViT(nn.Module):
     def initialize_weights(self):
         # initialization
         # initialize (and freeze) pos_embed by sin-cos embedding
-        pos_embed = get_2d_sincos_pos_embed(
-            self.pos_embed.shape[-1], int(self.patch_embed.num_patches**.5), cls_token=True)
+        pos_embed = get_2d_sincos_pos_embed_seq(
+            self.pos_embed.shape[-1], int((self.patch_embed1.num_patches** .5)), cls_token=True)
+        
         self.pos_embed.data.copy_(
             torch.from_numpy(pos_embed).float().unsqueeze(0))
 
         decoder_pos_embed = get_2d_sincos_pos_embed(
-            self.decoder_pos_embed.shape[-1], int(self.patch_embed.num_patches**.5), cls_token=True)
+            self.decoder_pos_embed.shape[-1], int((self.patch_embed1.num_patches** .5)), cls_token=True)
         self.decoder_pos_embed.data.copy_(
             torch.from_numpy(decoder_pos_embed).float().unsqueeze(0))
 
         # initialize patch_embed like nn.Linear (instead of nn.Conv2d)
-        w = self.patch_embed.proj.weight.data
+        w = self.patch_embed1.proj.weight.data
         torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
 
         # timm's trunc_normal_(std=.02) is effectively normal_(std=0.02) as
@@ -171,7 +177,7 @@ class SequenceMaskedAutoencoderViT(nn.Module):
         imgs: (N, 1, H, W)
         x: (N, L, patch_size**2 *1)
         """
-        p = self.patch_embed.patch_size[0]
+        p = self.patch_embed1.patch_size[0]
         assert imgs.shape[2] == imgs.shape[3] and imgs.shape[2] % p == 0
 
         h = w = imgs.shape[2] // p
@@ -185,7 +191,7 @@ class SequenceMaskedAutoencoderViT(nn.Module):
         x: (N, L, patch_size**2 *1)
         imgs: (N, 1, H, W)
         """
-        p = self.patch_embed.patch_size[0]
+        p = self.patch_embed1.patch_size[0]
         h = w = int(x.shape[1]**.5)
         assert h * w == x.shape[1]
 
@@ -199,7 +205,7 @@ class SequenceMaskedAutoencoderViT(nn.Module):
         imgs: (N, 3, H, W)
         x: (N, L, patch_size**2 *3)
         """
-        p = self.patch_embed.patch_size[0]
+        p = self.patch_embed1.patch_size[0]
         assert imgs.shape[2] == imgs.shape[3] and imgs.shape[2] % p == 0
 
         h = w = imgs.shape[2] // p
@@ -213,7 +219,7 @@ class SequenceMaskedAutoencoderViT(nn.Module):
         x: (N, L, patch_size**2 *3)
         imgs: (N, 3, H, W)
         """
-        p = self.patch_embed.patch_size[0]
+        p = self.patch_embed1.patch_size[0]
         h = w = int(x.shape[1]**.5)
         assert h * w == x.shape[1]
 
@@ -330,24 +336,28 @@ class SequenceMaskedAutoencoderViT(nn.Module):
     def forward_encoder_vit(self, x, mask_ratio):  # x: (B,C,H,W)
         # print("base",x.shape)
         # embed patches
-        # print(x.shape)
-        # x_t = x
-        # x_t_1 = x
-        x = self.patch_embed(x) # (B,H*W/patch**2,embed_dim)
-        # print(x.shape)
+        # print(f"x.shape: {x.shape}")
+        x_t = x[:, 0, :, :, :]
+        x_t_1 = x[:, -1, :, :, :]
+        x_t = self.patch_embed1(x_t) # (B,H*W/patch**2,embed_dim)
+        x_t_1 = self.patch_embed2(x_t_1) # (B,H*W/patch**2,embed_dim)
+        # print(x_t.shape)
         
         # add pos embed w/o cls token
-        x = x + self.pos_embed[:, 1:, :]
+        x_t = x_t + self.pos_embed[:, 1:x_t.shape[1]+1, :]
+        x_t_1 = x_t_1 + self.pos_embed[:, x_t.shape[1]+1:, :]
         # print(x.shape)
 
         # masking: length -> length * mask_ratio
-        x, mask, ids_restore = self.random_masking_vit(x, mask_ratio)
+        x_t, mask, ids_restore = self.random_masking_vit(x_t, mask_ratio)
         # print(x.shape)
 
         # append cls token
         cls_token = self.cls_token + self.pos_embed[:, :1, :]
-        cls_tokens = cls_token.expand(x.shape[0], -1, -1)
-        x = torch.cat((cls_tokens, x), dim=1)
+        cls_tokens = cls_token.expand(x_t.shape[0], -1, -1)
+        x = torch.cat((cls_tokens, x_t, x_t_1), dim=1)
+        # print(f"x.shape: {x_t.shape}")
+        # print(f"cls_token.shape: {cls_token.shape}")
 
         # apply Transformer blocks
         for blk in self.blocks:
@@ -455,7 +465,10 @@ class SequenceMaskedAutoencoderViT(nn.Module):
 
     def forward_decoder(self, x, ids_restore):
         # embed tokens
-        x = self.decoder_embed(x)
+        # print(f"x.shape:{x.shape}")
+        x = self.decoder_embed(x[:, 1:257, :])
+        # x_t_1 = (x[:, 256:, :])
+
 
         # append mask tokens to sequence
         mask_tokens = self.mask_token.repeat(
@@ -523,7 +536,8 @@ class SequenceMaskedAutoencoderViT(nn.Module):
         pred: [N, L, p*p*3]
         mask: [N, L], 0 is keep, 1 is remove,
         """
-        target = self.patchify(imgs)
+        img_t = imgs[:, 0, :, :, :]
+        target = self.patchify(img_t)
         if self.norm_pix_loss:
             mean = target.mean(dim=-1, keepdim=True)
             var = target.var(dim=-1, keepdim=True)
@@ -544,3 +558,13 @@ class SequenceMaskedAutoencoderViT(nn.Module):
 
         loss = self.forward_loss(imgs, pred, mask)
         return loss, pred, mask
+
+def vit_for_FT64d4b(embed_dim=64, **kwargs):
+    model = SequenceMaskedAutoencoderViT(
+        patch_size=8, embed_dim=embed_dim, depth=4, num_heads=8, # embed_dim % num_heads == 0 にしないとだめなので注意
+        decoder_embed_dim=128, decoder_depth=4, decoder_num_heads=8,
+        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+    return model
+
+vit_for_FT = vit_for_FT64d4b
+
