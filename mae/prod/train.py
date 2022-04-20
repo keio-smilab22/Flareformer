@@ -16,6 +16,7 @@ import math
 from mae.prod.datasets import TrainDataloader
 import mae.prod.models_mae
 import mae.prod.models_seq_mae
+import mae.prod.models_pyramid_mae
 import timm.optim.optim_factory as optim_factory
 import argparse
 import datetime
@@ -123,7 +124,7 @@ def train_one_epoch(model: torch.nn.Module,
         # print(samples.shape)
         # samples = samples.cpu()
         with torch.cuda.amp.autocast():
-            loss, _, _ = model(samples, mask_ratio=args.mask_ratio)
+            loss, _, _ = model(samples, args.mask_ratio)
 
         loss_value = loss.item()
 
@@ -295,10 +296,16 @@ def main(args, dataset_train, dataset_val=None):
         )
 
     # define the model
-    model = mae.prod.models_mae.__dict__[args.model](embed_dim=args.dim,
+    # model = mae.prod.models_mae.__dict__[args.model](embed_dim=args.dim,
+                                                    #  baseline=args.baseline, # attn, lambda, linear
+                                                    #  img_size=args.input_size,
+                                                    #  norm_pix_loss=args.norm_pix_loss)
+    model = mae.prod.models_pyramid_mae.__dict__[args.model](embed_dim=args.dim,
                                                      baseline=args.baseline, # attn, lambda, linear
                                                      img_size=args.input_size,
                                                      norm_pix_loss=args.norm_pix_loss)
+    
+
     model.to(device)
 
     model_without_ddp = model
@@ -327,7 +334,7 @@ def main(args, dataset_train, dataset_val=None):
     if args.wandb:
         wandb.init(
             project="flare_transformer_MAE_exp",
-            name=f"flare_{args.baseline}_b{args.batch_size}_dim{args.dim}_{args.name}")
+            name=f"flare_{args.baseline}_b{args.batch_size}_dim{args.dim}_{args.name}", config=args)
 
     for epoch in range(args.epochs):
         print("====== Epoch ", (epoch+1), " ======")
@@ -356,7 +363,7 @@ def main(args, dataset_train, dataset_val=None):
             epoch_name = str(epoch+1)
             if loss_scaler is not None:
                 checkpoint_paths = [output_dir / args.baseline / 
-                                    f'checkpoint-{epoch+1}-{args.name}.pth']
+                                    f'checkpoint-{epoch+1}-{args.name}-{args.grid_size}-{args.keep_ratio}.pth']
                 for checkpoint_path in checkpoint_paths:
                     to_save = {
                         'model': model_without_ddp.state_dict(),
