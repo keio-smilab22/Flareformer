@@ -568,16 +568,16 @@ class PositionalEncoding(nn.Module):
             x: Tensor, shape [seq_len, batch_size, embedding_dim]
         """
         x = x + self.pe[:x.size(0)]
-        return self.dropout(x)
  
 
 
 class FlareTransformerWithMAE(nn.Module):  # MAEを持つFT
     def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24, baseline="attn", embed_dim=512, has_vit_head=False):
         super(FlareTransformerWithMAE, self).__init__()
-
         mae_encoder = MaskedAutoEncoder(baseline=baseline, embed_dim=embed_dim)
-        mae_encoder.model.requires_grad = False
+        for param in mae_encoder.model.parameters():
+            param.requires_grad = False
+        # mae_encoder.model.requires_grad = False
 
         if has_vit_head:
             d_out = mm_params["d_model"]

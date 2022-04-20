@@ -3,6 +3,7 @@ sys.path.append('..')
 sys.path.append('../../')
 
 import mae.prod.models_mae
+import mae.prod.models_seq_mae
 import torch
 import numpy as np
 
@@ -23,9 +24,18 @@ def show_image(image, title=''):
     plt.axis('off') 
     return
 
-def prepare_model(chkpt_dir, img_size=256,baseline="attn",embed_dim=512, arch='vit_for_FT'):
+def prepare_model(chkpt_dir, img_size=256,baseline="attn",embed_dim=512, arch='vit_for_FT', depth=4, decoder_depth=4):
     # build model
     model = getattr(mae.prod.models_mae, arch)(img_size=img_size, baseline=baseline, embed_dim=embed_dim)
+    # load model
+    checkpoint = torch.load(chkpt_dir, map_location=torch.device('cuda'))
+    msg = model.load_state_dict(checkpoint['model'], strict=False)
+    model.cuda()
+    return model
+
+def prepare_model_seq(chkpt_dir, img_size=256,baseline="attn",embed_dim=512, arch='vit_for_FT'):
+    # build model
+    model = getattr(mae.prod.models_seq_mae, arch)(img_size=img_size, baseline=baseline, embed_dim=embed_dim)
     # load model
     checkpoint = torch.load(chkpt_dir, map_location=torch.device('cuda'))
     msg = model.load_state_dict(checkpoint['model'], strict=False)
@@ -86,6 +96,70 @@ def run_one_image(img, model, mean=None, std=None):
     plt.show()
 
 
+def run_one_image_seq(img, model, mean=None, std=None):
+    x = torch.tensor(img).cuda()
+    print(f"x.shape: {x.shape}")
+    # make it a batch-like
+    x = x.unsqueeze(dim=0)
+    x = torch.einsum('nkhwc->nkchw', x)
+
+    # run MAE
+    loss, y, mask = model(x, mask_ratio=P)
+    y = model.unpatchify(y)
+    y = torch.einsum('nchw->nhwc', y).detach()
+    print("loss", loss)
+
+    # visualize the mask
+    mask = mask.detach()
+    # (N, H*W, p*p*3)
+    mask = mask.unsqueeze(-1).repeat(1, 1,
+                                     model.patch_embed.patch_size[0]**2)
+    mask = model.unpatchify(mask)  # 1 is removing, 0 is keeping
+    mask = torch.einsum('nchw->nhwc', mask).detach()
+
+    x = torch.einsum('nkchw->nkhwc', x)
+    x1 = x[:,0,:,:,:]
+    x2 = x[:,1,:,:,:]
+    
+    # reverse normalization
+    if mean is not None and std is not None:
+        print(f"x.shape: {x.shape}")
+        x = x * std + mean
+        y = y * std + mean
+
+    # masked image
+    im_masked = x1 * (1 - mask)
+
+    # MAE reconstruction pasted with visible patches
+    im_paste = x1 * (1 - mask) + y * mask
+
+    # make the plt figure larger
+    plt.rcParams['figure.figsize'] = [24, 24]
+    
+    plt.subplot(2, 4, 1)
+    show_image(x1[0], "$x_{t-1}$")
+
+    plt.subplot(2, 4, 2)
+    show_image(x2[0], "$x_t$")
+
+    plt.subplot(2, 4, 3)
+    show_image(np.abs(x1[0]-x2[0]), "$ | x_t - x_{t-1}| $")
+    
+    plt.subplot(2, 4, 5)
+    show_image(x1[0], "original")
+
+    plt.subplot(2, 4, 6)
+    show_image(im_masked[0].cpu(), "masked")
+
+    plt.subplot(2, 4, 7)
+    show_image(y[0].cpu(), "reconstruction")
+
+    plt.subplot(2, 4, 8)
+    show_image(im_paste[0].cpu(), "reconstruction + visible")
+
+    plt.show()
+
+
 def run_one_image_sp(img, model, mean=None, std=None):
     x = torch.tensor(img).cuda()
     
@@ -141,7 +215,7 @@ def run_one_image_sp(img, model, mean=None, std=None):
 
 class MaskedAutoEncoder:
     def __init__(self,baseline,embed_dim):
-        chkpt_dir = f'/home/katsuyuki/temp/flare_transformer/output_dir/{baseline}/checkpoint-' # パス注意
+        chkpt_dir = f'/home/katsuyuki/temp/flare_transformer/output_dir/{baseline}/checkpoint-20-not_norm-16-0.1.pth' # パス注意
         self.model = prepare_model(chkpt_dir,baseline=baseline,embed_dim=embed_dim)
         self.dim = self.model.embed_dim
 

@@ -233,11 +233,11 @@ if __name__ == "__main__":
     # argument parser
     parser = argparse.ArgumentParser()
     parser.add_argument('--wandb', action='store_true')
-    parser.add_argument('--params', default='params/params2017.json')
+    parser.add_argument('--params', default='params/params_2017.json')
     parser.add_argument('--project_name', default='flare_transformer_test')
     parser.add_argument('--baseline', default='attn')
     parser.add_argument('--has_vit_head', action='store_true')
-    parser.add_argument('--dim', default=512, type=int)
+    parser.add_argument('--dim', default=64, type=int)
     args = parser.parse_args()
     wandb_flag = args.wandb
 
@@ -289,10 +289,10 @@ if __name__ == "__main__":
                              output_channel=params["output_channel"],
                              sfm_params=params["SFM"],
                              mm_params=params["MM"],
+                             embed_dim=args.dim,
                              window=params["dataset"]["window"],
                              baseline=args.baseline,
-                             embed_dim = args.dim,
-                             has_vit_head=args.has_vit_head).to("cuda")
+                             has_vit_head=True).to("cuda")
 
     summary(model)
     optimizer = torch.optim.Adam(model.parameters(), lr=params["lr"])
