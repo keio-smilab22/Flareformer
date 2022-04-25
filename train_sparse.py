@@ -1,7 +1,7 @@
 from mae.prod.train import *
 from mae.prod.preprocess import *
 import json
-from src.Dataloader import TrainDatasetSparse
+from src.Dataloader import TrainDatasetForPyramid, TrainDatasetSparse
 from skimage.transform import resize
 
 class FashionMnistDataLoader:
@@ -104,9 +104,12 @@ if __name__ == '__main__':
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
     params = json.loads(open("params/params_2014.json").read())
-    train_dataset = TrainDatasetSparse("train", params["dataset"],has_window=False, grid_size=args.grid_size, keep_ratio=args.keep_ratio)
+    # train_dataset = TrainDatasetSparse("train", params["dataset"],has_window=False, grid_size=args.grid_size, keep_ratio=args.keep_ratio)
 
-    val_dataset = TrainDatasetSparse("test", params["dataset"],has_window=False, grid_size=args.grid_size, keep_ratio=args.keep_ratio)
+    # val_dataset = TrainDatasetSparse("test", params["dataset"],has_window=False, grid_size=args.grid_size, keep_ratio=args.keep_ratio)
+
+    train_dataset = TrainDatasetForPyramid("train", params["dataset"],has_window=False, grid_size=args.grid_size)
+    val_dataset = TrainDatasetForPyramid("test", params["dataset"],has_window=False, grid_size=args.grid_size)
     # train_dataset = FashionMnistDataLoader()
     
     mean, std = train_dataset.calc_mean()

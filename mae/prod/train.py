@@ -9,6 +9,7 @@
 # BEiT: https://github.com/microsoft/unilm/tree/master/beit
 # --------------------------------------------------------
 from multiprocessing import reduction
+from matplotlib.pyplot import grid
 from tqdm import tqdm
 from typing import Iterable
 import sys
@@ -303,7 +304,8 @@ def main(args, dataset_train, dataset_val=None):
     model = mae.prod.models_pyramid_mae.__dict__[args.model](embed_dim=args.dim,
                                                      baseline=args.baseline, # attn, lambda, linear
                                                      img_size=args.input_size,
-                                                     norm_pix_loss=args.norm_pix_loss)
+                                                     norm_pix_loss=args.norm_pix_loss,
+                                                     grid_size=args.grid_size)
     
 
     model.to(device)
@@ -363,7 +365,7 @@ def main(args, dataset_train, dataset_val=None):
             epoch_name = str(epoch+1)
             if loss_scaler is not None:
                 checkpoint_paths = [output_dir / args.baseline / 
-                                    f'checkpoint-{epoch+1}-{args.name}-{args.grid_size}-{args.keep_ratio}.pth']
+                                    f'checkpoint-{epoch+1}-{args.name}-{args.grid_size}.pth']
                 for checkpoint_path in checkpoint_paths:
                     to_save = {
                         'model': model_without_ddp.state_dict(),
