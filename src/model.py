@@ -98,13 +98,19 @@ class FlareTransformer(nn.Module):
         img_output = self.generator_image(img_output)  # [bs, MM_d_model]
 
         # Late fusion
-        output = torch.cat((feat_output, img_output), 1)
-        output = self.generator(output)
+        x = torch.cat((feat_output, img_output), 1)
+        output = self.generator(x)
 
         output = self.softmax(output)
 
-        return output
+        return output, x
 
+    def freeze_feature_extractor(self):
+        for param in self.parameters():
+            param.requires_grad = False # 重み固定
+        
+        for param in self.generator.parameters():
+            param.requires_grad = True
 
 
 class FlareTransformerWith1dMAE(nn.Module):
@@ -808,12 +814,12 @@ class FlareTransformerWithMAE(nn.Module):  # MAEを持つFT
         img_output = self.generator_image(img_output)  # [bs, MM_d_model]
 
         # Late fusion
-        output = torch.cat((feat_output, img_output), 1)
-        output = self.generator(output)
+        x = torch.cat((feat_output, img_output), 1)
+        output = self.generator(x)
 
         output = self.softmax(output)
 
-        return output
+        return output, x
 
 
 
@@ -943,7 +949,7 @@ class FlareTransformerWithGAPSeqMAE(nn.Module):  # seqMAEを持つFT
                                                     decoder_num_heads=8,
                                                     mlp_ratio=4,
                                                     norm_layer=partial(nn.LayerNorm, eps=1e-6))
-        checkpoint = torch.load(f"output_dir/{baseline}/checkpoint-100.pth", map_location=torch.device('cuda'))
+        checkpoint = torch.load(f"output_dir/{baseline}/checkpoint-1.pth", map_location=torch.device('cuda')) # todo: あとでここ変える
         _ = mae_encoder.load_state_dict(checkpoint['model'], strict=True)
         mae_encoder.cuda()
 
@@ -1005,9 +1011,11 @@ class FlareTransformerWithGAPSeqMAE(nn.Module):  # seqMAEを持つFT
         self.bn1 = torch.nn.BatchNorm1d(window)  # 128
 
         self.need_cnn = need_cnn
+        self.mlp = None
+        self.alpha = None
 
     def forward_one_vit(self,x):
-        x, _, _ = self.mae_encoder.forward_encoder(x) # (B,L,D)
+        x, _, _, _ = self.mae_encoder.forward_encoder(x) # (B,L,D)
         # x = latent[:,1:,:]
 
         K, L, D = x.shape
@@ -1062,13 +1070,63 @@ class FlareTransformerWithGAPSeqMAE(nn.Module):  # seqMAEを持つFT
         img_output = self.generator_image(img_output)  # [bs, MM_d_model]
 
         # Late fusion
-        output = torch.cat((feat_output, img_output), 1)
-        output = self.generator(output)
+        x = torch.cat((feat_output, img_output), 1)
+        if self.mlp is None:
+            output = self.generator(x)
+        else:
+            output = self.mlp(x)
 
+        disali = self.alpha is not None
+        if disali:
+            sig = nn.Sigmoid()(self.sig_linear(x))
+            output = output + sig * self.beta + sig * torch.mul(self.alpha,output)  # output = z
+    
+    
         output = self.softmax(output)
+        return output, x
 
-        return output
+    def freeze_feature_extractor(self):
+        mlp = False
+        disali = False # disaliの場合はlrを下げるべき？
 
+        for param in self.parameters():
+            param.requires_grad = False # 重み固定
+        
+        for param in self.generator.parameters():
+            param.requires_grad = not disali
+
+        if mlp:
+            self.mlp = MLP(self.generator.in_features,self.generator.out_features,256).cuda()
+        else:
+            print("linear")
+            # pass
+            # nn.init.kaiming_normal_(self.generator.weight)
+        
+        if disali:
+            d = self.generator.out_features
+            self.alpha = nn.Parameter(torch.ones(d)).cuda()
+            self.beta = nn.Parameter(torch.zeros(d)).cuda()
+            # nn.init.kaiming_normal_(self.alpha)
+            # nn.init.kaiming_normal_(self.beta)
+            self.sig_linear = nn.Linear(self.generator.in_features,1).cuda()
+
+
+class MLP (nn.Module): # 中間層1層のMLP
+    def __init__(self,input, output, hidden):
+        super(MLP, self).__init__()
+        self.fc1 = nn.Linear(input, hidden)
+        self.fc2 = nn.Linear(hidden, hidden)
+        self.fc3 = nn.Linear(hidden, output)
+        # self.dropout1 = nn.Dropout2d(0.1)
+        # self.dropout2 = nn.Dropout2d(0.1)
+        
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        # x = self.dropout1(x)
+        x = F.relu(self.fc2(x))
+        # x = self.dropout2(x)
+        return F.relu(self.fc3(x))
+ 
 
 
 class _FlareTransformerWithGAPMAE(nn.Module):  # MAEを持つFT

@@ -1,0 +1,1 @@
+cat .tmp0.txt .tmp0_err.txt

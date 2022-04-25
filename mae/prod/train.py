@@ -236,7 +236,7 @@ def main(args, dataset_train):
         if args.wandb:
             wandb.log(log)
 
-        if args.output_dir and ((epoch+1) == 25 or (epoch+1) == 30):
+        if args.output_dir and ((epoch+1) == args.epoch or (epoch+1) == 1):
             output_dir = Path(args.output_dir)
             epoch_name = str(epoch+1)
             if loss_scaler is not None:

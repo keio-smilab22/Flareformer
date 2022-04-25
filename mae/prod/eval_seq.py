@@ -26,7 +26,7 @@ import torch.backends.cudnn as cudnn
 import wandb
 from torchinfo import summary
 
-P = 0.75
+P = 0.5
 def prepare_model(chkpt_dir,args):
     # build model
     model =  mae.prod.models_mae.SeqentialMaskedAutoencoderViT(embed_dim=args.dim,
@@ -35,7 +35,7 @@ def prepare_model(chkpt_dir,args):
                                                                 depth=args.enc_depth,
                                                                 decoder_depth=args.dec_depth,
                                                                 norm_pix_loss=False,
-                                                                patch_size=16,
+                                                                patch_size=args.patch_size,
                                                                 num_heads=8, 
                                                                 decoder_embed_dim=512,
                                                                 decoder_num_heads=8,
@@ -85,6 +85,9 @@ def run_one_image(img, img2, model,mean,std):
 
     img1, img2 = x[:,0,:,:,:][0].cpu(), x[:,1,:,:,:][0].cpu()
 
+    diff = np.abs(img1-img2)
+    print(f"diff: {diff.sum()}")
+
     plt.subplot(2, 4, 1)
     show_image(img1, "$x_{t-1}$")
 
@@ -92,7 +95,7 @@ def run_one_image(img, img2, model,mean,std):
     show_image(img2, "$x_t$")
 
     plt.subplot(2, 4, 3)
-    show_image(np.abs(img1-img2), "$ | x_t - x_{t-1}| $")
+    show_image(diff, "$ | x_t - x_{t-1}| $")
     
     plt.subplot(2, 4, 5)
     show_image(img2, "original")
@@ -114,26 +117,30 @@ def run(args):
     # img = img.transpose((1, 2, 0))
 
     params = json.loads(open("params/params_2014.json").read())
+    params["dataset"]["window"] = 24
     dl = TrainDataloader256("train", params["dataset"],has_window=False)
     mean,std = dl.calc_mean()
     dl.set_mean(mean,std)
     print(mean,std)
 
-    dl2 = TrainDataloader256("test", params["dataset"],has_window=False)
+    dl2 = TrainDataloader256("test", params["dataset"],has_window=True)
     dl2.set_mean(mean,std)
 
     img, _ = dl[0]
     img = img.transpose(0,1).transpose(1,2)
 
-    img_test1, _ = dl2[0]
-    img_test2, _ = dl2[24]
+    for i, (sample,_) in enumerate(dl2):
+        img_test1, img_test2 = sample[0], sample[-1]
+        if i == 24 * 2:
+            break
+
     img_test1 = img_test1.transpose(0,1).transpose(1,2)
     img_test2 = img_test2.transpose(0,1).transpose(1,2)
 
     plt.rcParams['figure.figsize'] = [5, 5]
     show_image(torch.tensor(img))
 
-    chkpt_dir = f'/home/initial/Dropbox/flare_transformer/output_dir/attn/checkpoint-100.pth'
+    chkpt_dir = args.checkpoint
 
     model_mae = prepare_model(chkpt_dir,args)
     print('Model loaded.')
@@ -142,4 +149,4 @@ def run(args):
     torch.manual_seed(2)
     print('MAE with pixel reconstruction:')
     # run_one_image(img, model_mae, mean,std)
-    run_one_image(img_test1,img_test2,  model_mae, mean,std)
+    run_one_image(img_test1, img_test2, model_mae, mean,std)

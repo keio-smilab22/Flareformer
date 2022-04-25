@@ -165,13 +165,18 @@ def get_args_parser():
 
     parser.add_argument('--target', default="m") # m, p, seq
     parser.add_argument('--token_window', default=4, type=int)
+    parser.add_argument('--k', default=24, type=int)
+    parser.add_argument('--params', default='params/params_2014.json')
+    parser.add_argument('--mask_token_type', default='all')
+    parser.add_argument('--patch_size', default=16, type=int)
+    parser.add_argument('--use_amp', default=False, action='store_true')
     parser.set_defaults(pin_mem=True)
 
     return parser
 
 
-def get_train_dataset(window=4, has_window=False):
-    params = json.loads(open("params/params_2014.json").read())
+def get_train_dataset(filepath, window=4, has_window=False):
+    params = json.loads(open(filepath).read())
     params["dataset"]["window"] = window
     train_dataset = TrainDataloader256("train", params["dataset"],has_window=has_window)
     
@@ -180,8 +185,8 @@ def get_train_dataset(window=4, has_window=False):
     train_dataset.set_mean(mean, std)
     return train_dataset, mean, std
 
-def get_test_dataset(mean,std,window=4, has_window=False):
-    params = json.loads(open("params/params_2014.json").read())
+def get_test_dataset(filepath, mean,std,window=4, has_window=False):
+    params = json.loads(open(filepath).read())
     params["dataset"]["window"] = window
     test = TrainDataloader256("test", params["dataset"],has_window=has_window)
     test.set_mean(mean, std)
@@ -194,16 +199,31 @@ if __name__ == '__main__':
     parser = get_args_parser()
     args = parser.parse_args()
 
+    filepath = args.params
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
     if args.target == "m":
-        train_dataset, mean, std = get_train_dataset(has_window=False)
+        train_dataset, mean, std = get_train_dataset(filepath, has_window=False)
         magnetogram.main(args,train_dataset)
     elif args.target == "seq":
-        train_dataset, mean, std = get_train_dataset(window=2, has_window=True)
-        test_dataset = get_test_dataset(mean,std,window=2,has_window=True)
+        assert False, "DataLoaderを修正してください"
+        # train_dataset, mean, std = get_train_dataset(filepath, window=args.k, has_window=True)
+        # test_dataset = get_test_dataset(filepath, mean,std,window=args.k,has_window=True)
+        # seq.main(args,train_dataset,test_dataset)
+    elif args.target == "cseq":
+        params = json.loads(open(filepath).read())
+        args.interval = 8 # 8時間単位
+        params["dataset"]["window"] = args.k * args.interval # 8時間単位
+        train_dataset = TrainDataloader256("train", params["dataset"],has_window=True)
+        
+        mean, std = train_dataset.calc_mean()
+        print(mean, std)
+        train_dataset.set_mean(mean, std)
+
+        # train_dataset, mean, std = get_train_dataset(filepath, window=args.k, has_window=True)
+        test_dataset = get_test_dataset(filepath, mean,std,window=args.k,has_window=True)
         seq.main(args,train_dataset,test_dataset)
     else:
-        train_dataset, mean, std = get_train_dataset(window=12, has_window=True)
+        train_dataset, mean, std = get_train_dataset(filepath, window=12, has_window=True)
         physics.main(args,train_dataset)

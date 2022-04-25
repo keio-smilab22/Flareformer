@@ -11,312 +11,414 @@ data/data_2010_window_48.csv
 data/data_2011_window_48.csv
 data/data_2012_window_48.csv
 data/data_2013_window_48.csv
-img: torch.Size([29247, 1, 256, 256]) label: (29247, 4) feat: (29247, 90) window: (29247, 4)
+img: torch.Size([29247, 1, 256, 256]) label: (29247, 4) feat: (29247, 90) window: (29247, 48)
 0.35716575 0.22504742444964324
+loading images ...
+data/data_2014_label.csv
+data/data_2014_feat.csv
+data/data_2014_window_48.csv
+img: torch.Size([8127, 1, 256, 256]) label: (8127, 4) feat: (8127, 90) window: (8127, 6)
 job dir: /home/initial/Dropbox/flare_transformer/mae/prod
 Namespace(accum_iter=1,
-baseline='lambda',
-batch_size=23,
+baseline='attn',
+batch_size=32,
 batch_size_search=False,
-blr=0.001,
+dec_depth=4,
 device='cuda',
-epochs=40,
+dim=128,
+enc_depth=4,
+epochs=100,
 input_size=256,
-lr=0.0002,
-mask_ratio=0.75,
+interval=8,
+k=6,
+lr=0.01,
+mask_ratio=0.5,
+mask_token_type='sub',
 min_lr=0.0,
 model='vit_for_FT',
 norm_pix_loss=False,
 num_workers=10,
 output_dir='output_dir',
+params='params/params_2014.json',
+patch_size=16,
 pin_mem=True,
 seed=0,
+target='cseq',
+token_window=4,
+use_amp=False,
 wandb=True,
-warmup_epochs=40,
+warmup_epochs=5,
 weight_decay=0.05)
-Sampler_train = <torch.utils.data.distributed.DistributedSampler object at 0x7fc408e1c580>
-=================================================================
-Layer (type:depth-idx)                   Param #
-=================================================================
-MaskedAutoencoderViT                     --
-├─PatchEmbed: 1-1                        --
-│    └─Conv2d: 2-1                       33,280
-│    └─Identity: 2-2                     --
-├─ModuleList: 1-2                        --
-│    └─Block: 2-3                        --
-│    │    └─LayerNorm: 3-1               1,024
-│    │    └─LambdaLayer: 3-2             108,192
-│    │    └─Identity: 3-3                --
-│    │    └─Identity: 3-4                --
-│    │    └─LayerNorm: 3-5               1,024
-│    │    └─Mlp: 3-6                     2,099,712
-│    │    └─Identity: 3-7                --
-│    │    └─Identity: 3-8                --
-│    └─Block: 2-4                        --
-│    │    └─LayerNorm: 3-9               1,024
-│    │    └─LambdaLayer: 3-10            108,192
-│    │    └─Identity: 3-11               --
-│    │    └─Identity: 3-12               --
-│    │    └─LayerNorm: 3-13              1,024
-│    │    └─Mlp: 3-14                    2,099,712
-│    │    └─Identity: 3-15               --
-│    │    └─Identity: 3-16               --
-│    └─Block: 2-5                        --
-│    │    └─LayerNorm: 3-17              1,024
-│    │    └─LambdaLayer: 3-18            108,192
-│    │    └─Identity: 3-19               --
-│    │    └─Identity: 3-20               --
-│    │    └─LayerNorm: 3-21              1,024
-│    │    └─Mlp: 3-22                    2,099,712
-│    │    └─Identity: 3-23               --
-│    │    └─Identity: 3-24               --
-│    └─Block: 2-6                        --
-│    │    └─LayerNorm: 3-25              1,024
-│    │    └─LambdaLayer: 3-26            108,192
-│    │    └─Identity: 3-27               --
-│    │    └─Identity: 3-28               --
-│    │    └─LayerNorm: 3-29              1,024
-│    │    └─Mlp: 3-30                    2,099,712
-│    │    └─Identity: 3-31               --
-│    │    └─Identity: 3-32               --
-│    └─Block: 2-7                        --
-│    │    └─LayerNorm: 3-33              1,024
-│    │    └─LambdaLayer: 3-34            108,192
-│    │    └─Identity: 3-35               --
-│    │    └─Identity: 3-36               --
-│    │    └─LayerNorm: 3-37              1,024
-│    │    └─Mlp: 3-38                    2,099,712
-│    │    └─Identity: 3-39               --
-│    │    └─Identity: 3-40               --
-│    └─Block: 2-8                        --
-│    │    └─LayerNorm: 3-41              1,024
-│    │    └─LambdaLayer: 3-42            108,192
-│    │    └─Identity: 3-43               --
-│    │    └─Identity: 3-44               --
-│    │    └─LayerNorm: 3-45              1,024
-│    │    └─Mlp: 3-46                    2,099,712
-│    │    └─Identity: 3-47               --
-│    │    └─Identity: 3-48               --
-│    └─Block: 2-9                        --
-│    │    └─LayerNorm: 3-49              1,024
-│    │    └─LambdaLayer: 3-50            108,192
-│    │    └─Identity: 3-51               --
-│    │    └─Identity: 3-52               --
-│    │    └─LayerNorm: 3-53              1,024
-│    │    └─Mlp: 3-54                    2,099,712
-│    │    └─Identity: 3-55               --
-│    │    └─Identity: 3-56               --
-│    └─Block: 2-10                       --
-│    │    └─LayerNorm: 3-57              1,024
-│    │    └─LambdaLayer: 3-58            108,192
-│    │    └─Identity: 3-59               --
-│    │    └─Identity: 3-60               --
-│    │    └─LayerNorm: 3-61              1,024
-│    │    └─Mlp: 3-62                    2,099,712
-│    │    └─Identity: 3-63               --
-│    │    └─Identity: 3-64               --
-│    └─Block: 2-11                       --
-│    │    └─LayerNorm: 3-65              1,024
-│    │    └─LambdaLayer: 3-66            108,192
-│    │    └─Identity: 3-67               --
-│    │    └─Identity: 3-68               --
-│    │    └─LayerNorm: 3-69              1,024
-│    │    └─Mlp: 3-70                    2,099,712
-│    │    └─Identity: 3-71               --
-│    │    └─Identity: 3-72               --
-│    └─Block: 2-12                       --
-│    │    └─LayerNorm: 3-73              1,024
-│    │    └─LambdaLayer: 3-74            108,192
-│    │    └─Identity: 3-75               --
-│    │    └─Identity: 3-76               --
-│    │    └─LayerNorm: 3-77              1,024
-│    │    └─Mlp: 3-78                    2,099,712
-│    │    └─Identity: 3-79               --
-│    │    └─Identity: 3-80               --
-│    └─Block: 2-13                       --
-│    │    └─LayerNorm: 3-81              1,024
-│    │    └─LambdaLayer: 3-82            108,192
-│    │    └─Identity: 3-83               --
-│    │    └─Identity: 3-84               --
-│    │    └─LayerNorm: 3-85              1,024
-│    │    └─Mlp: 3-86                    2,099,712
-│    │    └─Identity: 3-87               --
-│    │    └─Identity: 3-88               --
-│    └─Block: 2-14                       --
-│    │    └─LayerNorm: 3-89              1,024
-│    │    └─LambdaLayer: 3-90            108,192
-│    │    └─Identity: 3-91               --
-│    │    └─Identity: 3-92               --
-│    │    └─LayerNorm: 3-93              1,024
-│    │    └─Mlp: 3-94                    2,099,712
-│    │    └─Identity: 3-95               --
-│    │    └─Identity: 3-96               --
-├─LayerNorm: 1-3                         1,024
-├─Linear: 1-4                            262,656
-├─ModuleList: 1-5                        --
-│    └─Block: 2-15                       --
-│    │    └─LayerNorm: 3-97              1,024
-│    │    └─LambdaLayer: 3-98            108,192
-│    │    └─Identity: 3-99               --
-│    │    └─Identity: 3-100              --
-│    │    └─LayerNorm: 3-101             1,024
-│    │    └─Mlp: 3-102                   2,099,712
-│    │    └─Identity: 3-103              --
-│    │    └─Identity: 3-104              --
-│    └─Block: 2-16                       --
-│    │    └─LayerNorm: 3-105             1,024
-│    │    └─LambdaLayer: 3-106           108,192
-│    │    └─Identity: 3-107              --
-│    │    └─Identity: 3-108              --
-│    │    └─LayerNorm: 3-109             1,024
-│    │    └─Mlp: 3-110                   2,099,712
-│    │    └─Identity: 3-111              --
-│    │    └─Identity: 3-112              --
-│    └─Block: 2-17                       --
-│    │    └─LayerNorm: 3-113             1,024
-│    │    └─LambdaLayer: 3-114           108,192
-│    │    └─Identity: 3-115              --
-│    │    └─Identity: 3-116              --
-│    │    └─LayerNorm: 3-117             1,024
-│    │    └─Mlp: 3-118                   2,099,712
-│    │    └─Identity: 3-119              --
-│    │    └─Identity: 3-120              --
-│    └─Block: 2-18                       --
-│    │    └─LayerNorm: 3-121             1,024
-│    │    └─LambdaLayer: 3-122           108,192
-│    │    └─Identity: 3-123              --
-│    │    └─Identity: 3-124              --
-│    │    └─LayerNorm: 3-125             1,024
-│    │    └─Mlp: 3-126                   2,099,712
-│    │    └─Identity: 3-127              --
-│    │    └─Identity: 3-128              --
-│    └─Block: 2-19                       --
-│    │    └─LayerNorm: 3-129             1,024
-│    │    └─LambdaLayer: 3-130           108,192
-│    │    └─Identity: 3-131              --
-│    │    └─Identity: 3-132              --
-│    │    └─LayerNorm: 3-133             1,024
-│    │    └─Mlp: 3-134                   2,099,712
-│    │    └─Identity: 3-135              --
-│    │    └─Identity: 3-136              --
-│    └─Block: 2-20                       --
-│    │    └─LayerNorm: 3-137             1,024
-│    │    └─LambdaLayer: 3-138           108,192
-│    │    └─Identity: 3-139              --
-│    │    └─Identity: 3-140              --
-│    │    └─LayerNorm: 3-141             1,024
-│    │    └─Mlp: 3-142                   2,099,712
-│    │    └─Identity: 3-143              --
-│    │    └─Identity: 3-144              --
-│    └─Block: 2-21                       --
-│    │    └─LayerNorm: 3-145             1,024
-│    │    └─LambdaLayer: 3-146           108,192
-│    │    └─Identity: 3-147              --
-│    │    └─Identity: 3-148              --
-│    │    └─LayerNorm: 3-149             1,024
-│    │    └─Mlp: 3-150                   2,099,712
-│    │    └─Identity: 3-151              --
-│    │    └─Identity: 3-152              --
-│    └─Block: 2-22                       --
-│    │    └─LayerNorm: 3-153             1,024
-│    │    └─LambdaLayer: 3-154           108,192
-│    │    └─Identity: 3-155              --
-│    │    └─Identity: 3-156              --
-│    │    └─LayerNorm: 3-157             1,024
-│    │    └─Mlp: 3-158                   2,099,712
-│    │    └─Identity: 3-159              --
-│    │    └─Identity: 3-160              --
-├─LayerNorm: 1-6                         1,024
-├─Linear: 1-7                            32,832
-=================================================================
-Total params: 44,529,856
-Trainable params: 44,529,856
+======================================================================
+Layer (type:depth-idx)                        Param #
+======================================================================
+SeqentialMaskedAutoencoderConcatVersion       --
+├─PatchEmbed: 1-1                             --
+│    └─Conv2d: 2-1                            32,896
+│    └─Identity: 2-2                          --
+├─ModuleList: 1-2                             --
+│    └─CosBlock: 2-3                          --
+│    │    └─LayerNorm: 3-1                    256
+│    │    └─InformerEncoderLayer: 3-2         70,800
+│    │    └─Identity: 3-3                     --
+│    │    └─LayerNorm: 3-4                    256
+│    │    └─Mlp: 3-5                          131,712
+│    └─CosBlock: 2-4                          --
+│    │    └─LayerNorm: 3-6                    256
+│    │    └─InformerEncoderLayer: 3-7         70,800
+│    │    └─Identity: 3-8                     --
+│    │    └─LayerNorm: 3-9                    256
+│    │    └─Mlp: 3-10                         131,712
+│    └─CosBlock: 2-5                          --
+│    │    └─LayerNorm: 3-11                   256
+│    │    └─InformerEncoderLayer: 3-12        70,800
+│    │    └─Identity: 3-13                    --
+│    │    └─LayerNorm: 3-14                   256
+│    │    └─Mlp: 3-15                         131,712
+│    └─CosBlock: 2-6                          --
+│    │    └─LayerNorm: 3-16                   256
+│    │    └─InformerEncoderLayer: 3-17        70,800
+│    │    └─Identity: 3-18                    --
+│    │    └─LayerNorm: 3-19                   256
+│    │    └─Mlp: 3-20                         131,712
+├─LayerNorm: 1-3                              256
+├─Linear: 1-4                                 66,048
+├─ModuleList: 1-5                             --
+│    └─CosBlock: 2-7                          --
+│    │    └─LayerNorm: 3-21                   1,024
+│    │    └─InformerEncoderLayer: 3-22        1,069,584
+│    │    └─Identity: 3-23                    --
+│    │    └─LayerNorm: 3-24                   1,024
+│    │    └─Mlp: 3-25                         2,099,712
+│    └─CosBlock: 2-8                          --
+│    │    └─LayerNorm: 3-26                   1,024
+│    │    └─InformerEncoderLayer: 3-27        1,069,584
+│    │    └─Identity: 3-28                    --
+│    │    └─LayerNorm: 3-29                   1,024
+│    │    └─Mlp: 3-30                         2,099,712
+│    └─CosBlock: 2-9                          --
+│    │    └─LayerNorm: 3-31                   1,024
+│    │    └─InformerEncoderLayer: 3-32        1,069,584
+│    │    └─Identity: 3-33                    --
+│    │    └─LayerNorm: 3-34                   1,024
+│    │    └─Mlp: 3-35                         2,099,712
+│    └─CosBlock: 2-10                         --
+│    │    └─LayerNorm: 3-36                   1,024
+│    │    └─InformerEncoderLayer: 3-37        1,069,584
+│    │    └─Identity: 3-38                    --
+│    │    └─LayerNorm: 3-39                   1,024
+│    │    └─Mlp: 3-40                         2,099,712
+├─LayerNorm: 1-6                              1,024
+├─Linear: 1-7                                 131,328
+======================================================================
+Total params: 13,729,024
+Trainable params: 13,729,024
 Non-trainable params: 0
-=================================================================
-base lr: 2.23e-03
-actual lr: 2.00e-04
+======================================================================
+base lr: 8.00e-02
+actual lr: 1.00e-02
 accumulate grad iterations: 1
-effective batch size: 23
-Start training for 40 epochs
+effective batch size: 32
+Start training for 100 epochs
 ====== Epoch  1  ======
-time: 433.353s
+loss: 0.01226348
+time: 311.944s
 ====== Epoch  2  ======
-time: 432.276s
+loss: 0.00556119
+time: 306.401s
 ====== Epoch  3  ======
-time: 433.131s
+loss: 0.00524809
+time: 302.844s
 ====== Epoch  4  ======
-time: 432.974s
+loss: 0.08503463
+time: 310.489s
 ====== Epoch  5  ======
-time: 432.780s
+loss: 0.03044352
+time: 315.460s
 ====== Epoch  6  ======
-time: 432.372s
+loss: 0.01033849
+time: 317.174s
 ====== Epoch  7  ======
-time: 432.597s
+loss: 0.00624179
+time: 322.740s
 ====== Epoch  8  ======
-time: 432.789s
+loss: 0.00712957
+time: 314.145s
 ====== Epoch  9  ======
-time: 432.486s
+loss: 0.00484396
+time: 308.489s
 ====== Epoch  10  ======
-time: 432.076s
+loss: 0.00790285
+time: 321.502s
 ====== Epoch  11  ======
-time: 432.760s
+loss: 0.00580335
+time: 306.788s
 ====== Epoch  12  ======
-time: 432.430s
+loss: 0.00472438
+time: 312.944s
 ====== Epoch  13  ======
-time: 433.018s
+loss: 0.00445765
+time: 310.366s
 ====== Epoch  14  ======
-time: 432.877s
+loss: 0.00802674
+time: 309.281s
 ====== Epoch  15  ======
-time: 432.643s
+loss: 0.00503052
+time: 323.935s
 ====== Epoch  16  ======
-time: 432.250s
+loss: 0.00419409
+time: 308.708s
 ====== Epoch  17  ======
-time: 432.496s
+loss: 0.00391355
+time: 310.294s
 ====== Epoch  18  ======
-time: 432.987s
+loss: 0.00879946
+time: 322.050s
 ====== Epoch  19  ======
-time: 432.696s
+loss: 0.00547509
+time: 320.126s
 ====== Epoch  20  ======
-time: 433.445s
+loss: 0.00410030
+time: 311.238s
 ====== Epoch  21  ======
-time: 432.909s
+loss: 0.00420162
+time: 308.539s
 ====== Epoch  22  ======
-time: 432.399s
+loss: 0.00375607
+time: 312.577s
 ====== Epoch  23  ======
-time: 432.355s
+loss: 0.00365457
+time: 318.822s
 ====== Epoch  24  ======
-time: 432.728s
+loss: 0.00373012
+time: 308.274s
 ====== Epoch  25  ======
-time: 433.412s
+loss: 0.00377654
+time: 321.095s
 ====== Epoch  26  ======
-time: 432.318s
+loss: 0.00931706
+time: 302.910s
 ====== Epoch  27  ======
-time: 432.764s
+loss: 0.00586628
+time: 309.959s
 ====== Epoch  28  ======
-time: 432.613s
+loss: 0.00545391
+time: 311.729s
 ====== Epoch  29  ======
-time: 433.076s
+loss: 0.00434755
+time: 315.090s
 ====== Epoch  30  ======
-time: 433.333s
+loss: 0.00390810
+time: 309.744s
 ====== Epoch  31  ======
-time: 432.432s
+loss: 0.00465338
+time: 315.668s
 ====== Epoch  32  ======
-time: 433.126s
+loss: 0.01316705
+time: 320.016s
 ====== Epoch  33  ======
-time: 432.725s
+loss: 0.00503707
+time: 308.859s
 ====== Epoch  34  ======
-time: 433.574s
+loss: 0.00594473
+time: 310.632s
 ====== Epoch  35  ======
-time: 432.672s
+loss: 0.00424345
+time: 309.204s
 ====== Epoch  36  ======
-time: 432.978s
+loss: 0.00390214
+time: 322.240s
 ====== Epoch  37  ======
-time: 433.037s
+loss: 0.00371840
+time: 321.260s
 ====== Epoch  38  ======
-time: 432.776s
+loss: 0.00408211
+time: 311.708s
 ====== Epoch  39  ======
-time: 432.924s
+loss: 0.00622744
+time: 311.803s
 ====== Epoch  40  ======
-time: 432.905s
-Training time 4:48:36
+loss: 0.00497634
+time: 326.065s
+====== Epoch  41  ======
+loss: 0.00499792
+time: 322.242s
+====== Epoch  42  ======
+loss: 0.00461291
+time: 324.635s
+====== Epoch  43  ======
+loss: 0.00367895
+time: 308.147s
+====== Epoch  44  ======
+loss: 0.00430078
+time: 315.910s
+====== Epoch  45  ======
+loss: 0.00405363
+time: 314.552s
+====== Epoch  46  ======
+loss: 0.00342521
+time: 314.483s
+====== Epoch  47  ======
+loss: 0.00372688
+time: 327.350s
+====== Epoch  48  ======
+loss: 0.00391388
+time: 320.991s
+====== Epoch  49  ======
+loss: 0.00369382
+time: 308.779s
+====== Epoch  50  ======
+loss: 0.00416837
+time: 312.621s
+====== Epoch  51  ======
+loss: 0.00794728
+time: 313.884s
+====== Epoch  52  ======
+loss: 0.00430055
+time: 324.218s
+====== Epoch  53  ======
+loss: 0.00435309
+time: 315.009s
+====== Epoch  54  ======
+loss: 0.00401743
+time: 309.263s
+====== Epoch  55  ======
+loss: 0.00410664
+time: 310.498s
+====== Epoch  56  ======
+loss: 0.00419631
+time: 309.825s
+====== Epoch  57  ======
+loss: 0.00405129
+time: 319.245s
+====== Epoch  58  ======
+loss: 0.00349793
+time: 323.887s
+====== Epoch  59  ======
+loss: 0.00378333
+time: 318.582s
+====== Epoch  60  ======
+loss: 0.00345499
+time: 324.609s
+====== Epoch  61  ======
+loss: 0.00356793
+time: 308.889s
+====== Epoch  62  ======
+loss: 0.00324066
+time: 328.514s
+====== Epoch  63  ======
+loss: 0.00337348
+time: 330.271s
+====== Epoch  64  ======
+loss: 0.00348849
+time: 328.420s
+====== Epoch  65  ======
+loss: 0.00360956
+time: 318.165s
+====== Epoch  66  ======
+loss: 0.00381012
+time: 322.190s
+====== Epoch  67  ======
+loss: 0.00330418
+time: 324.597s
+====== Epoch  68  ======
+loss: 0.00365608
+time: 318.560s
+====== Epoch  69  ======
+loss: 0.00340950
+time: 322.631s
+====== Epoch  70  ======
+loss: 0.00330162
+time: 322.302s
+====== Epoch  71  ======
+loss: 0.00365911
+time: 325.438s
+====== Epoch  72  ======
+loss: 0.00352240
+time: 318.945s
+====== Epoch  73  ======
+loss: 0.00356141
+time: 329.589s
+====== Epoch  74  ======
+loss: 0.00328441
+time: 317.909s
+====== Epoch  75  ======
+loss: 0.00330712
+time: 325.014s
+====== Epoch  76  ======
+loss: 0.00328962
+time: 320.758s
+====== Epoch  77  ======
+loss: 0.00306649
+time: 322.325s
+====== Epoch  78  ======
+loss: 0.00329199
+time: 308.262s
+====== Epoch  79  ======
+loss: 0.00320464
+time: 318.411s
+====== Epoch  80  ======
+loss: 0.00335750
+time: 311.983s
+====== Epoch  81  ======
+loss: 0.00302315
+time: 321.529s
+====== Epoch  82  ======
+loss: 0.00304243
+time: 312.666s
+====== Epoch  83  ======
+loss: 0.00363231
+time: 312.569s
+====== Epoch  84  ======
+loss: 0.00339733
+time: 313.912s
+====== Epoch  85  ======
+loss: 0.00358900
+time: 312.426s
+====== Epoch  86  ======
+loss: 0.00318960
+time: 322.843s
+====== Epoch  87  ======
+loss: 0.00329836
+time: 322.086s
+====== Epoch  88  ======
+loss: 0.00344248
+time: 323.289s
+====== Epoch  89  ======
+loss: 0.00346461
+time: 327.305s
+====== Epoch  90  ======
+loss: 0.00313820
+time: 316.264s
+====== Epoch  91  ======
+loss: 0.00350767
+time: 312.137s
+====== Epoch  92  ======
+loss: 0.00314979
+time: 310.501s
+====== Epoch  93  ======
+loss: 0.00291257
+time: 312.574s
+====== Epoch  94  ======
+loss: 0.00370136
+time: 313.807s
+====== Epoch  95  ======
+loss: 0.00326201
+time: 318.311s
+====== Epoch  96  ======
+loss: 0.00334691
+time: 329.723s
+====== Epoch  97  ======
+loss: 0.00333606
+time: 308.509s
+====== Epoch  98  ======
+loss: 0.00314459
+time: 320.857s
+====== Epoch  99  ======
+loss: 0.00351079
+time: 313.388s
+====== Epoch  100  ======
+loss: 0.00306027
+time: 311.389s
+Training time 8:47:23
 

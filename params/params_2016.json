@@ -1,13 +1,13 @@
 {
-    "wandb_name": "id1-4d_2016",
+    "wandb_name": "id23_2016",
     "epochs": 40,
-    "lr": 0.0000007,
-    "bs": 32,
+    "lr": 0.0000021,
+    "bs": 256,
     "lambda": {
         "GMGS": 0.0001,
         "BS": 10
     },
-    "save_model_path": "models/id1-4d.pth",
+    "save_model_path": "models/id23_2016.pth",
     "dataset": {
         "window": 4,
         "year_split": {

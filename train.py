@@ -11,6 +11,8 @@ from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import wandb
+import math
+import torch.nn.functional as F
 
 from src.model import FlareTransformer, _FlareTransformerWithGAPMAE, FlareTransformerLikeViLBERT, FlareTransformerReplacedFreezeViTWithMAE, FlareTransformerReplacedViTWithMAE, FlareTransformerWith1dMAE, FlareTransformerWithConvNext, FlareTransformerWithGAPMAE, FlareTransformerWithGAPSeqMAE, FlareTransformerWithMAE, FlareTransformerWithPositonalEncoding, FlareTransformerWithoutMM, FlareTransformerWithoutPE, PureTransformerSFM
 from src.Dataloader import CombineDataloader, TrainDataloader, TrainDataloader256
@@ -31,6 +33,48 @@ def gmgs_loss_function(y_pred, y_true, score_matrix):
     output = torch.mean(output)
     return -output
 
+# epoch = 0
+# def focal_loss(y_pred, y_true, gamma=0, eps=1e-7):
+#     logit = F.softmax(y_pred, dim=-1)
+#     logit = logit.clamp(eps, 1. - eps)
+    
+#     weights = torch.ones_like(y_true).float()
+#     # weights[:,-1] = 0 # X class
+#     weights[:,-1] = 0 if epoch < 15 else 1 # X class
+#     # weights[:,-1] = np.min([1.,0.6 + 0.3 / 10 * (10-(epoch+1))]) # X class
+#     loss = -1 * weights * y_true * torch.log(logit) # cross entropy
+#     loss = loss * (1 - logit) ** gamma # focal loss
+
+#     return loss.sum() / y_pred.shape[0]
+
+# def ib_focal_loss(input_values, ib, gamma):
+#     """Computes the ib focal loss"""
+#     p = torch.exp(-input_values)
+#     loss = (1 - p) ** gamma * input_values * ib
+#     return loss.mean()
+
+
+
+# switch_epoch = 100
+
+# class IB_FocalLoss(nn.Module):
+#     def __init__(self, weight=None, alpha=10000., gamma=0.):
+#         super(IB_FocalLoss, self).__init__()
+#         assert alpha > 0
+#         self.alpha = alpha
+#         self.epsilon = 0.001
+#         self.weight = weight
+#         self.gamma = gamma
+
+#     def forward(self, input, target, features, num_classes=4):
+#         grads = torch.sum(torch.abs(F.softmax(input, dim=1) - F.one_hot(target, num_classes)),1) # N * 1
+#         ib = grads*(torch.sum(torch.abs(features),dim=1))
+#         ib = self.alpha / (ib + self.epsilon)
+#         if epoch < switch_epoch:
+#             return F.cross_entropy(input, target, reduction='mean', weight=self.weight)
+#         else:
+#             return ib_focal_loss(F.cross_entropy(input, target, reduction='none', weight=self.weight), ib, self.gamma)
+
 
 def label_smoothing(y_true, epsilon):
     """Return label smoothed vector"""
@@ -47,8 +91,7 @@ def bs_loss_function(y_pred, y_true):
     tmp = torch.mean(tmp)
     return tmp
 
-
-def train_epoch(model, train_dl):
+def train_epoch(model, train_dl, epoch,lr,  args):
     """Return train loss and score for train set"""
     model.train()
     predictions = []
@@ -56,10 +99,13 @@ def train_epoch(model, train_dl):
     train_loss = 0
     n = 0
     for _, (x, y, feat) in enumerate(tqdm(train_dl)):
+        if not args.without_schedule:
+            adjust_learning_rate(optimizer, epoch, params["epochs"], lr, args)
         optimizer.zero_grad()
-        output = model(x.cuda().to(torch.float), feat.cuda().to(torch.float))
-        bce_loss = criterion(output, torch.max(y, 1)[
-                             1].cuda().to(torch.long))
+        output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float))
+
+        # ib_loss = ib(output, torch.max(y, 1)[1].cuda().to(torch.long),feat)
+        bce_loss = criterion(output, torch.max(y, 1)[1].cuda().to(torch.long))
 
         if params["lambda"]["GMGS"] != 0:
             gmgs_loss = gmgs_criterion(
@@ -72,9 +118,18 @@ def train_epoch(model, train_dl):
             bs_loss = bs_criterion(output, y.cuda().to(torch.float))
         else:
             bs_loss = 0
+
         loss = bce_loss + \
             params["lambda"]["GMGS"] * gmgs_loss + \
             params["lambda"]["BS"] * bs_loss
+        
+        # if epoch < switch_epoch:
+        #     loss = ib_loss + \
+        #         params["lambda"]["GMGS"] * gmgs_loss + \
+        #         params["lambda"]["BS"] * bs_loss
+        # else:
+        #     loss = ib_loss # ib_lossを使うように
+
         loss.backward()
         optimizer.step()
 
@@ -102,10 +157,10 @@ def eval_epoch(model, validation_dl):
     n = 0
     with torch.no_grad():
         for _, (x, y, feat) in enumerate(tqdm(validation_dl)):
-            output = model(x.cuda().to(torch.float),
+            output, feat = model(x.cuda().to(torch.float),
                            feat.cuda().to(torch.float))
-            bce_loss = criterion(output, torch.max(y, 1)[
-                                 1].cuda().to(torch.long))
+            # bce_loss = criterion(output, y.cuda().to(torch.long))
+            bce_loss = criterion(output, torch.max(y, 1)[1].cuda().to(torch.long))
             if params["lambda"]["GMGS"] != 0:
                 gmgs_loss = gmgs_criterion(
                     output, y.cuda().to(torch.float),
@@ -115,7 +170,7 @@ def eval_epoch(model, validation_dl):
             if params["lambda"]["BS"] != 0:
                 bs_loss = bs_criterion(output, y.cuda().to(torch.float))
             else:
-                bs_loss = 0
+                bs_loss = 0 
             loss = bce_loss + \
                 params["lambda"]["GMGS"] * gmgs_loss + \
                 params["lambda"]["BS"] * bs_loss
@@ -186,10 +241,10 @@ def test_epoch(model, test_dl):
     n = 0
     with torch.no_grad():
         for _, (x, y, feat) in enumerate(tqdm(test_dl)):
-            output = model(x.cuda().to(torch.float),
+            output, feat = model(x.cuda().to(torch.float),
                            feat.cuda().to(torch.float))
-            bce_loss = criterion(output, torch.max(y, 1)[
-                                 1].cuda().to(torch.long))
+            # bce_loss = criterion(output, y.cuda().to(torch.long))
+            bce_loss = criterion(output, torch.max(y, 1)[1].cuda().to(torch.long))
             if params["lambda"]["GMGS"] != 0:
                 gmgs_loss = \
                     gmgs_criterion(output,
@@ -222,6 +277,23 @@ def calc_test_score(score, label):
         test_score[label+"_"+k] = v
     return test_score
 
+def adjust_learning_rate(optimizer, current_epoch, epochs, lr, args): # optimizerの内部パラメタを直接変えちゃうので注意
+    """Decay the learning rate with half-cycle cosine after warmup"""
+    min_lr = 0
+    if current_epoch < args.warmup_epochs:
+        lr = lr * epoch / args.warmup_epochs
+    else:
+        theta = math.pi * (current_epoch - args.warmup_epochs) / (epochs - args.warmup_epochs)
+        lr = min_lr + (lr - min_lr) * 0.5 * (1. + math.cos(theta))
+
+    for param_group in optimizer.param_groups:
+        if "lr_scale" in param_group:
+            param_group["lr"] = lr * param_group["lr_scale"]
+        else:
+            param_group["lr"] = lr
+
+    return lr
+
 
 if __name__ == "__main__":
     # fix seed value
@@ -241,7 +313,12 @@ if __name__ == "__main__":
     parser.add_argument('--enc_depth', default=12, type=int)
     parser.add_argument('--dec_depth', default=8, type=int)
     parser.add_argument('--token_window', default=4, type=int)
-    
+    parser.add_argument('--warmup_epochs', default=5, type=int)
+    parser.add_argument('--without_schedule', action='store_false')
+    parser.add_argument('--lr_stage2', default=0.000008, type=float)
+    parser.add_argument('--epoch_stage2', default=25, type=float)
+    parser.add_argument('--imbalance', action='store_true')
+
     args = parser.parse_args()
     wandb_flag = args.wandb
 
@@ -276,29 +353,47 @@ if __name__ == "__main__":
     test_dataset = TrainDataloader256("test", params["dataset"])
     test_dataset.set_mean(mean, std)
 
+#############
+    # classes = torch.argmax(torch.Tensor(test_dataset.label),dim=1)
+    # prob = torch.zeros(4).cuda()
+    # for i in range(test_dataset.label.shape[0]):
+    #     prob[classes[i]] += 1
+
+    # prob = 1 / prob
+    # prob /= prob.sum()
+    # print(prob)
+
+#############
+    
     print("Batch Sampling")
-    # train_dl = DataLoader(train_dataset, batch_size=params["bs"], shuffle=True)
-    train_dl = DataLoader(train_dataset, batch_sampler=TrainBalancedBatchSampler(
-        train_dataset, params["output_channel"], params["bs"]//params["output_channel"]))
+
+    if args.imbalance:
+        train_dl = DataLoader(train_dataset, batch_size=params["bs"], shuffle=True)
+    else:
+        train_dl = DataLoader(train_dataset, batch_sampler=TrainBalancedBatchSampler(
+            train_dataset, params["output_channel"], params["bs"]//params["output_channel"]))
+
     validation_dl = DataLoader(validation_dataset,
                                batch_size=params["bs"], shuffle=False)
     test_dl = DataLoader(test_dataset, batch_size=params["bs"], shuffle=False)
 
     # Initialize Loss Function
     criterion = nn.CrossEntropyLoss().cuda()
+    # ib = IB_FocalLoss()
     gmgs_criterion = gmgs_loss_function
     bs_criterion = bs_loss_function
 
-    # model = FlareTransformerWithMAE(input_channel=params["input_channel"],
-    #                          output_channel=params["output_channel"],
-    #                          sfm_params=params["SFM"],
-    #                          mm_params=params["MM"],
-    #                          window=params["dataset"]["window"],
-    #                          baseline=args.baseline,
-    #                          embed_dim = args.dim,
-    #                          enc_depth=args.enc_depth,
-    #                          dec_depth=args.dec_depth,
-    #                          has_vit_head=args.has_vit_head).to("cuda")
+
+    model = FlareTransformerWithMAE(input_channel=params["input_channel"],
+                             output_channel=params["output_channel"],
+                             sfm_params=params["SFM"],
+                             mm_params=params["MM"],
+                             window=params["dataset"]["window"],
+                             baseline=args.baseline,
+                             embed_dim = args.dim,
+                             enc_depth=args.enc_depth,
+                             dec_depth=args.dec_depth,
+                             has_vit_head=args.has_vit_head).to("cuda")
 
 
     # model = FlareTransformerWith1dMAE(input_channel=params["input_channel"],
@@ -320,11 +415,11 @@ if __name__ == "__main__":
     #                          dec_depth=args.dec_depth).to("cuda")
 
 
-    model = FlareTransformer(input_channel=params["input_channel"],
-                             output_channel=params["output_channel"],
-                             sfm_params=params["SFM"],
-                             mm_params=params["MM"],
-                             window=params["dataset"]["window"]).to("cuda")
+    # model = FlareTransformer(input_channel=params["input_channel"],
+    #                          output_channel=params["output_channel"],
+    #                          sfm_params=params["SFM"],
+    #                          mm_params=params["MM"],
+    #                          window=params["dataset"]["window"]).to("cuda")
 
     # model = FlareTransformerWithGAPSeqMAE(input_channel=params["input_channel"],
     #                                     output_channel=params["output_channel"],
@@ -337,8 +432,8 @@ if __name__ == "__main__":
     #                                     dec_depth=args.dec_depth,
     #                                     need_cnn=False).to("cuda")
 
-
-    summary(model,[(params["bs"], *train_dataset[0][0].shape),(params["bs"], *train_dataset[0][2].shape)])
+    summary(model)
+    # summary(model,[(params["bs"], *train_dataset[0][0].shape),(params["bs"], *train_dataset[0][2].shape)])
     optimizer = torch.optim.Adam(model.parameters(), lr=params["lr"])
 
     # Start Training
@@ -348,16 +443,14 @@ if __name__ == "__main__":
     model_update_dict = {}
     for e, epoch in enumerate(range(params["epochs"])):
         print("====== Epoch ", e, " ======")
-        train_score, train_loss = train_epoch(model, train_dl)
+        train_score, train_loss = train_epoch(model, train_dl, epoch, params["lr"], args)
         valid_score, valid_loss = eval_epoch(model, validation_dl)
         # test_score, test_loss = test_epoch(model, test_dl) # for train/val/test model
         test_score, test_loss = valid_score, valid_loss
-
-        if best_score["valid_"+params["main_metric"]] < \
-                valid_score["valid_"+params["main_metric"]]:
-            torch.save(model.state_dict(), params["save_model_path"])
-            best_score = valid_score
-            best_epoch = e
+        
+        torch.save(model.state_dict(), params["save_model_path"])
+        best_score = valid_score
+        best_epoch = e
 
         log = {'epoch': epoch, 'train_loss': np.mean(train_loss),
                'valid_loss': np.mean(valid_loss),
@@ -381,3 +474,31 @@ if __name__ == "__main__":
     print("epoch : ", best_epoch, test_score)
     if wandb_flag is True:
         wandb.log(calc_test_score(test_score, "final"))
+
+    # ここからCRT
+    print("Start CRT")
+    train_dl = DataLoader(train_dataset, batch_sampler=TrainBalancedBatchSampler(
+        train_dataset, params["output_channel"], params["bs"]//params["output_channel"]))
+    
+    model.freeze_feature_extractor()
+    summary(model)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_stage2)
+    for e, epoch in enumerate(range(args.epoch_stage2)):
+        print("====== Epoch ", e, " ======")
+        train_score, train_loss = train_epoch(model, train_dl, epoch, args.lr_stage2, args)
+        valid_score, valid_loss = eval_epoch(model, validation_dl)
+        test_score, test_loss = valid_score, valid_loss
+
+        log = {'epoch': epoch, 'train_loss': np.mean(train_loss),
+               'valid_loss': np.mean(valid_loss),
+               'test_loss': np.mean(test_loss)}
+        log.update(train_score)
+        log.update(valid_score)
+        log.update(test_score)
+
+        if wandb_flag is True:
+            wandb.log(log)
+
+        print("Epoch {}: Train loss:{:.4f}  Valid loss:{:.4f}".format(
+              e, train_loss, valid_loss), test_score)

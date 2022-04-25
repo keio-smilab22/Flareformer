@@ -113,43 +113,35 @@ def train_one_epoch(model: torch.nn.Module,
     model.train(True)
     accum_iter = args.accum_iter
  
-    optimizer.zero_grad()
+    # optimizer.zero_grad()
+
+    if args.use_amp:
+        scaler = torch.cuda.amp.GradScaler()
 
     for data_iter_step, (samples, _,_) in enumerate(tqdm(data_loader)):
-        if data_iter_step % accum_iter == 0:
-            adjust_learning_rate(
-                optimizer, data_iter_step / len(data_loader) + epoch, args)
+        adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
 
+        optimizer.zero_grad()
         samples = samples.cuda()
-        # samples = samples.cpu()
-        with torch.cuda.amp.autocast():
-            loss, _, _ = model(samples, mask_ratio=args.mask_ratio)
+        mk = torch.BoolTensor([i % args.interval == 0 for i in range(samples.shape[1])])
+        
+        assert mk.sum() == args.k
+        with torch.cuda.amp.autocast(enabled=args.use_amp):
+            loss, _, _ = model(samples[:,mk,:,:,:], mask_ratio=args.mask_ratio)
+
 
         loss_value = loss.item()
-
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value))
             sys.exit(1)
 
-        loss /= accum_iter
-        loss_scaler(loss, optimizer, parameters=model.parameters(),
-                    update_grad=(data_iter_step + 1) % accum_iter == 0)
-        if (data_iter_step + 1) % accum_iter == 0:
-            optimizer.zero_grad()
-
-        torch.cuda.synchronize()
-        # import time
-        # time.sleep(100000)
-
-        lr = optimizer.param_groups[0]["lr"]
-        if (data_iter_step + 1) % accum_iter == 0:
-            """ We use epoch_1000x as the x-axis in tensorboard.
-            This calibrates different curves when batch size changes.
-            """
-            epoch_1000x = int(
-                (data_iter_step / len(data_loader) + epoch) * 1000)
-            # print("{:.20f}".format(lr))
-            # if args.wandb: wandb.log({"epoch_1000x": epoch_1000x, "loss": loss_value_reduce})
+        if args.use_amp:
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            loss.backward()
+            optimizer.step()
 
         if args.batch_size_search:
             break
@@ -198,32 +190,47 @@ def main(args, dataset_train, dataset_test):
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train, sampler=sampler_train,
         batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        pin_memory=args.pin_mem,
+        num_workers=10,
+        pin_memory=True,
         drop_last=True,
     )
 
     data_loader_test = torch.utils.data.DataLoader(
         dataset_test, sampler=sampler_test,
         batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        pin_memory=args.pin_mem,
+        num_workers=10,
+        pin_memory=True,
         drop_last=True,
     )
 
     # define the model
-    model = mae.prod.models_mae.SeqentialMaskedAutoencoderViT(embed_dim=args.dim,
+    model = mae.prod.models_mae.SeqentialMaskedAutoencoderConcatVersion(embed_dim=args.dim,
                                                             baseline=args.baseline, # attn, lambda, linear
                                                             img_size=args.input_size,
                                                             depth=args.enc_depth,
                                                             decoder_depth=args.dec_depth,
                                                             norm_pix_loss=False,
-                                                            patch_size=16,
-                                                            num_heads=8, 
+                                                            patch_size=args.patch_size,
+                                                            num_heads=8,
                                                             decoder_embed_dim=512,
                                                             decoder_num_heads=8,
-                                                            mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6),)
+                                                            in_chans=args.k,
+                                                            mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6),
+                                                            mask_ratio=args.mask_ratio,
+                                                            mask_token_type=args.mask_token_type)
 
+
+    # model = mae.prod.models_mae.SeqentialMaskedAutoencoderViT(embed_dim=args.dim,
+    #                                                         baseline=args.baseline, # attn, lambda, linear
+    #                                                         img_size=args.input_size,
+    #                                                         depth=args.enc_depth,
+    #                                                         decoder_depth=args.dec_depth,
+    #                                                         norm_pix_loss=False,
+    #                                                         patch_size=args.patch_size,
+    #                                                         num_heads=8, 
+    #                                                         decoder_embed_dim=512,
+    #                                                         decoder_num_heads=8,
+    #                                                         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6),)
         
     model.to(device)
 
@@ -243,7 +250,7 @@ def main(args, dataset_train, dataset_test):
     param_groups = optim_factory.add_weight_decay(
         model_without_ddp, args.weight_decay)
 
-    optimizer = torch.optim.AdamW(param_groups, lr=args.lr, betas=(0.9, 0.95))
+    optimizer = torch.optim.AdamW(param_groups, lr=args.lr, betas=(0.9, 0.95),amsgrad=True)
     # print(optimizer)
     loss_scaler = NativeScaler()
 
@@ -252,7 +259,7 @@ def main(args, dataset_train, dataset_test):
     if args.wandb:
         wandb.init(
             project="flare_transformer_MAE_exp",
-            name=f"seqmae_{args.baseline}_b{args.batch_size}_dim{args.dim}_depth{args.enc_depth}-{args.dec_depth}")
+            name=f"informer_{args.baseline}_b{args.batch_size}_dim{args.dim}_depth{args.enc_depth}-{args.dec_depth}_k={args.k}")
 
     for epoch in range(args.epochs):
         print("====== Epoch ", (epoch+1), " ======")
@@ -275,7 +282,7 @@ def main(args, dataset_train, dataset_test):
 
         saved_flag = False
         for i in range(5):
-            saved_flag = saved_flag or (epoch+1) == args.epochs // (i+1)
+            saved_flag = saved_flag or (epoch+1) == args.epochs // (i+1) or epoch == 1
         
         if args.output_dir and saved_flag:
             output_dir = Path(args.output_dir)

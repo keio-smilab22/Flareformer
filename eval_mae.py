@@ -77,14 +77,17 @@ def get_args_parser():
 
     parser.add_argument('--target', default="m") # m, p
     parser.add_argument('--token_window', default=4, type=int)
+    parser.add_argument('--patch_size', default=16, type=int)
+    parser.add_argument('--checkpoint', default=None)
     parser.set_defaults(pin_mem=True)
 
     return parser
 
 parser = get_args_parser()
-parser.add_argument('--checkpoint', default=10, type=int)
 args = parser.parse_args()
 
+if args.checkpoint is None:
+    args.checkpoint = f'/home/initial/Dropbox/flare_transformer/output_dir/{args.baseline}/checkpoint-2.pth'
 
 if args.target == "seq":
     seq.run(args)
@@ -123,7 +126,7 @@ else:
     plt.rcParams['figure.figsize'] = [5, 5]
     show_image(torch.tensor(img))
 
-    chkpt_dir = f'/home/initial/Dropbox/flare_transformer/output_dir/{args.baseline}/checkpoint-30.pth'
+    chkpt_dir = args.checkpoint
 
     model_mae = prepare_model(chkpt_dir,img_size=args.input_size,baseline=args.baseline,embed_dim=128)
     print('Model loaded.')
