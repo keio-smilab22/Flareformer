@@ -233,7 +233,7 @@ if __name__ == "__main__":
     # argument parser
     parser = argparse.ArgumentParser()
     parser.add_argument('--wandb', action='store_true')
-    parser.add_argument('--params', default='params/params_2017.json')
+    parser.add_argument('--params', default='params/params_2014.json')
     parser.add_argument('--project_name', default='flare_transformer_test')
     parser.add_argument('--baseline', default='attn')
     parser.add_argument('--has_vit_head', action='store_true')

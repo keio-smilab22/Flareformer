@@ -563,9 +563,10 @@ class MaskedAutoencoderViT(nn.Module):
 
         # generate the binary mask: 0 is keep, 1 is remove
         mask = torch.ones([N, L], device=x.device)
-        mask[:, :len_keep] = 0
+        mask[:, :len_keep] = 1 - mask_ratio
         # unshuffle to get the binary mask
         mask = torch.gather(mask, dim=1, index=ids_restore)
+        # mask = torch.gather(mask, dim=2, index=ids_restore_dim)
 
         return x_masked, x_not_masked, mask, ids_restore
 
@@ -807,6 +808,22 @@ class MaskedAutoencoderViT(nn.Module):
         loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
 
         loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
+        return loss
+
+    def forward_loss_pyramid(self, imgs, pred, mask):
+        """
+        imgs: [N, 3, H, W]
+        pred: [N, L, p*p*3]
+        mask: [N, L, D], 0 is keep, 1 is remove,
+        """
+        target = self.patchify(imgs)
+        if self.norm_pix_loss:
+            mean = target.mean(dim=-1, keepdim=True)
+            var = target.var(dim=-1, keepdim=True)
+            target = (target - mean) / (var + 1.e-6)**.5
+
+        loss = (pred - target) ** 2
+        loss = (loss * mask).sum() / mask.sum()
         return loss
 
     def forward_loss_sparse(self, imgs, pred, mask):
