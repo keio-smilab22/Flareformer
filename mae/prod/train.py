@@ -125,7 +125,7 @@ def train_one_epoch(model: torch.nn.Module,
         # print(samples.shape)
         # samples = samples.cpu()
         with torch.cuda.amp.autocast():
-            loss, _, _ = model(samples, args.mask_ratio)
+            loss, _, _ = model(samples, args.mask_ratio, args.do_pyramid)
 
         loss_value = loss.item()
 
@@ -234,7 +234,7 @@ def get_args_parser():
                         help='epochs to warmup LR')
 
     # Dataset parameters
-    parser.add_argument('--output_dir', default='/home/katsuyuki/temp/flare_transformer/output_dir',
+    parser.add_argument('--output_dir', default='/home/katsuyukikuyo/temp/flare_transformer/output_dir',
                         help='path where to save, empty for no saving')
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
@@ -251,12 +251,17 @@ def get_args_parser():
 
     parser.add_argument('--grid_size', default=16, type=int)
     parser.add_argument('--keep_ratio', default=0.1, type=float)
+    parser.add_argument('--do_pyramid', default=False, action='store_true')
     parser.set_defaults(pin_mem=True)
 
     return parser
 
 
 def main(args, dataset_train, dataset_val=None):
+    if args.wandb:
+        wandb.init(
+            project="flare_transformer_MAE_exp",
+            name=f"flare_{args.baseline}_b{args.batch_size}_dim{args.dim}_{args.name}", config=args)
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
 
@@ -301,11 +306,11 @@ def main(args, dataset_train, dataset_val=None):
                                                     #  baseline=args.baseline, # attn, lambda, linear
                                                     #  img_size=args.input_size,
                                                     #  norm_pix_loss=args.norm_pix_loss)
-    model = mae.prod.models_pyramid_mae.__dict__[args.model](embed_dim=args.dim,
+    model = mae.prod.models_mae.__dict__[args.model](embed_dim=args.dim,
                                                      baseline=args.baseline, # attn, lambda, linear
                                                      img_size=args.input_size,
                                                      norm_pix_loss=args.norm_pix_loss,
-                                                     grid_size=args.grid_size)
+                                                     )
     
 
     model.to(device)
@@ -333,10 +338,7 @@ def main(args, dataset_train, dataset_val=None):
 
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
-    if args.wandb:
-        wandb.init(
-            project="flare_transformer_MAE_exp",
-            name=f"flare_{args.baseline}_b{args.batch_size}_dim{args.dim}_{args.name}", config=args)
+    
 
     for epoch in range(args.epochs):
         print("====== Epoch ", (epoch+1), " ======")

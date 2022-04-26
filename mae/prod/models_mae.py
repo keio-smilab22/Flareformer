@@ -563,7 +563,8 @@ class MaskedAutoencoderViT(nn.Module):
 
         # generate the binary mask: 0 is keep, 1 is remove
         mask = torch.ones([N, L], device=x.device)
-        mask[:, :len_keep] = 1 - mask_ratio
+        mask[:, :len_keep] = 0
+        mask[:, len_keep:] = mask_ratio
         # unshuffle to get the binary mask
         mask = torch.gather(mask, dim=1, index=ids_restore)
         # mask = torch.gather(mask, dim=2, index=ids_restore_dim)
@@ -823,6 +824,7 @@ class MaskedAutoencoderViT(nn.Module):
             target = (target - mean) / (var + 1.e-6)**.5
 
         loss = (pred - target) ** 2
+        loss = (loss * mask).sum / mask.sum()
         loss = (loss * mask).sum() / mask.sum()
         return loss
 
@@ -846,14 +848,14 @@ class MaskedAutoencoderViT(nn.Module):
         
         return loss
 
-    def forward(self, imgs, mask_ratio=0.75):
+    def forward(self, imgs, mask_ratio=0.75, do_pyramid=False):
         # print(imgs.shape)
-        latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
-        pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
-        # x_masked, x_not_masked, mask, ids_restore = self.forward_encoder_pyramid(imgs, mask_ratio)
-        # pred = self.forward_decoder_pyramid(x_masked, x_not_masked, ids_restore)  # [N, L, p*p*3]
-        # x, x_not_masked, mask, ids_restore = self.forward_encoder_pyramid(imgs, mask_ratio)
-        # pred = self.forward_decoder_pyramid(x, x_not_masked, ids_restore)  # [N, L, p*p*3]
+        if do_pyramid:
+            x, x_not_masked, mask, ids_restore = self.forward_encoder_pyramid(imgs, mask_ratio)
+            pred = self.forward_decoder_pyramid(x, x_not_masked, ids_restore)  # [N, L, p*p*3]
+        else:
+            latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
+            pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
 
         if mask_ratio > 0:
             loss = self.forward_loss(imgs, pred, mask)
