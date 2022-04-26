@@ -1,4 +1,4 @@
-from mae.prod.eval import *
+# from mae.prod.eval import *
 from train_mae import FashionMnistDataLoader
 import argparse
 import json

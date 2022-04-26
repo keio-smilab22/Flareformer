@@ -163,11 +163,12 @@ class TrainDataloader(Dataset):
  
 
 class TrainDataloader256(Dataset):
-    def __init__(self, split, params, image_type="magnetogram", path="data/data_", augmentation=False, has_window=True):
+    def __init__(self, split, params, image_type="magnetogram", path="data/data_", augmentation=False, has_window=True, sub_bias=False):
         self.path = path
         self.window_size = params["window"]
         self.augmentation = augmentation
         self.has_window = has_window
+        self.sub_bias = sub_bias
 
         year_split = params["year_split"]
 
@@ -198,7 +199,7 @@ class TrainDataloader256(Dataset):
         self.window = self.get_multiple_year_window(
             year_split[split], "window_48")[:, :self.window_size]
         self.window = np.asarray(self.window, dtype=int)
-
+        
         print("img: {}".format(self.img.shape),
               "label: {}".format(self.label.shape),
               "feat: {}".format(self.feat.shape),
@@ -280,7 +281,19 @@ class TrainDataloader256(Dataset):
                 # cv2.destroyAllWindows()
             else:
                 result = np.concatenate([result, image_data], axis=0)
-            
+        
+        if self.sub_bias:
+            result -= np.mean(result,axis=0) # todo: testもtrainと同様のバイアス画像を使うように
+
+        # import cv2
+        # x = np.empty((256,256,3))
+        # result -= np.mean(result,axis=0)
+        # for i in range(3): x[:,:,i] = result[0,0,:,:]
+        # cv2.namedWindow('window')
+        # cv2.imshow('window', x)
+        # cv2.waitKey(50000)
+        # cv2.destroyAllWindows()
+
         return result
 
     def get_multiple_year_data(self, year_dict, data_type):

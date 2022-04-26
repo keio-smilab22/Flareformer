@@ -161,7 +161,19 @@ class TrainDataloader256(Dataset):
                 # cv2.destroyAllWindows()
             else:
                 result = np.concatenate([result, image_data], axis=0)
-            
+        
+        self.bias_img = np.mean(result,axis=0)
+        result -= np.mean(result,axis=0)
+
+        # import cv2
+        # x = np.empty((256,256,3))
+        # for i in range(3): x[:,:,i] = self.bias_img[0,:,:]
+        # # print(result.shape)
+        # cv2.namedWindow('window')
+        # cv2.imshow('window', x)
+        # cv2.waitKey(10000)
+        # cv2.destroyAllWindows()
+
         return result
 
     def get_multiple_year_data(self, year_dict, data_type):
@@ -219,3 +231,7 @@ class TrainDataloader256(Dataset):
         """
         self.mean = mean
         self.std = std
+    
+    def restore_from_bias(self,img):
+        img = img + self.bias_img
+        return img

@@ -1192,7 +1192,6 @@ class SeqentialMaskedAutoencoderConcatVersion(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-
     def patchify(self, imgs):  # チャネル数1
         """
         imgs: (N, 1, H, W)
@@ -1221,39 +1220,116 @@ class SeqentialMaskedAutoencoderConcatVersion(nn.Module):
         imgs = x.reshape(shape=(x.shape[0], 1, h * p, h * p))
         return imgs
 
+    def calc_patch_distribution(self, x): # x: (B,C,H,W)
+        x = self.patchify(x) # (B,L,D)
+        x = torch.std(x, dim=2) # (B,L)
+        means, stds = torch.mean(x,dim=1), torch.std(x,dim=1)
+        return x, means, stds
 
-    def random_masking_vit(self, x, mask_ratio):
+    def get_masking_idx(self,x,original_idx,mask_ratio):
+        L,D = x.shape
+        len_keep = int(L * (1 - mask_ratio))
+        noise = torch.rand(L, device=x.device)  # noise in [0, 1]
+        # sort noise for each sample
+        # ascend: small is keep, large is remove
+        ids_shuffle = torch.argsort(noise, dim=0)
+        ids_restore = torch.argsort(ids_shuffle, dim=0)
+        ids_keep, ids_mask = ids_shuffle[:len_keep], ids_shuffle[len_keep:]
+        return original_idx[ids_keep], original_idx[ids_restore], original_idx[ids_shuffle]
+    
+    def random_masking_vit(self, x, hd, mask_ratio):
         """
         Perform per-sample random masking by per-sample shuffling.
         Per-sample shuffling is done by argsort random noise.
         x: [N, L, D], sequence
         """
-        N, L, D = x.shape  # batch, length, dim
-        len_keep = int(L * (1 - mask_ratio))
+        debug = False
 
-        noise = torch.rand(N, L, device=x.device)  # noise in [0, 1]
+        B, L, D = x.shape
+        p_std, means, stds = self.calc_patch_distribution(hd)
+        thr = stds * 0.75
+        thr = thr.unsqueeze(1).repeat(1,L) # (B,L)
+        means = means.unsqueeze(1).repeat(1,L) # (B,L)
+    
+        pa, pb = torch.abs(p_std - means) < thr, torch.abs(p_std - means) >= thr # (B,L)
+        pa, pb = pa.float(), pb.float()
+        la = int(pa.sum(dim=1).mean())
+        sampling_count = int(L * (1 - mask_ratio))
+        sampling_count_a = int(la * (1 - mask_ratio))
+        sampling_count_b = sampling_count - sampling_count_a
+        index_a = pa.multinomial(num_samples=sampling_count_a, replacement=False) # (B,La)
+        index_b = pb.multinomial(num_samples=sampling_count_b, replacement=False) # (B,Lb)
+        ids_keep = torch.cat([index_a,index_b],dim=1) # (B,L_keep) 
+        ids_keep = torch.unique(ids_keep,dim=1)
 
-        # sort noise for each sample
-        # ascend: small is keep, large is remove
-        ids_shuffle = torch.argsort(noise, dim=1)
+        # index_aとindex_bが重複を含む
+        ids_discard = torch.Tensor([]) # ids_keepの補集合
+        for i in range(B):
+            rest = torch.linspace(0,L-1,L)
+            mk = torch.ones(L,dtype=torch.bool)
+            mk[ids_keep[i]] = False
+            ideal = L - ids_keep.shape[-1]
+            offset = max(0,torch.sum(mk) - ideal) # ids_keepが少ない場合, offset分restを削る
+            rest = rest[mk].unsqueeze(0)
+            if offset > 0:
+                rest = rest[:,:-offset]
+            ids_discard = torch.cat([ids_discard,rest],dim=0)
+
+        # print(sampling_count,sampling_count_a,sampling_count_b,la,int(pb.sum(dim=1).mean()), ids_discard.shape)
+        x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
+        ids_shuffle = torch.cat([ids_keep,ids_discard.cuda()],dim=1)
         ids_restore = torch.argsort(ids_shuffle, dim=1)
 
-        # keep the first subset
-        ids_keep = ids_shuffle[:, :len_keep]
-        x_masked = torch.gather(
-            x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
-
         # generate the binary mask: 0 is keep, 1 is remove
-        mask = torch.ones([N, L], device=x.device)
-        mask[:, :len_keep] = 0
+        mask = torch.ones((B,L), device=x.device)
+
+        if not debug:
+            mask[:, :ids_keep.shape[-1]] = 0
+        
+        #####  group_b (stdでかい)に指定されているものだけmaskしない / mask=1 はマスクされるの意なので注意
+        if debug:
+            for i in range(B):
+                mask[i,pb[i].bool()] = 0
+        ####
+
+
         # unshuffle to get the binary mask
         mask = torch.gather(mask, dim=1, index=ids_restore)
 
-        return x_masked, mask, ids_restore, ids_shuffle
+        # print("x_masked",x_masked.shape)
+        return x_masked, mask, ids_restore, ids_keep
+
+
+
+### original
+
+        # N, L, D = x.shape  # batch, length, dim
+        # len_keep = int(L * (1 - mask_ratio))
+
+        # noise = torch.rand(N, L, device=x.device)  # noise in [0, 1]
+
+        # # sort noise for each sample
+        # # ascend: small is keep, large is remove
+        # ids_shuffle = torch.argsort(noise, dim=1)
+        # ids_restore = torch.argsort(ids_shuffle, dim=1)
+
+        # # keep the first subset
+        # ids_keep = ids_shuffle[:, :len_keep]
+        # x_masked = torch.gather(
+        #     x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
+
+        # # generate the binary mask: 0 is keep, 1 is remove
+        # mask = torch.ones([N, L], device=x.device)
+        # mask[:, :len_keep] = 0
+        # # unshuffle to get the binary mask
+        # mask = torch.gather(mask, dim=1, index=ids_restore)
+
+        # return x_masked, mask, ids_restore, ids_shuffle
 
 
     def forward_encoder(self,x,k,mask_ratio=None): # x: (B,K,C,H,W)
-        # embed patches 
+        # embed patches
+        hd = x[:,0,:,:,:].clone()
         x = x.transpose(1,2).flatten(2,3) # (B,C,H*K,W)
         x = self.patch_embed(x) # (B,H*W/patch**2,embed_dim)
         
@@ -1265,9 +1341,8 @@ class SeqentialMaskedAutoencoderConcatVersion(nn.Module):
             B, L, D = x.shape
             unit = L//k
             h = x[:,:unit,:].clone()
-            h, mask, ids_restore, ids_shuffle = self.random_masking_vit(h, mask_ratio)
+            h, mask, ids_restore, ids_keep = self.random_masking_vit(h, hd, mask_ratio)
             
-            ids_keep = ids_shuffle[:, :h.shape[-2]]
             _ids_keep = ids_keep.clone()
             _ids_restore = ids_restore.clone()
 
@@ -1298,7 +1373,7 @@ class SeqentialMaskedAutoencoderConcatVersion(nn.Module):
 
         x = self.norm(x)
 
-        return x, mask, ids_restore, ids_shuffle
+        return x, mask, ids_restore, ids_keep
      
     def forward_decoder(self, x, k, ids_restore):
         # embed tokens
@@ -1370,13 +1445,13 @@ class SeqentialMaskedAutoencoderConcatVersion(nn.Module):
         loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
         # print(loss.item())
 
-        return loss
+        return loss, pred
 
     def forward(self, imgs,mask_ratio):
         _, k, _, _, _ = imgs.shape
         y, mask, ids_restore, _ = self.forward_encoder(imgs,k,mask_ratio=mask_ratio)
         pred = self.forward_decoder(y, k, ids_restore)  # [N, L, p*p*3]
-        loss = self.forward_loss(k, imgs, pred, mask)
+        loss, pred = self.forward_loss(k, imgs, pred, mask)
         return loss, pred, mask
 
 

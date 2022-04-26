@@ -26,28 +26,34 @@ import torch.backends.cudnn as cudnn
 import wandb
 from torchinfo import summary
 
-P = 0.5
+
+
+
+P = 0.75
 def prepare_model(chkpt_dir,args):
     # build model
-    model =  mae.prod.models_mae.SeqentialMaskedAutoencoderViT(embed_dim=args.dim,
-                                                                baseline=args.baseline, # attn, lambda, linear
-                                                                img_size=args.input_size,
-                                                                depth=args.enc_depth,
-                                                                decoder_depth=args.dec_depth,
-                                                                norm_pix_loss=False,
-                                                                patch_size=args.patch_size,
-                                                                num_heads=8, 
-                                                                decoder_embed_dim=512,
-                                                                decoder_num_heads=8,
-                                                                mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6),)
+    model = mae.prod.models_mae.SeqentialMaskedAutoencoderConcatVersion(embed_dim=args.dim,
+                                                            baseline=args.baseline, # attn, lambda, linear
+                                                            img_size=args.input_size,
+                                                            depth=args.enc_depth,
+                                                            decoder_depth=args.dec_depth,
+                                                            norm_pix_loss=False,
+                                                            patch_size=args.patch_size,
+                                                            num_heads=8,
+                                                            decoder_embed_dim=512,
+                                                            decoder_num_heads=8,
+                                                            in_chans=2, # k=2として設定
+                                                            mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6),
+                                                            mask_ratio=P,
+                                                            mask_token_type="sub")
     # load model
-    checkpoint = torch.load(chkpt_dir, map_location=torch.device('cuda'))
-    msg = model.load_state_dict(checkpoint['model'], strict=True)
+    # checkpoint = torch.load(chkpt_dir, map_location=torch.device('cuda'))
+    # msg = model.load_state_dict(checkpoint['model'], strict=True)
     model.cuda()
     return model
 
 
-def run_one_image(img, img2, model,mean,std):
+def run_one_image(img, img2, model,mean,std,dl):
     x = torch.cat([torch.tensor(img).cuda().unsqueeze(0),torch.tensor(img2).cuda().unsqueeze(0)],dim=0)
     
     # make it a batch-like
@@ -58,8 +64,14 @@ def run_one_image(img, img2, model,mean,std):
     # run MAE
     loss, y, mask = model(x, mask_ratio=P)
     y = model.unpatchify(y)
+    for i in range(2):
+        x[:,i,:,:,:] = mean + std * x[:,i,:,:,:]
+    
+    x = torch.Tensor(dl.restore_from_bias(x.cpu().numpy())).cuda()
+    y = torch.Tensor(dl.restore_from_bias(y.clone().detach().cpu().numpy())).cuda()
     y = torch.einsum('nchw->nhwc', y).detach()
     print("loss", loss)
+    
 
     # visualize the mask
     mask = mask.detach()
@@ -70,9 +82,7 @@ def run_one_image(img, img2, model,mean,std):
     mask = torch.einsum('nchw->nhwc', mask).detach()
 
     x = torch.einsum('nkchw->nkhwc', x)
-    for i in range(2):
-        x[:,i,:,:,:] = mean + std * x[:,i,:,:,:]
-    
+
     y = mean + std * y
     # masked image
     im_masked = x[:,1,:,:,:] * (1 - mask)
@@ -89,16 +99,16 @@ def run_one_image(img, img2, model,mean,std):
     print(f"diff: {diff.sum()}")
 
     plt.subplot(2, 4, 1)
-    show_image(img1, "$x_{t-1}$")
+    show_image(img2, "$x_{t-1}$")
 
     plt.subplot(2, 4, 2)
-    show_image(img2, "$x_t$")
+    show_image(img1, "$x_t$")
 
     plt.subplot(2, 4, 3)
     show_image(diff, "$ | x_t - x_{t-1}| $")
     
     plt.subplot(2, 4, 5)
-    show_image(img2, "original")
+    show_image(img1, "original")
 
     plt.subplot(2, 4, 6)
     show_image(im_masked[0].cpu(), "masked")
@@ -149,4 +159,4 @@ def run(args):
     torch.manual_seed(2)
     print('MAE with pixel reconstruction:')
     # run_one_image(img, model_mae, mean,std)
-    run_one_image(img_test1, img_test2, model_mae, mean,std)
+    run_one_image(img_test1, img_test2, model_mae, mean,std,dl)
