@@ -1243,88 +1243,143 @@ class SeqentialMaskedAutoencoderConcatVersion(nn.Module):
         Per-sample shuffling is done by argsort random noise.
         x: [N, L, D], sequence
         """
+
         debug = False
+        algorithm = "top-u"
 
-        B, L, D = x.shape
-        p_std, means, stds = self.calc_patch_distribution(hd)
-        thr = stds * 0.75
-        thr = thr.unsqueeze(1).repeat(1,L) # (B,L)
-        means = means.unsqueeze(1).repeat(1,L) # (B,L)
-    
-        pa, pb = torch.abs(p_std - means) < thr, torch.abs(p_std - means) >= thr # (B,L)
-        pa, pb = pa.float(), pb.float()
-        la = int(pa.sum(dim=1).mean())
-        sampling_count = int(L * (1 - mask_ratio))
-        sampling_count_a = int(la * (1 - mask_ratio))
-        sampling_count_b = sampling_count - sampling_count_a
-        index_a = pa.multinomial(num_samples=sampling_count_a, replacement=False) # (B,La)
-        index_b = pb.multinomial(num_samples=sampling_count_b, replacement=False) # (B,Lb)
-        ids_keep = torch.cat([index_a,index_b],dim=1) # (B,L_keep) 
-        ids_keep = torch.unique(ids_keep,dim=1)
+        if algorithm == "top-u":
+            B, L, D = x.shape
+            p_std, means, stds = self.calc_patch_distribution(hd)
+            thr = stds * 0.75
+            thr = thr.unsqueeze(1).repeat(1,L) # (B,L)
+            means = means.unsqueeze(1).repeat(1,L) # (B,L)
 
-        # index_aとindex_bが重複を含む
-        ids_discard = torch.Tensor([]) # ids_keepの補集合
-        for i in range(B):
-            rest = torch.linspace(0,L-1,L)
-            mk = torch.ones(L,dtype=torch.bool)
-            mk[ids_keep[i]] = False
-            ideal = L - ids_keep.shape[-1]
-            offset = max(0,torch.sum(mk) - ideal) # ids_keepが少ない場合, offset分restを削る
-            rest = rest[mk].unsqueeze(0)
-            if offset > 0:
-                rest = rest[:,:-offset]
-            ids_discard = torch.cat([ids_discard,rest],dim=0)
-
-        # print(sampling_count,sampling_count_a,sampling_count_b,la,int(pb.sum(dim=1).mean()), ids_discard.shape)
-        x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
-        ids_shuffle = torch.cat([ids_keep,ids_discard.cuda()],dim=1)
-        ids_restore = torch.argsort(ids_shuffle, dim=1)
-
-        # generate the binary mask: 0 is keep, 1 is remove
-        mask = torch.ones((B,L), device=x.device)
-
-        if not debug:
-            mask[:, :ids_keep.shape[-1]] = 0
+            u = int(L * 0.1)
+            top_idx = torch.argsort(p_std,dim=1,descending=True)[:, :u]
+            index_b = top_idx
         
-        #####  group_b (stdでかい)に指定されているものだけmaskしない / mask=1 はマスクされるの意なので注意
-        if debug:
+            pa, pb = torch.abs(p_std - means) < thr, torch.abs(p_std - means) >= thr # (B,L)
+            pa, pb = pa.float(), pb.float()
+            la = int(pa.sum(dim=1).mean())
+            sampling_count_a = int(L * (1-mask_ratio)) - u
+            index_a = pa.multinomial(num_samples=sampling_count_a, replacement=False) # (B,La)
+            ids_keep = torch.cat([index_a,index_b],dim=1) # (B,L_keep) 
+            ids_keep = torch.unique(ids_keep,dim=1)
+
+            # index_aとindex_bが重複を含む
+            ids_discard = torch.Tensor([]) # ids_keepの補集合
             for i in range(B):
-                mask[i,pb[i].bool()] = 0
-        ####
+                rest = torch.linspace(0,L-1,L)
+                mk = torch.ones(L,dtype=torch.bool)
+                mk[ids_keep[i]] = False
+                ideal = L - ids_keep.shape[-1]
+                offset = max(0,torch.sum(mk) - ideal) # ids_keepが少ない場合, offset分restを削る
+                rest = rest[mk].unsqueeze(0)
+                if offset > 0:
+                    rest = rest[:,:-offset]
+                ids_discard = torch.cat([ids_discard,rest],dim=0)
+
+            # print(sampling_count,sampling_count_a,sampling_count_b,la,int(pb.sum(dim=1).mean()), ids_discard.shape)
+            x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
+            ids_shuffle = torch.cat([ids_keep,ids_discard.cuda()],dim=1)
+            ids_restore = torch.argsort(ids_shuffle, dim=1)
+
+            # generate the binary mask: 0 is keep, 1 is remove
+            mask = torch.ones((B,L), device=x.device)
+
+            if not debug:
+                mask[:, :ids_keep.shape[-1]] = 0
+            
+            #####  group_b (stdでかい)に指定されているものだけmaskしない / mask=1 はマスクされるの意なので注意
+            if debug:
+                print("index_{a,b}.shape", index_a.shape[-1],index_b.shape[-1])
+                mask[:,index_a.shape[-1]:index_a.shape[-1]+index_b.shape[-1]] = 0
+            ####
+
+            # unshuffle to get the binary mask
+            mask = torch.gather(mask, dim=1, index=ids_restore)
+
+            # print("x_masked",x_masked.shape)
+            return x_masked, mask, ids_restore, ids_keep
+        
+        elif algorithm == "thr":
+            B, L, D = x.shape
+            p_std, means, stds = self.calc_patch_distribution(hd)
+            thr = stds * 0.75
+            thr = thr.unsqueeze(1).repeat(1,L) # (B,L)
+            means = means.unsqueeze(1).repeat(1,L) # (B,L)
+        
+            pa, pb = torch.abs(p_std - means) < thr, torch.abs(p_std - means) >= thr # (B,L)
+            pa, pb = pa.float(), pb.float()
+            la = int(pa.sum(dim=1).mean())
+            sampling_count = int(L * (1 - mask_ratio))
+            sampling_count_a = int(la * (1 - mask_ratio))
+            sampling_count_b = sampling_count - sampling_count_a
+            index_a = pa.multinomial(num_samples=sampling_count_a, replacement=False) # (B,La)
+            index_b = pb.multinomial(num_samples=sampling_count_b, replacement=False) # (B,Lb)
+            ids_keep = torch.cat([index_a,index_b],dim=1) # (B,L_keep) 
+            ids_keep = torch.unique(ids_keep,dim=1)
+
+            # index_aとindex_bが重複を含む
+            ids_discard = torch.Tensor([]) # ids_keepの補集合
+            for i in range(B):
+                rest = torch.linspace(0,L-1,L)
+                mk = torch.ones(L,dtype=torch.bool)
+                mk[ids_keep[i]] = False
+                ideal = L - ids_keep.shape[-1]
+                offset = max(0,torch.sum(mk) - ideal) # ids_keepが少ない場合, offset分restを削る
+                rest = rest[mk].unsqueeze(0)
+                if offset > 0:
+                    rest = rest[:,:-offset]
+                ids_discard = torch.cat([ids_discard,rest],dim=0)
+
+            # print(sampling_count,sampling_count_a,sampling_count_b,la,int(pb.sum(dim=1).mean()), ids_discard.shape)
+            x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
+            ids_shuffle = torch.cat([ids_keep,ids_discard.cuda()],dim=1)
+            ids_restore = torch.argsort(ids_shuffle, dim=1)
+
+            # generate the binary mask: 0 is keep, 1 is remove
+            mask = torch.ones((B,L), device=x.device)
+
+            if not debug:
+                mask[:, :ids_keep.shape[-1]] = 0
+            
+            #####  group_b (stdでかい)に指定されているものだけmaskしない / mask=1 はマスクされるの意なので注意
+            if debug:
+                for i in range(B):
+                    mask[i,pb[i].bool()] = 0
+            ####
 
 
-        # unshuffle to get the binary mask
-        mask = torch.gather(mask, dim=1, index=ids_restore)
+            # unshuffle to get the binary mask
+            mask = torch.gather(mask, dim=1, index=ids_restore)
 
-        # print("x_masked",x_masked.shape)
-        return x_masked, mask, ids_restore, ids_keep
+            # print("x_masked",x_masked.shape)
+            return x_masked, mask, ids_restore, ids_keep
 
+        elif algorithm == "original":
+            N, L, D = x.shape  # batch, length, dim
+            len_keep = int(L * (1 - mask_ratio))
 
+            noise = torch.rand(N, L, device=x.device)  # noise in [0, 1]
 
-### original
+            # sort noise for each sample
+            # ascend: small is keep, large is remove
+            ids_shuffle = torch.argsort(noise, dim=1)
+            ids_restore = torch.argsort(ids_shuffle, dim=1)
 
-        # N, L, D = x.shape  # batch, length, dim
-        # len_keep = int(L * (1 - mask_ratio))
+            # keep the first subset
+            ids_keep = ids_shuffle[:, :len_keep]
+            x_masked = torch.gather(
+                x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
 
-        # noise = torch.rand(N, L, device=x.device)  # noise in [0, 1]
+            # generate the binary mask: 0 is keep, 1 is remove
+            mask = torch.ones([N, L], device=x.device)
+            mask[:, :len_keep] = 0
+            # unshuffle to get the binary mask
+            mask = torch.gather(mask, dim=1, index=ids_restore)
 
-        # # sort noise for each sample
-        # # ascend: small is keep, large is remove
-        # ids_shuffle = torch.argsort(noise, dim=1)
-        # ids_restore = torch.argsort(ids_shuffle, dim=1)
-
-        # # keep the first subset
-        # ids_keep = ids_shuffle[:, :len_keep]
-        # x_masked = torch.gather(
-        #     x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, D))
-
-        # # generate the binary mask: 0 is keep, 1 is remove
-        # mask = torch.ones([N, L], device=x.device)
-        # mask[:, :len_keep] = 0
-        # # unshuffle to get the binary mask
-        # mask = torch.gather(mask, dim=1, index=ids_restore)
-
-        # return x_masked, mask, ids_restore, ids_shuffle
+            return x_masked, mask, ids_restore, ids_shuffle
 
 
     def forward_encoder(self,x,k,mask_ratio=None): # x: (B,K,C,H,W)

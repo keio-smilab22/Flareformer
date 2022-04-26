@@ -181,7 +181,6 @@ def get_train_dataset(filepath, window=4, has_window=False):
     train_dataset = TrainDataloader256("train", params["dataset"],has_window=has_window)
     
     mean, std = train_dataset.calc_mean()
-    print(mean, std)
     train_dataset.set_mean(mean, std)
     return train_dataset, mean, std
 
@@ -215,7 +214,7 @@ if __name__ == '__main__':
         params = json.loads(open(filepath).read())
         args.interval = 8 # 8時間単位
         params["dataset"]["window"] = args.k * args.interval # 8時間単位
-        train_dataset = TrainDataloader256("train", params["dataset"],has_window=True)
+        train_dataset = TrainDataloader256("train", params["dataset"],has_window=True,sub_bias=True)
         
         mean, std = train_dataset.calc_mean()
         print(mean, std)
