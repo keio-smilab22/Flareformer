@@ -46,11 +46,12 @@ class TrainDataloader(Dataset):
 
 
 class TrainDataloader256(Dataset):
-    def __init__(self, split, params, image_type="magnetogram", path="data/data_", augmentation=False, has_window=True):
+    def __init__(self, split, params, image_type="magnetogram", path="data/data_", augmentation=False, has_window=True, sub_bias=False):
         self.path = path
         self.window_size = params["window"]
         self.augmentation = augmentation
         self.has_window = has_window
+        self.sub_bias = sub_bias
 
         year_split = params["year_split"]
 
@@ -162,8 +163,9 @@ class TrainDataloader256(Dataset):
             else:
                 result = np.concatenate([result, image_data], axis=0)
         
-        self.bias_img = np.mean(result,axis=0)
-        result -= np.mean(result,axis=0)
+        if self.sub_bias:
+            self.bias_img = np.mean(result,axis=0)
+            result -= np.mean(result,axis=0)
 
         # import cv2
         # x = np.empty((256,256,3))
@@ -235,3 +237,7 @@ class TrainDataloader256(Dataset):
     def restore_from_bias(self,img):
         img = img + self.bias_img
         return img
+
+    def set_bias_img(self,bias_img):
+        self.bias_img = bias_img
+        self.img -= bias_img

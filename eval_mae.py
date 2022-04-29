@@ -87,7 +87,7 @@ parser = get_args_parser()
 args = parser.parse_args()
 
 if args.checkpoint is None:
-    args.checkpoint = f'/home/initial/Dropbox/flare_transformer/output_dir/{args.baseline}/checkpoint-2.pth'
+    args.checkpoint = f'/home/initial/Dropbox/flare_transformer/output_dir/{args.baseline}/checkpoint-50.pth'
 
 if args.target == "seq":
     seq.run(args)

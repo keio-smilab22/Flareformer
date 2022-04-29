@@ -29,7 +29,7 @@ from torchinfo import summary
 
 
 
-P = 0.75
+P = 0.5
 def prepare_model(chkpt_dir,args):
     # build model
     model = mae.prod.models_mae.SeqentialMaskedAutoencoderConcatVersion(embed_dim=args.dim,
@@ -42,37 +42,38 @@ def prepare_model(chkpt_dir,args):
                                                             num_heads=8,
                                                             decoder_embed_dim=512,
                                                             decoder_num_heads=8,
-                                                            in_chans=2, # k=2として設定
+                                                            in_chans=6, # 注意！！！！！
                                                             mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6),
                                                             mask_ratio=P,
                                                             mask_token_type="sub")
     # load model
-    # checkpoint = torch.load(chkpt_dir, map_location=torch.device('cuda'))
-    # msg = model.load_state_dict(checkpoint['model'], strict=True)
+    checkpoint = torch.load(chkpt_dir, map_location=torch.device('cuda'))
+    msg = model.load_state_dict(checkpoint['model'], strict=True)
     model.cuda()
     return model
 
 
-def run_one_image(img, img2, model,mean,std,dl):
-    x = torch.cat([torch.tensor(img).cuda().unsqueeze(0),torch.tensor(img2).cuda().unsqueeze(0)],dim=0)
-    
+def run_one_image(x, model,mean,std,dl):
     # make it a batch-like
     print(x.shape)
-    x = x.unsqueeze(dim=0)
-    x = torch.einsum('nkhwc->nkchw', x)
+    x = x.unsqueeze(dim=0).cuda().float()
+    print(x.shape)
+    # x = torch.einsum('nkhwc->nkchw', x)
 
     # run MAE
     loss, y, mask = model(x, mask_ratio=P)
+    print("loss_reconst",torch.mean((x[:,0].flatten()-y.flatten())**2))
     y = model.unpatchify(y)
     for i in range(2):
         x[:,i,:,:,:] = mean + std * x[:,i,:,:,:]
-    
+
+    y = mean + std * y
     x = torch.Tensor(dl.restore_from_bias(x.cpu().numpy())).cuda()
     y = torch.Tensor(dl.restore_from_bias(y.clone().detach().cpu().numpy())).cuda()
     y = torch.einsum('nchw->nhwc', y).detach()
+    print(y)
     print("loss", loss)
     
-
     # visualize the mask
     mask = mask.detach()
     # (N, H*W, p*p*3)
@@ -83,7 +84,6 @@ def run_one_image(img, img2, model,mean,std,dl):
 
     x = torch.einsum('nkchw->nkhwc', x)
 
-    y = mean + std * y
     # masked image
     im_masked = x[:,1,:,:,:] * (1 - mask)
 
@@ -127,28 +127,29 @@ def run(args):
     # img = img.transpose((1, 2, 0))
 
     params = json.loads(open("params/params_2014.json").read())
-    params["dataset"]["window"] = 24
-    dl = TrainDataloader256("train", params["dataset"],has_window=False)
+    params["dataset"]["window"] = 6
+    dl = TrainDataloader256("train", params["dataset"],has_window=False,sub_bias=True)
     mean,std = dl.calc_mean()
     dl.set_mean(mean,std)
     print(mean,std)
 
-    dl2 = TrainDataloader256("test", params["dataset"],has_window=True)
+    dl2 = TrainDataloader256("test", params["dataset"],has_window=True,sub_bias=False)
+    dl2.set_bias_img(dl.bias_img)
     dl2.set_mean(mean,std)
 
     img, _ = dl[0]
     img = img.transpose(0,1).transpose(1,2)
 
+    target_index = 100
     for i, (sample,_) in enumerate(dl2):
-        img_test1, img_test2 = sample[0], sample[-1]
-        if i == 24 * 2:
+        img = sample
+        if i == target_index:
             break
 
-    img_test1 = img_test1.transpose(0,1).transpose(1,2)
-    img_test2 = img_test2.transpose(0,1).transpose(1,2)
+    # img = img.transpose(0,1).transpose(1,2)
 
     plt.rcParams['figure.figsize'] = [5, 5]
-    show_image(torch.tensor(img))
+    # show_image(torch.tensor(img))
 
     chkpt_dir = args.checkpoint
 
@@ -159,4 +160,4 @@ def run(args):
     torch.manual_seed(2)
     print('MAE with pixel reconstruction:')
     # run_one_image(img, model_mae, mean,std)
-    run_one_image(img_test1, img_test2, model_mae, mean,std,dl)
+    run_one_image(img, model_mae, mean,std,dl)
