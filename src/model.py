@@ -112,6 +112,107 @@ class FlareTransformer(nn.Module):
         for param in self.generator.parameters():
             param.requires_grad = True
 
+class FlareTransformerWithPE(nn.Module):
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24):
+        super(FlareTransformerWithPE, self).__init__()
+
+        self.pos_encoder = PositionalEncoding(mm_params["d_model"], mm_params["dropout"])
+
+        # Informer``
+        self.magnetogram_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
+                           d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
+            mm_params["d_model"],
+            mm_params["d_ff"],
+            dropout=mm_params["dropout"],
+            activation="relu"
+        )
+
+        self.sunspot_feature_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
+                           d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
+            sfm_params["d_model"],
+            sfm_params["d_ff"],
+            dropout=sfm_params["dropout"],
+            activation="relu"
+        )
+
+        # Image Feature Extractor
+        self.magnetogram_feature_extractor = CNNModel(
+            output_channel=output_channel, pretrain=False)
+
+        self.generator = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
+                                   output_channel)
+
+        self.linear = nn.Linear(
+            window*mm_params["d_model"]*2, sfm_params["d_model"])
+        self.softmax = nn.Softmax(dim=1)
+
+        self.generator_image = nn.Linear(
+            mm_params["d_model"]*window, mm_params["d_model"])
+
+        self.generator_phys = nn.Linear(
+            sfm_params["d_model"]*window, sfm_params["d_model"])
+        self.relu = torch.nn.ReLU()
+        self.linear_in_1 = torch.nn.Linear(
+            input_channel, sfm_params["d_model"])  # 79 -> 128
+        self.bn1 = torch.nn.BatchNorm1d(window)  # 128
+
+    def forward_mm_feature_extractor(self, img_list, feat):
+        for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
+            img_output = self.magnetogram_feature_extractor(img)
+            if i == 0:
+                img_feat = img_output.unsqueeze(0)
+            else:
+                img_feat = torch.cat(
+                    [img_feat, img_output.unsqueeze(0)], dim=0)
+
+        return img_feat
+
+    def forward_sfm_feature_extractor(self, img_list, feat):
+        phys_feat = self.linear_in_1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+        return phys_feat
+
+
+    def forward(self, img_list, feat):
+        # img_feat[bs, k, mm_d_model]
+        img_feat = self.forward_mm_feature_extractor(img_list,feat)
+
+        # physical feat
+        phys_feat = self.forward_sfm_feature_extractor(img_list,feat)
+
+        # concat
+        merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+        merged_feat = self.pos_encoder(merged_feat)
+
+        # SFM
+        feat_output = self.sunspot_feature_module(phys_feat, merged_feat)  #
+        feat_output = torch.flatten(feat_output, 1, 2)  # [bs, k*SFM_d_model]
+        feat_output = self.generator_phys(feat_output)  # [bs, SFM_d_model]
+
+        # MM
+        img_output = self.magnetogram_module(img_feat, merged_feat)  #
+        img_output = torch.flatten(img_output, 1, 2)  # [bs, k*SFM_d_model]
+        img_output = self.generator_image(img_output)  # [bs, MM_d_model]
+
+        # Late fusion
+        x = torch.cat((feat_output, img_output), 1)
+        output = self.generator(x)
+
+        output = self.softmax(output)
+
+        return output, x
+
+    def freeze_feature_extractor(self):
+        for param in self.parameters():
+            param.requires_grad = False # 重み固定
+        
+        for param in self.generator.parameters():
+            param.requires_grad = True
+
+
 
 class FlareTransformerWith1dMAE(nn.Module):
     def __init__(self, input_channel, output_channel, sfm_params, mm_params, token_window=4, window=24):

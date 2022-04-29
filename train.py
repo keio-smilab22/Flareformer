@@ -14,7 +14,7 @@ import wandb
 import math
 import torch.nn.functional as F
 
-from src.model import FlareTransformer, _FlareTransformerWithGAPMAE, FlareTransformerLikeViLBERT, FlareTransformerReplacedFreezeViTWithMAE, FlareTransformerReplacedViTWithMAE, FlareTransformerWith1dMAE, FlareTransformerWithConvNext, FlareTransformerWithGAPMAE, FlareTransformerWithGAPSeqMAE, FlareTransformerWithMAE, FlareTransformerWithPositonalEncoding, FlareTransformerWithoutMM, FlareTransformerWithoutPE, PureTransformerSFM
+from src.model import FlareTransformer, _FlareTransformerWithGAPMAE, FlareTransformerLikeViLBERT, FlareTransformerReplacedFreezeViTWithMAE, FlareTransformerReplacedViTWithMAE, FlareTransformerWith1dMAE, FlareTransformerWithConvNext, FlareTransformerWithGAPMAE, FlareTransformerWithGAPSeqMAE, FlareTransformerWithMAE, FlareTransformerWithPE, FlareTransformerWithPositonalEncoding, FlareTransformerWithoutMM, FlareTransformerWithoutPE, PureTransformerSFM
 from src.Dataloader import CombineDataloader, TrainDataloader, TrainDataloader256
 from src.eval_utils import calc_score
 from src.BalancedBatchSampler import TrainBalancedBatchSampler
@@ -318,6 +318,7 @@ if __name__ == "__main__":
     parser.add_argument('--lr_stage2', default=0.000008, type=float)
     parser.add_argument('--epoch_stage2', default=25, type=float)
     parser.add_argument('--imbalance', action='store_true')
+    parser.add_argument('--debug_value', default=1.0, type=float)
 
     args = parser.parse_args()
     wandb_flag = args.wandb
@@ -345,6 +346,8 @@ if __name__ == "__main__":
         print(mean, std)
 
     mean, std = train_dataset.calc_mean()
+    mean *= args.debug_value
+    std *= args.debug_value
     print(mean, std)
     train_dataset.set_mean(mean, std)
     
@@ -384,16 +387,16 @@ if __name__ == "__main__":
     bs_criterion = bs_loss_function
 
 
-    model = FlareTransformerWithMAE(input_channel=params["input_channel"],
-                             output_channel=params["output_channel"],
-                             sfm_params=params["SFM"],
-                             mm_params=params["MM"],
-                             window=params["dataset"]["window"],
-                             baseline=args.baseline,
-                             embed_dim = args.dim,
-                             enc_depth=args.enc_depth,
-                             dec_depth=args.dec_depth,
-                             has_vit_head=args.has_vit_head).to("cuda")
+    # model = FlareTransformerWithMAE(input_channel=params["input_channel"],
+    #                          output_channel=params["output_channel"],
+    #                          sfm_params=params["SFM"],
+    #                          mm_params=params["MM"],
+    #                          window=params["dataset"]["window"],
+    #                          baseline=args.baseline,
+    #                          embed_dim = args.dim,
+    #                          enc_depth=args.enc_depth,
+    #                          dec_depth=args.dec_depth,
+    #                          has_vit_head=args.has_vit_head).to("cuda")
 
 
     # model = FlareTransformerWith1dMAE(input_channel=params["input_channel"],
@@ -415,11 +418,17 @@ if __name__ == "__main__":
     #                          dec_depth=args.dec_depth).to("cuda")
 
 
-    # model = FlareTransformer(input_channel=params["input_channel"],
-    #                          output_channel=params["output_channel"],
-    #                          sfm_params=params["SFM"],
-    #                          mm_params=params["MM"],
-    #                          window=params["dataset"]["window"]).to("cuda")
+    model = FlareTransformer(input_channel=params["input_channel"],
+                             output_channel=params["output_channel"],
+                             sfm_params=params["SFM"],
+                             mm_params=params["MM"],
+                             window=params["dataset"]["window"]).to("cuda")
+
+    # model = FlareTransformerWithPE(input_channel=params["input_channel"],
+    #                             output_channel=params["output_channel"],
+    #                             sfm_params=params["SFM"],
+    #                             mm_params=params["MM"],
+    #                             window=params["dataset"]["window"]).to("cuda")
 
     # model = FlareTransformerWithGAPSeqMAE(input_channel=params["input_channel"],
     #                                     output_channel=params["output_channel"],
@@ -476,29 +485,30 @@ if __name__ == "__main__":
         wandb.log(calc_test_score(test_score, "final"))
 
     # ここからCRT
-    print("Start CRT")
-    train_dl = DataLoader(train_dataset, batch_sampler=TrainBalancedBatchSampler(
-        train_dataset, params["output_channel"], params["bs"]//params["output_channel"]))
-    
-    model.freeze_feature_extractor()
-    summary(model)
+    if args.imbalance:
+        print("Start CRT")
+        train_dl = DataLoader(train_dataset, batch_sampler=TrainBalancedBatchSampler(
+            train_dataset, params["output_channel"], params["bs"]//params["output_channel"]))
+        
+        model.freeze_feature_extractor()
+        summary(model)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_stage2)
-    for e, epoch in enumerate(range(args.epoch_stage2)):
-        print("====== Epoch ", e, " ======")
-        train_score, train_loss = train_epoch(model, train_dl, epoch, args.lr_stage2, args)
-        valid_score, valid_loss = eval_epoch(model, validation_dl)
-        test_score, test_loss = valid_score, valid_loss
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_stage2)
+        for e, epoch in enumerate(range(args.epoch_stage2)):
+            print("====== Epoch ", e, " ======")
+            train_score, train_loss = train_epoch(model, train_dl, epoch, args.lr_stage2, args)
+            valid_score, valid_loss = eval_epoch(model, validation_dl)
+            test_score, test_loss = valid_score, valid_loss
 
-        log = {'epoch': epoch, 'train_loss': np.mean(train_loss),
-               'valid_loss': np.mean(valid_loss),
-               'test_loss': np.mean(test_loss)}
-        log.update(train_score)
-        log.update(valid_score)
-        log.update(test_score)
+            log = {'epoch': epoch, 'train_loss': np.mean(train_loss),
+                'valid_loss': np.mean(valid_loss),
+                'test_loss': np.mean(test_loss)}
+            log.update(train_score)
+            log.update(valid_score)
+            log.update(test_score)
 
-        if wandb_flag is True:
-            wandb.log(log)
+            if wandb_flag is True:
+                wandb.log(log)
 
-        print("Epoch {}: Train loss:{:.4f}  Valid loss:{:.4f}".format(
-              e, train_loss, valid_loss), test_score)
+            print("Epoch {}: Train loss:{:.4f}  Valid loss:{:.4f}".format(
+                e, train_loss, valid_loss), test_score)
