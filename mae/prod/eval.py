@@ -9,8 +9,8 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 from mae.prod.datasets import TrainDataloader
+import torch.nn.functional as F
 
-P = 0
 
 def show_image(image, title=''):
     # image is [H, W, 3]
@@ -20,13 +20,13 @@ def show_image(image, title=''):
     # for i in range(3): img[:,:,i] = image[:,:,0]
 
     plt.imshow(image, cmap='gray')
-    plt.title(title, fontsize=16)
+    plt.title(title, fontsize=6)
     plt.axis('off') 
     return
 
-def prepare_model(chkpt_dir, img_size=256,baseline="attn",embed_dim=512, arch='vit_for_FT', depth=4, decoder_depth=4):
+def prepare_model(chkpt_dir, img_size=256,baseline="attn",embed_dim=512, arch='vit_for_FT', patch_size=8):
     # build model
-    model = getattr(mae.prod.models_mae, arch)(img_size=img_size, baseline=baseline, embed_dim=embed_dim)
+    model = getattr(mae.prod.models_mae, arch)(img_size=img_size, baseline=baseline, embed_dim=embed_dim, patch_size=patch_size)
     # load model
     checkpoint = torch.load(chkpt_dir, map_location=torch.device('cuda'))
     msg = model.load_state_dict(checkpoint['model'], strict=False)
@@ -43,7 +43,7 @@ def prepare_model_seq(chkpt_dir, img_size=256,baseline="attn",embed_dim=512, arc
     return model
 
 
-def run_one_image(img, model, mean=None, std=None):
+def run_one_image(img, model, mean=None, std=None, mask_ratio=0.75):
     x = torch.tensor(img).cuda()
     
     # make it a batch-like
@@ -51,13 +51,18 @@ def run_one_image(img, model, mean=None, std=None):
     x = torch.einsum('nhwc->nchw', x)
 
     # run MAE
-    loss, y, mask = model(x, mask_ratio=P)
+    loss, y, mask = model(x, mask_ratio=mask_ratio)
     y = model.unpatchify(y)
+    mse = F.mse_loss(x, y)
     y = torch.einsum('nchw->nhwc', y).detach()
     print("loss", loss)
+    print("mse", mse.item())
 
     # visualize the mask
     mask = mask.detach()
+    # print(f"mask;{mask}")
+    # mask = mask.where(mask < 0.5, torch.zeros_like(mask))
+    # print(f"mask;{mask}")
     # (N, H*W, p*p*3)
     mask = mask.unsqueeze(-1).repeat(1, 1,
                                      model.patch_embed.patch_size[0]**2)
@@ -160,7 +165,7 @@ def run_one_image_seq(img, model, mean=None, std=None):
     plt.show()
 
 
-def run_one_image_sp(img, model, mean=None, std=None):
+def run_one_image_sp(img, model, mean=None, std=None, mask_ratio=0.75):
     x = torch.tensor(img).cuda()
     
     # make it a batch-like
@@ -168,10 +173,12 @@ def run_one_image_sp(img, model, mean=None, std=None):
     x = torch.einsum('nhwc->nchw', x)
 
     # run MAE
-    loss, y, mask = model(x, mask_ratio=P)
+    loss, y, mask = model(x, mask_ratio=mask_ratio)
     y = model.unpatchify(y)
+    mse = F.mse_loss(x, y)
     y = torch.einsum('nchw->nhwc', y).detach()
     print("loss", loss)
+    print("mse", mse.item())
 
     # visualize the mask
     mask = mask.detach()
@@ -198,13 +205,13 @@ def run_one_image_sp(img, model, mean=None, std=None):
     # make the plt figure larger
     plt.rcParams['figure.figsize'] = [24, 24]
     
-    plt.subplot(1, 2, 1)
+    plt.subplot(1, 3, 1)
     show_image(x[0].cpu(), "original")
 
-    # plt.subplot(1, 3, 2)
-    # show_image(im_masked[0].cpu(), "masked")
+    plt.subplot(1, 3, 2)
+    show_image(im_masked[0].cpu(), "masked")
 
-    plt.subplot(1, 2, 2)
+    plt.subplot(1, 3, 3)
     show_image(y[0].cpu(), "reconstruction")
 
     # plt.subplot(1, 3, 3)
