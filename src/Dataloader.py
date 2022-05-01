@@ -364,8 +364,9 @@ class TrainDatasetSparse(Dataset):
 
         # get x
         print("loading images ...")
-        self.img = self.get_multiple_year_image_dumm(year_split[split], image_type, grid_size, keep_ratio)
+        self.img, self.std = self.get_multiple_year_image_dumm(year_split[split], image_type, grid_size, keep_ratio)
         self.img = torch.Tensor(self.img)
+        self.img_std = torch.Tensor(self.std)
         if self.augmentation:
             transform = T.Compose([T.ToPILImage(),
                                     T.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),
@@ -431,6 +432,7 @@ class TrainDatasetSparse(Dataset):
 
     def get_plain(self,idx):
         x = self.img[idx]
+        std = self.img_std[idx]
         # feat = self.feat[idx]
         # sample = ((x - self.mean) / self.std,
         #     self.label[idx],
@@ -438,7 +440,7 @@ class TrainDatasetSparse(Dataset):
         # sample = (x,
         #     self.label[idx],
         #     feat)
-        sample = (x, 0, 0)
+        sample = (x, std, 0)
         return sample
 
     def get_multiple_year_image(self, year_dict, image_type):
@@ -516,12 +518,14 @@ class TrainDatasetSparse(Dataset):
                                  year_dict["end"]+1))):
             # data_path_sp = self.path + str(year) + "_" + image_type + "_sparse_" + str(grid_size) +  ".npy"
             data_path_sp = f"{self.path}{year}_{image_type}_sparse_{grid_size}_{keep_ratio}.npy"
+            data_path_std = f"{self.path}{year}_{image_type}_sparse_{grid_size}_{keep_ratio}_std.npy"
+
             data_path_512 = self.path + str(year) + "_" + image_type + ".npy"
             # image_data = np.load(data_path_512)
             # print(np.max(image_data[0,0,:,:]))
             # print(np.max(resize(image_data[0,0,:,:],(256,256))))
                 
-            if not os.path.exists(data_path_sp):
+            if not os.path.exists(data_path_sp) or not os.path.exists(data_path_std):
                 image_data = np.load(data_path_512)
                 N,C,H,W = image_data.shape
                 cropped = image_data[:,:,H//4:3*H//4,W//4:3*W//4]
@@ -540,36 +544,43 @@ class TrainDatasetSparse(Dataset):
                             # calculate mean and std
                             mean = np.mean(col_img)
                             std = np.std(col_img)
+                            # print(f"mean: {mean}, std: {std}")
                             chunks.append(col_img)
                             stds.append(std)
                 chunks = np.array(chunks)
                 stds = np.array(stds)
                 ids = np.argsort(stds, axis=0)
+                print(f"ids: {ids}")
                 ids = ids[::-1]
                 # keep the first subset
                 ids_keep = ids[:len_keep]
                 print(f"before chunks shape: {chunks.shape}") # (256*N, 1, 16, 16)
                 chunks = chunks[ids_keep]
+                stds = stds[ids_keep]
                 print(f"after chunks shape: {chunks.shape}") # (256*N, 1, 16, 16)
                 # chunks = chunks.transpose(1,0,2,3,4)
                 # chunks = chunks.reshape(chunks.shape[0]*chunks.shape[1],chunks.shape[2], chunks.shape[3],chunks.shape[4])
                 np.save(data_path_sp, chunks)
+                np.save(data_path_std, stds)
                 # for n in range(N):
                 #     source = cropped[n,0,:,:].astype(np.uint8)
                 #     print(f"source mean: {np.mean(source)}")
                 #     _image_data[n,0,:,:] = cv2.resize(source,(256,256))
                 #     print(f"resize mean: {np.mean(_image_data[n,0,:,:])}")
                 image_data = chunks
+                std_data = stds
                 # np.save(data_path_sp,image_data)
                 print("save image data to {}".format(data_path_sp))
             else:
                 image_data = np.load(data_path_sp)
+                std_data = np.load(data_path_std)
 
             for j in range(image_data.shape[0]):
                 assert np.max(image_data[j,:,:,:]) <= 255
 
             if i == 0:
                 result = image_data
+                result_std = std_data
                 # print(np.mean(result[0,0,:,:]))
                 # import cv2
                 # x = np.empty((256,256,3))
@@ -581,8 +592,9 @@ class TrainDatasetSparse(Dataset):
                 # cv2.destroyAllWindows()
             else:
                 result = np.concatenate([result, image_data], axis=0)
+                result_std = np.concatenate([result_std, std_data], axis=0)
             
-        return result
+        return result, result_std
 
 
     def get_multiple_year_data(self, year_dict, data_type):

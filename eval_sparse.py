@@ -12,6 +12,8 @@ parser.add_argument('--input_size', default=256, type=int)
 parser.add_argument('--checkpoint', default=10, type=int)
 parser.add_argument('--baseline', default="attn")
 parser.add_argument('--grid_size', default=16, type=int)
+parser.add_argument('--patch_size', default=8, type=int)
+parser.add_argument('--mask_ratio', default=0.75, type=float)
 args = parser.parse_args()
 
 params = json.loads(open("params/params_2014.json").read())
@@ -63,14 +65,14 @@ img = img.transpose(0,1).transpose(1,2)
 # download checkpoint if not exist
 # !wget -nc https://dl.fbaipublicfiles.com/mae/visualize/mae_visualize_vit_large.pth
  
-chkpt_dir = f'/home/katsuyuki/temp/flare_transformer/output_dir/attn/checkpoint-50-sparse128_m0.75_0.1-128.pth'
+chkpt_dir = f'/home/katsuyuki/temp/flare_transformer/output_dir/attn/checkpoint-50-sparse{args.input_size}_m{args.mask_ratio}_p{args.patch_size}-{args.grid_size}.pth'
 # chkpt_dir = f'/home/initial/Dropbox/flare_transformer/output_dir/attn/checkpoint-5.pth'
 
-model_mae = prepare_model(chkpt_dir,img_size=args.input_size,baseline=args.baseline, embed_dim=64)
+model_mae = prepare_model(chkpt_dir,img_size=args.input_size, baseline=args.baseline, embed_dim=64, patch_size=args.patch_size)
 print('Model loaded.')
 
 # make random mask reproducible (comment out to make it change)
 torch.manual_seed(2)
 print('MAE with pixel reconstruction:')
 # run_one_image(img, model_mae, mean, std)
-run_one_image_sp(img, model_mae)
+run_one_image_sp(img=img, model=model_mae, mask_ratio=args.mask_ratio)

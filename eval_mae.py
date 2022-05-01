@@ -9,7 +9,8 @@ from src.Dataloader import TrainDataloader256, TrainDatasetSparse
 parser = argparse.ArgumentParser('MAE pre-training', add_help=False)
 parser.add_argument('--input_size', default=256, type=int)
 parser.add_argument('--checkpoint', default=10, type=int)
-parser.add_argument('--baseline', default="linear")
+parser.add_argument('--baseline', default="attn")
+parser.add_argument('--mask_ratio', default=0.75, type=float)
 args = parser.parse_args()
 
 params = json.loads(open("params/params_2014.json").read())
@@ -48,7 +49,7 @@ show_image(img.clone().detach())
 # download checkpoint if not exist
 # !wget -nc https://dl.fbaipublicfiles.com/mae/visualize/mae_visualize_vit_large.pth
  
-chkpt_dir = f'/home/katsuyuki/temp/flare_transformer/output_dir/attn/checkpoint-20-sparse.pth'
+chkpt_dir = f'/home/katsuyuki/temp/flare_transformer/output_dir/attn/checkpoint-50-64d4b_base-16.pth'
 # chkpt_dir = f'/home/initial/Dropbox/flare_transformer/output_dir/attn/checkpoint-5.pth'
 
 model_mae = prepare_model(chkpt_dir,img_size=args.input_size,baseline=args.baseline, embed_dim=64)
@@ -58,4 +59,4 @@ print('Model loaded.')
 torch.manual_seed(2)
 print('MAE with pixel reconstruction:')
 # run_one_image(img, model_mae, mean, std)
-run_one_image(img, model_mae)
+run_one_image(img=img, model=model_mae, mask_ratio=args.mask_ratio)

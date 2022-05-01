@@ -26,6 +26,7 @@ import os
 import time
 from pathlib import Path 
 
+import torch.nn.functional as F
 import torch
 import torch.backends.cudnn as cudnn
 import wandb
@@ -167,18 +168,25 @@ def eval_epoch(model: torch.nn.Module,
     accum_iter = args.accum_iter
     with torch.no_grad():
         for data_iter_step, (samples, _,_) in enumerate(tqdm(data_loader)):
-            loss, _, _ = model(samples.cuda().to(torch.float), mask_ratio=args.mask_ratio)
+            loss, pred, _ = model(samples.cuda().to(torch.float), mask_ratio=args.mask_ratio)
             loss_value = loss.item()
+            pred = model.unpatchify(pred)
+            
+            # pred = model.mae2.unpatchify(pred)
+            mse = F.mse_loss(pred, samples.cuda().to(torch.float))
+            mse_value = mse.item()
 
             if not math.isfinite(loss_value):
                 print("Loss is {}, stopping training".format(loss_value))
                 sys.exit(1)
 
         loss /= accum_iter
+        mse /= accum_iter
         # loss_scaler(loss, optimizer, parameters=model.parameters(),
         #             update_grad=(data_iter_step + 1) % accum_iter == 0)
         loss_value = loss.item()
-    return None, loss_value
+        mse_value = mse.item()
+    return mse_value, loss_value
 
 def get_args_parser():
     parser = argparse.ArgumentParser('MAE pre-training', add_help=False)
@@ -234,7 +242,7 @@ def get_args_parser():
                         help='epochs to warmup LR')
 
     # Dataset parameters
-    parser.add_argument('--output_dir', default='/home/katsuyukikuyo/temp/flare_transformer/output_dir',
+    parser.add_argument('--output_dir', default='/home/katsuyuki/temp/flare_transformer/output_dir',
                         help='path where to save, empty for no saving')
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
@@ -252,6 +260,7 @@ def get_args_parser():
     parser.add_argument('--grid_size', default=16, type=int)
     parser.add_argument('--keep_ratio', default=0.1, type=float)
     parser.add_argument('--do_pyramid', default=False, action='store_true')
+    parser.add_argument('--patch_size', default=8, type=int)
     parser.set_defaults(pin_mem=True)
 
     return parser
@@ -302,14 +311,16 @@ def main(args, dataset_train, dataset_val=None):
         )
 
     # define the model
-    # model = mae.prod.models_mae.__dict__[args.model](embed_dim=args.dim,
-                                                    #  baseline=args.baseline, # attn, lambda, linear
-                                                    #  img_size=args.input_size,
-                                                    #  norm_pix_loss=args.norm_pix_loss)
+    # model = mae.prod.models_pyramid_mae.__dict__[args.model](embed_dim=args.dim,
+    #                                                  baseline=args.baseline, # attn, lambda, linear
+    #                                                  img_size=args.input_size,
+    #                                                  norm_pix_loss=args.norm_pix_loss,
+    #                                                  grid_size=args.grid_size)
     model = mae.prod.models_mae.__dict__[args.model](embed_dim=args.dim,
                                                      baseline=args.baseline, # attn, lambda, linear
                                                      img_size=args.input_size,
                                                      norm_pix_loss=args.norm_pix_loss,
+                                                     patch_size=args.patch_size,
                                                      )
     
 
@@ -351,13 +362,16 @@ def main(args, dataset_train, dataset_val=None):
         elapsed_epoch_time = time.time() - epoch_start
         print("time:","{:.3f}s".format(elapsed_epoch_time))
         if epoch % 4 == 0 and dataset_val is not None:
-            _, val_loss = eval_epoch(
+            test_metric, val_loss = eval_epoch(
                 model, data_loader_val, device, loss_scaler,
                 args=args
             )
             print("val_loss:", "{:.3f}".format(val_loss))
+            print("mse:", "{:.3f}".format(test_metric))
             if args.wandb:
                 wandb.log({"test_loss_not_normalize": val_loss})
+                wandb.log({"test_mse": test_metric})
+
         log = {'epoch': epoch, 'train_loss_not_normalize': last_loss}
         if args.wandb:
             wandb.log(log)
