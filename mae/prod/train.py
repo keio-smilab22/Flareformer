@@ -126,7 +126,8 @@ def train_one_epoch(model: torch.nn.Module,
         # print(samples.shape)
         # samples = samples.cpu()
         with torch.cuda.amp.autocast():
-            loss, _, _ = model(samples, args.mask_ratio, args.do_pyramid)
+            # loss, _, _, _ = model(samples, args.mask_ratio, args.do_pyramid)
+            loss, _, _, _ = model(samples, mask_ratio=args.mask_ratio)
 
         loss_value = loss.item()
 
@@ -168,11 +169,20 @@ def eval_epoch(model: torch.nn.Module,
     accum_iter = args.accum_iter
     with torch.no_grad():
         for data_iter_step, (samples, _,_) in enumerate(tqdm(data_loader)):
-            loss, pred, _ = model(samples.cuda().to(torch.float), mask_ratio=args.mask_ratio)
-            loss_value = loss.item()
-            pred = model.unpatchify(pred)
+            # 普通のMAE
+            # loss, pred, _ = model(samples.cuda().to(torch.float), mask_ratio=args.mask_ratio)
             
-            # pred = model.mae2.unpatchify(pred)
+            # １段だけのPyramid
+            # rows = samples.shape[2]//model.grid_size
+            # cols = samples.shape[3]//model.grid_size
+            # imgs_list, std_list = model.grid_dividing_image(samples, rows=rows, cols=cols)
+            # imgs_list, ids_restore_std = model.std_masking(imgs_list, std_list, keep_ratio=0.75)
+            loss, pred, _, ids_restore = model(samples.cuda().to(torch.float), mask_ratio=args.mask_ratio)
+            loss_value = loss.item()
+            # pred = model.unpatchify(pred)
+            
+            # ２段目のPyramid
+            pred = model.mae2.unpatchify(pred)
             mse = F.mse_loss(pred, samples.cuda().to(torch.float))
             mse_value = mse.item()
 
@@ -311,17 +321,17 @@ def main(args, dataset_train, dataset_val=None):
         )
 
     # define the model
-    # model = mae.prod.models_pyramid_mae.__dict__[args.model](embed_dim=args.dim,
-    #                                                  baseline=args.baseline, # attn, lambda, linear
-    #                                                  img_size=args.input_size,
-    #                                                  norm_pix_loss=args.norm_pix_loss,
-    #                                                  grid_size=args.grid_size)
-    model = mae.prod.models_mae.__dict__[args.model](embed_dim=args.dim,
+    model = mae.prod.models_pyramid_mae.__dict__[args.model](embed_dim=args.dim,
                                                      baseline=args.baseline, # attn, lambda, linear
                                                      img_size=args.input_size,
                                                      norm_pix_loss=args.norm_pix_loss,
-                                                     patch_size=args.patch_size,
-                                                     )
+                                                     grid_size=args.grid_size)
+    # model = mae.prod.models_mae.__dict__[args.model](embed_dim=args.dim,
+    #                                                  baseline=args.baseline, # attn, lambda, linear
+    #                                                  img_size=args.input_size,
+    #                                                  norm_pix_loss=args.norm_pix_loss,
+    #                                                  patch_size=args.patch_size,
+    #                                                  )
     
 
     model.to(device)

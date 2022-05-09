@@ -10,7 +10,7 @@ from typing import Type, Any, Callable, Union, List, Optional
 from torch import Tensor
 from src.attn import FullAttention, ProbAttention, AttentionLayer
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
-from mae.prod.eval import MaskedAutoEncoder
+from mae.prod.eval import MaskedAutoEncoder, PyramidMaskedAutoEncoder
 
 # early fusion 
 class FlareTransformer(nn.Module):
@@ -574,7 +574,9 @@ class PositionalEncoding(nn.Module):
 class FlareTransformerWithMAE(nn.Module):  # MAEを持つFT
     def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24, baseline="attn", embed_dim=512, has_vit_head=False):
         super(FlareTransformerWithMAE, self).__init__()
-        mae_encoder = MaskedAutoEncoder(baseline=baseline, embed_dim=embed_dim)
+        # mae_encoder = MaskedAutoEncoder(baseline=baseline, embed_dim=embed_dim)
+        mae_encoder = PyramidMaskedAutoEncoder(baseline=baseline, embed_dim=embed_dim)
+
         for param in mae_encoder.model.parameters():
             param.requires_grad = False
         # mae_encoder.model.requires_grad = False
