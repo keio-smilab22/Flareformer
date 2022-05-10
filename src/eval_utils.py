@@ -22,6 +22,15 @@ def calc_score(y_pred, y_true, climatology):
     return score
 
 
+def calc_mattheus(y_predl, y_true, flare_class):
+    C = metrics.confusion_matrix(y_true, y_predl,
+                                 labels=[0, 1, 2, 3])
+
+    c,s = np.diag(C).sum(), C.sum()
+    p,t = np.sum(C,axis=0), np.sum(C,axis=1)
+    mcc = (c * s - np.dot(p,t).sum()) / np.sqrt((s**2 - np.dot(p,p).sum()) - (s**2 - np.dot(t,t).sum()))
+    return mcc
+
 def calc_tss(y_predl, y_true, flare_class):
     """
     Compute TSS

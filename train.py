@@ -14,12 +14,14 @@ import wandb
 import math
 import torch.nn.functional as F
 
-from src.model import FlareTransformer, _FlareTransformerWithGAPMAE, FlareTransformerLikeViLBERT, FlareTransformerReplacedFreezeViTWithMAE, FlareTransformerReplacedViTWithMAE, FlareTransformerWith1dMAE, FlareTransformerWithConvNext, FlareTransformerWithGAPMAE, FlareTransformerWithGAPSeqMAE, FlareTransformerWithMAE, FlareTransformerWithPE, FlareTransformerWithPositonalEncoding, FlareTransformerWithoutMM, FlareTransformerWithoutPE, PureTransformerSFM
+from src.model import FlareTransformer, _FlareTransformerWithGAPMAE, FlareTransformerLikeViLBERT, FlareTransformerReplacedFreezeViTWithMAE, FlareTransformerReplacedViTWithMAE, FlareTransformerWith1dMAE, FlareTransformerWithConvNext, FlareTransformerWithGAPMAE, FlareTransformerWithGAPSeqMAE, FlareTransformerWithMAE, FlareTransformerWithMultiPE, FlareTransformerWithPE, FlareTransformerWithPositonalEncoding, FlareTransformerWithoutMM, FlareTransformerWithoutPE, PureTransformerSFM
 from src.Dataloader import CombineDataloader, TrainDataloader, TrainDataloader256
 from src.eval_utils import calc_score
 from src.BalancedBatchSampler import TrainBalancedBatchSampler
 
 import colored_traceback.always
+
+onlyMandX = False
 
 def gmgs_loss_function(y_pred, y_true, score_matrix):
     """Compute GMGS loss"""
@@ -98,11 +100,21 @@ def train_epoch(model, train_dl, epoch,lr,  args):
     observations = []
     train_loss = 0
     n = 0
-    for _, (x, y, feat) in enumerate(tqdm(train_dl)):
+    for _, (x, y, feat, idx) in enumerate(tqdm(train_dl)):
+        if onlyMandX:
+            mask = (y[:,2] == 1) + (y[:,3] == 1)
+            x = x[mask]
+            feat = feat[mask]
+            y = y[mask]
+            if x.shape[0] == 0: continue
+
         if not args.without_schedule:
             adjust_learning_rate(optimizer, epoch, params["epochs"], lr, args)
         optimizer.zero_grad()
-        output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float))
+        if isinstance(model,FlareTransformerWithMultiPE):
+            output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float), idx.cuda().to(torch.float))
+        else:
+            output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float))
 
         # ib_loss = ib(output, torch.max(y, 1)[1].cuda().to(torch.long),feat)
         bce_loss = criterion(output, torch.max(y, 1)[1].cuda().to(torch.long))
@@ -156,9 +168,21 @@ def eval_epoch(model, validation_dl):
     valid_loss = 0
     n = 0
     with torch.no_grad():
-        for _, (x, y, feat) in enumerate(tqdm(validation_dl)):
-            output, feat = model(x.cuda().to(torch.float),
-                           feat.cuda().to(torch.float))
+        for _, (x, y, feat, idx) in enumerate(tqdm(validation_dl)):
+            if onlyMandX:
+                mask = (y[:,2] == 1) + (y[:,3] == 1)
+                x = x[mask]
+                feat = feat[mask]
+                y = y[mask]
+                if x.shape[0] == 0: continue
+
+
+            if isinstance(model,FlareTransformerWithMultiPE):
+                idx += len(train_dataset)
+                output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float), idx.cuda().to(torch.float))
+            else:
+                output, feat = model(x.cuda().to(torch.float),feat.cuda().to(torch.float))
+                
             # bce_loss = criterion(output, y.cuda().to(torch.long))
             bce_loss = criterion(output, torch.max(y, 1)[1].cuda().to(torch.long))
             if params["lambda"]["GMGS"] != 0:
@@ -191,7 +215,7 @@ def eval_epoch(model, validation_dl):
 def calc_model_update(model, dl,model_update_dict): # モデルの更新量を計算する
     model.eval()
     with torch.no_grad():
-        for _, (x, y, feat) in enumerate(tqdm(dl)):
+        for _, (x, y, feat,idx) in enumerate(tqdm(dl)):
             x = x.cuda().to(torch.float)
             feat = feat.cuda().to(torch.float)
             mm_extractor = model.forward_mm_feature_extractor
@@ -240,9 +264,21 @@ def test_epoch(model, test_dl):
     test_loss = 0
     n = 0
     with torch.no_grad():
-        for _, (x, y, feat) in enumerate(tqdm(test_dl)):
-            output, feat = model(x.cuda().to(torch.float),
-                           feat.cuda().to(torch.float))
+        for _, (x, y, feat, idx) in enumerate(tqdm(test_dl)):
+            if onlyMandX:
+                mask = (y[:,2] == 1) + (y[:,3] == 1)
+                x = x[mask]
+                feat = feat[mask]
+                y = y[mask]
+                if x.shape[0] == 0: continue
+
+
+            if isinstance(model,FlareTransformerWithMultiPE):
+                idx += len(train_dataset)
+                output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float), idx.cuda().to(torch.float))
+            else:
+                output, feat = model(x.cuda().to(torch.float),feat.cuda().to(torch.float))
+
             # bce_loss = criterion(output, y.cuda().to(torch.long))
             bce_loss = criterion(output, torch.max(y, 1)[1].cuda().to(torch.long))
             if params["lambda"]["GMGS"] != 0:
@@ -418,17 +454,31 @@ if __name__ == "__main__":
     #                          dec_depth=args.dec_depth).to("cuda")
 
 
-    model = FlareTransformer(input_channel=params["input_channel"],
-                             output_channel=params["output_channel"],
-                             sfm_params=params["SFM"],
-                             mm_params=params["MM"],
-                             window=params["dataset"]["window"]).to("cuda")
+    # model = FlareTransformer(input_channel=params["input_channel"],
+    #                          output_channel=params["output_channel"],
+    #                          sfm_params=params["SFM"],
+    #                          mm_params=params["MM"],
+    #                          window=params["dataset"]["window"]).to("cuda")
 
     # model = FlareTransformerWithPE(input_channel=params["input_channel"],
     #                             output_channel=params["output_channel"],
     #                             sfm_params=params["SFM"],
     #                             mm_params=params["MM"],
     #                             window=params["dataset"]["window"]).to("cuda")
+
+
+    # model = FlareTransformerWithMultiPE(input_channel=params["input_channel"],
+    #                         output_channel=params["output_channel"],
+    #                         sfm_params=params["SFM"],
+    #                         mm_params=params["MM"],
+    #                         window=params["dataset"]["window"]).to("cuda")
+
+    model = FlareTransformerWithConvNext(input_channel=params["input_channel"],
+                                        output_channel=params["output_channel"],
+                                    sfm_params=params["SFM"],
+                                    mm_params=params["MM"],
+                                    window=params["dataset"]["window"]).to("cuda")
+
 
     # model = FlareTransformerWithGAPSeqMAE(input_channel=params["input_channel"],
     #                                     output_channel=params["output_channel"],

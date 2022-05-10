@@ -1,8 +1,8 @@
 {
-    "wandb_name": "id23_2016",
+    "wandb_name": "id1_2016_convnext_crt",
     "epochs": 40,
     "lr": 0.0000021,
-    "bs": 256,
+    "bs": 48,
     "lambda": {
         "GMGS": 0.0001,
         "BS": 10

@@ -4,7 +4,6 @@ from tqdm import tqdm
 import numpy as np
 import torch
 
-
 class BalancedBatchSampler(BatchSampler):
     """
     BatchSampler - from a MNIST-like dataset, samples n_classes and within these classes samples n_samples.
@@ -68,7 +67,7 @@ class TrainBalancedBatchSampler(BatchSampler):
     def __init__(self, dataset, n_classes, n_samples):
         loader = DataLoader(dataset)
         self.labels_list = []
-        for _, label, _ in tqdm(loader):
+        for _, label, _, _ in tqdm(loader):
             self.labels_list.append(np.argmax(label)) # argmaxを取るように変更
 
         self.labels = torch.LongTensor(self.labels_list)

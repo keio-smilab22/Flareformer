@@ -213,6 +213,147 @@ class FlareTransformerWithPE(nn.Module):
             param.requires_grad = True
 
 
+class TemporalEmbedding(nn.Module):
+    def __init__(self, d_model):
+        super(TemporalEmbedding, self).__init__()
+
+        hour_size = 24; day_size = 31; weekday_size = 7; month_size=12
+
+        Embed = nn.Embedding
+        self.hour_embed = Embed(hour_size, d_model)
+        self.day_embed = Embed(day_size, d_model)
+        self.weekday_embed = Embed(weekday_size, d_model)
+        self.month_embed = Embed(month_size, d_model)
+    
+    def forward(self, t):
+        t = t.long()
+
+        hour_x = self.hour_embed(t[:,:,0]).unsqueeze(-1)
+        day_x = self.day_embed(t[:,:,1]).unsqueeze(-1)
+        weekday_x = self.weekday_embed(t[:,:,2]).unsqueeze(-1)
+        month_x = self.month_embed(t[:,:,3]).unsqueeze(-1)
+        
+        return torch.cat([hour_x,  weekday_x, day_x, month_x],dim=-1)
+
+class FlareTransformerWithMultiPE(nn.Module):
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24):
+        super(FlareTransformerWithMultiPE, self).__init__()
+
+        self.pos_encoder = PositionalEncoding(mm_params["d_model"], mm_params["dropout"])
+
+        # Informer``
+        self.magnetogram_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
+                           d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
+            mm_params["d_model"],
+            mm_params["d_ff"],
+            dropout=mm_params["dropout"],
+            activation="relu"
+        )
+
+        self.sunspot_feature_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
+                           d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
+            sfm_params["d_model"],
+            sfm_params["d_ff"],
+            dropout=sfm_params["dropout"],
+            activation="relu"
+        )
+
+        # Image Feature Extractor
+        self.magnetogram_feature_extractor = CNNModel(
+            output_channel=output_channel, pretrain=False)
+
+        self.generator = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
+                                   output_channel)
+
+        self.linear = nn.Linear(
+            window*mm_params["d_model"]*2, sfm_params["d_model"])
+        self.softmax = nn.Softmax(dim=1)
+
+        self.generator_image = nn.Linear(
+            mm_params["d_model"]*window, mm_params["d_model"])
+
+        self.generator_phys = nn.Linear(
+            sfm_params["d_model"]*window, sfm_params["d_model"])
+        self.relu = torch.nn.ReLU()
+        self.linear_in_1 = torch.nn.Linear(
+            input_channel, sfm_params["d_model"])  # 79 -> 128
+        self.bn1 = torch.nn.BatchNorm1d(window)  # 128
+
+        self.t_embed = TemporalEmbedding(mm_params["d_model"])
+        self.window = window
+
+    def forward_mm_feature_extractor(self, img_list, feat):
+        for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
+            img_output = self.magnetogram_feature_extractor(img)
+            if i == 0:
+                img_feat = img_output.unsqueeze(0)
+            else:
+                img_feat = torch.cat(
+                    [img_feat, img_output.unsqueeze(0)], dim=0)
+
+        return img_feat
+
+    def forward_sfm_feature_extractor(self, img_list, feat):
+        phys_feat = self.linear_in_1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+        return phys_feat
+
+
+    def forward(self, img_list, feat, idx, offset = 0):
+        idx = idx.unsqueeze(1)
+        idx = torch.cat([idx - i for i in range(self.window)],dim=1)
+        idx = torch.where(idx > 0, idx, torch.Tensor([0]).cuda().float())
+
+        idx += offset
+        idx = idx.unsqueeze(-1)
+        hour, day, week, month = idx % 24, idx // 24 % 31, idx // (24 * 7) % 7, idx // (24 * 31) % 12
+        assert torch.max(hour) <= 24 and torch.max(day) <= 31 and torch.max(week) <= 7 and torch.max(month) <= 12
+        temporal = torch.cat([hour, day, week, month],dim=-1)
+        # temporal = torch.cat([temporal,temporal],dim=-1)
+
+        # img_feat[bs, k, mm_d_model]
+        img_feat = self.forward_mm_feature_extractor(img_list,feat)
+
+        # physical feat
+        phys_feat = self.forward_sfm_feature_extractor(img_list,feat)
+
+        # concat
+        time_stamp = self.t_embed(temporal)
+        img_feat += torch.sum(time_stamp,dim=-1)
+        phys_feat += torch.sum(time_stamp,dim=-1)
+
+        merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+        merged_feat = self.pos_encoder(merged_feat)
+
+        # SFM
+        feat_output = self.sunspot_feature_module(phys_feat, merged_feat)  #
+        feat_output = torch.flatten(feat_output, 1, 2)  # [bs, k*SFM_d_model]
+        feat_output = self.generator_phys(feat_output)  # [bs, SFM_d_model]
+
+        # MM
+        img_output = self.magnetogram_module(img_feat, merged_feat)  #
+        img_output = torch.flatten(img_output, 1, 2)  # [bs, k*SFM_d_model]
+        img_output = self.generator_image(img_output)  # [bs, MM_d_model]
+
+        # Late fusion
+        x = torch.cat((feat_output, img_output), 1)
+        output = self.generator(x)
+
+        output = self.softmax(output)
+
+        return output, x
+
+    def freeze_feature_extractor(self):
+        for param in self.parameters():
+            param.requires_grad = False # 重み固定
+        
+        for param in self.generator.parameters():
+            param.requires_grad = True
+
+
 
 class FlareTransformerWith1dMAE(nn.Module):
     def __init__(self, input_channel, output_channel, sfm_params, mm_params, token_window=4, window=24):
@@ -1877,12 +2018,19 @@ class FlareTransformerWithConvNext(nn.Module):
         img_output = self.generator_image(img_output)  # [bs, MM_d_model]
 
         # Late fusion
-        output = torch.cat((feat_output, img_output), 1)
-        output = self.generator(output)
+        x = torch.cat((feat_output, img_output), 1)
+        output = self.generator(x)
 
         output = self.softmax(output)
 
-        return output
+        return output, x 
+
+    def freeze_feature_extractor(self):
+        for param in self.parameters():
+            param.requires_grad = False # 重み固定
+        
+        for param in self.generator.parameters():
+            param.requires_grad = True
 
 
 
