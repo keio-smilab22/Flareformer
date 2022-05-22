@@ -233,7 +233,7 @@ def run_one_image_sp(img, model, mean=None, std=None, mask_ratio=0.75):
 
 class MaskedAutoEncoder:
     def __init__(self,baseline,embed_dim):
-        chkpt_dir = f'/home/katsuyuki/temp/flare_transformer/output_dir/{baseline}/checkpoint-50-64d4b_stdwise-16.pth' # パス注意
+        chkpt_dir = f'/home/katsuyuki/temp/flare_transformer/output_dir/{baseline}/checkpoint-50-64d4b_base-16.pth' # パス注意
         self.model = prepare_model(chkpt_dir,baseline=baseline,embed_dim=embed_dim)
         self.dim = self.model.embed_dim
 
@@ -275,7 +275,7 @@ class PyramidMaskedAutoEncoder:
 
         # imgs_list, ids_restore_std = self.model.std_masking(imgs_list, std_list, keep_ratio=0.75)
 
-        latent_list, mask_list, ids_restore_list = self.model.forward_encoder(imgs_list, mask_ratio=0) # latent_list: (Gridの数, N, L, D)
+        latent_list, mask_list, ids_restore_list = self.model.forward_encoder(imgs_list, mask_ratio=0.5) # latent_list: (Gridの数, N, L, D)
         pred_list = self.model.forward_decoder(latent_list=latent_list, mask_list=mask_list, ids_restore_list=ids_restore_list)
 
         # average over grids
@@ -287,7 +287,7 @@ class PyramidMaskedAutoEncoder:
         img_merged = img_merged.to(img.device)
 
 
-        latent, mask, ids_restore = self.model.mae2.forward_encoder(img_merged, mask_ratio=0)
+        latent, mask, ids_restore = self.model.mae2.forward_encoder(img_merged, mask_ratio=0.5)
         # print("latent.shape", latent.shape)
 
 

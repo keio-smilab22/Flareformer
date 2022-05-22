@@ -1,6 +1,7 @@
 """Dataloader for Flare Transformer"""
 
 from statistics import mean
+from typing import Dict
 import torch
 import torchvision.transforms as T
 import numpy as np
@@ -9,6 +10,9 @@ from torch.utils.data import Dataset
 from skimage.transform import resize
 import cv2
 from tqdm import tqdm
+import pandas as pd
+from utils.tools import StandardScaler
+from utils.timefeatures import time_features
 
 class CombineDataloader(Dataset):
     def __init__(self, dataloaders):
@@ -860,153 +864,234 @@ class TrainDatasetForPyramid(Dataset):
         self.std = std
 
 
-# class TrainDataloader(Dataset):
-#     def __init__(self, split, params, image_type="magnetogram", path="data/data_", augmentation=False):
-#         self.path = path
-#         self.window_size = params["window"]
-#         self.augmentation = augmentation
 
-#         year_split = params["year_split"]
 
-#         # get x
-#         self.img = self.get_multiple_year_image(year_split[split], image_type)
-#         # if self.augmentation:
-#         #     transform = T.Compose([T.ToPILImage(),
-#         #                             T.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5)),
-#         #                             T.PILToTensor()])
-
-#         #     S,C,H,W = self.img.shape
-#         #     # img = torch.empty((S*2,C,H,W))
-#         #     self.img = torch.Tensor(self.img)
-#         #     img = torch.empty_like(self.img)
-#         #     self.img = torch.cat((self.img,img),dim=0)
-#         #     for i in range(S):
-#         #         # img[i,:,:,:] = transform(self.img[i,0,:,:])
-#         #         # img[i,:,:,:] = self.img[i,0,:,:]
-#         #         # img[i+S,:,:,:] = transform(self.img[i,0,:,:])
-#         #         self.img[i+S,:,:,:] = transform(self.img[i,0,:,:])
-
-#         #     print(self.img.shape,img.shape)
-#         #     print(self.img.shape)
+class Dataset_Custom(Dataset):
+    def __init__(self, root_path, flag='train', size=None, 
+                 features='S', feat_path='data_all_v2.csv', magnetogram_path='data_magnetogram_256.npy',
+                 target='logXmax1h', scale=True, inverse=False, timeenc=0, freq='h', cols=None):
+        # size [seq_len, label_len, pred_len]
+        # info
+        if size == None:
+            self.seq_len = 24*4*4
+            self.label_len = 24*4
+            self.pred_len = 24*4
+        else:
+            self.seq_len = size[0]
+            self.label_len = size[1]
+            self.pred_len = size[2]
+        # init
+        assert flag in ['train', 'test', 'val']
+        type_map = {'train':0, 'val':1, 'test':2}
+        self.set_type = type_map[flag]
         
-#         # self.img = self.img[:, np.newaxis] # without fancy index
+        self.features = features
+        self.target = target
+        self.scale = scale
+        self.inverse = inverse
+        self.timeenc = timeenc
+        self.freq = freq
+        self.cols=cols
+        self.root_path = root_path
+        self.feat_path = feat_path
+        self.magnetogram_path = magnetogram_path
 
-#         # get label
-#         self.label = self.get_multiple_year_data(year_split[split], "label")
-#         if self.augmentation: self.img = np.concatenate((self.label,self.label),axis=0)
+        self.__read_data__()
 
-#         # get feat
-#         self.feat = self.get_multiple_year_data(year_split[split],
-#                                                 "feat")[:, :90]
+    def __read_data__(self):
+        self.scaler = StandardScaler()
+        df_raw = pd.read_csv(os.path.join(self.root_path,
+                                          self.feat_path))
+        # TODO check if name is correct
+        data_magnetogram = np.load(os.path.join(self.root_path,self.magnetogram_path))
 
-#         if self.augmentation: self.feat = np.concatenate((self.feat,self.feat),axis=0)
+        '''
+        df_raw.columns: ['Time', ...(other features), target feature]
+        '''
+        # cols = list(df_raw.columns); 
+        # print(df_raw.columns)
 
-#         # get window
-#         self.window = self.get_multiple_year_window(
-#             year_split[split], "window_48")[:, :self.window_size]
+        if self.cols:
+            cols=self.cols.copy()
+            cols.remove(self.target)
+        else:
+            cols = list(df_raw.columns)
+            cols.remove(self.target)
+            cols.remove('Time')
+        df_raw = df_raw[['Time']+cols+[self.target]]
 
-#         self.window = np.asarray(self.window, dtype=int)
-#         if self.augmentation: self.window = np.concatenate((self.window,self.window),axis=0)
+        # num_train = int(len(df_raw)*0.7)
+        # num_test = int(len(df_raw)*0.2)
+        num_train = 31439
+        num_test = 8761
+        
 
-#         print("img: {}".format(self.img.shape),
-#               "label: {}".format(self.label.shape),
-#               "feat: {}".format(self.feat.shape),
-#               "window: {}".format(self.window.shape))
+        num_vali = len(df_raw) - num_train - num_test
+        border1s = [0, num_train-self.seq_len, len(df_raw)-num_test-self.seq_len]
+        border2s = [num_train, num_train+num_vali, len(df_raw)]
+        border1 = border1s[self.set_type]
+        border2 = border2s[self.set_type]
+        
+        if self.features=='M' or self.features=='MS':
+            cols_data = df_raw.columns[1:]
+            df_data = df_raw[cols_data]
+        elif self.features=='S':
+            df_data = df_raw[[self.target]]
 
-#     def __len__(self):
-#         """
-#         Returns:
-#             [int]: [length of sample]
-#         """
-#         return 2 * len(self.label) if self.augmentation else len(self.label)
+        # print(f"df_raw: {df_raw}")
+        # print(f"df_data {df_data}")
 
-#     def __getitem__(self, idx):
-#         """
-#             get sample
-#         """
-#         if torch.is_tensor(idx):
-#             idx = idx.tolist()
-#         #  fancy index
-#         over_table = idx >= len(self.label)
-#         idx[over_table] -= len(self.label)
-#         mul_x = self.img[np.asarray(self.window[idx][:self.window_size],
-#                                     dtype=int)]
-#         mul_feat = self.feat[np.asarray(self.window[idx][:self.window_size],
-#                                         dtype=int)]
-#         sample = ((mul_x - self.mean) / self.std,
-#                   self.label[idx],
-#                   mul_feat)
+        if self.scale:
+            train_data = df_data[border1s[0]:border2s[0]]
+            self.scaler.fit(train_data.values)
+            data = self.scaler.transform(df_data.values)
+            print(f"data: {data.shape}")
+            
+        else:
+            data = df_data.values
+            # print(f"data: {data}")
+            
+        df_stamp = df_raw[['Time']][border1:border2]
+        df_stamp['Time'] = pd.to_datetime(df_stamp["Time"], format='%Y-%m-%d %H:%M:%S')
+        data_stamp = time_features(df_stamp, timeenc=self.timeenc, freq=self.freq)
+        
+        self.data_x = data[border1:border2]
+        self.data_magnetogram = data_magnetogram[border1:border2]
 
-#         return sample
+        if self.inverse:
+            self.data_y = df_data.values[border1:border2]
+        else:
+            self.data_y = data[border1:border2]
+        self.data_stamp = data_stamp
+        # print(self.data_x)
+        # print(self.data_y)
+    
+    def __getitem__(self, index):
+        s_begin = index # start index
+        s_end = s_begin + self.seq_len # end index
+        r_begin = s_end - self.label_len # decoder start index, label_lenだけ前のデータを使う
+        r_end = r_begin + self.label_len + self.pred_len
+        # Informer decoder input: concat[start token series(label_len), zero padding series(pred_len)]
 
-#     def get_multiple_year_image(self, year_dict, image_type):
-#         """
-#             concatenate data of multiple years [image]
-#         """
-#         for i, year in enumerate(range(year_dict["start"],
-#                                  year_dict["end"]+1)):
-#             data_path = self.path + str(year) + "_" + image_type + ".npy"
-#             print(data_path)
-#             image_data = np.load(data_path)
-#             if i == 0:
-#                 result = image_data
-#             else:
-#                 result = np.concatenate([result, image_data], axis=0)
-#             # print(result.shape)
-#         return result
+        # print(f"s_begin: {s_begin}")
+        # print(f"s_end: {s_end}")
+        # print(f"r_begin: {r_begin}")
+        # print(f"r_end: {r_end}")
 
-#     def get_multiple_year_data(self, year_dict, data_type):
-#         """
-#             concatenate data of multiple years [feat/label]
-#         """
-#         for i, year in enumerate(range(year_dict["start"],
-#                                  year_dict["end"]+1)):
-#             data_path = self.path + str(year) + "_" + data_type + ".csv"
-#             print(data_path)
-#             data = np.loadtxt(data_path, delimiter=',')
-#             if i == 0:
-#                 result = data
-#             else:
-#                 result = np.concatenate([result, data], axis=0)
-#         return result
+        seq_x = self.data_x[s_begin:s_end]
+        # print(f"self.data_x.shape: {self.data_x.shape}")
+        # print(f"self.data_magnetogram.shape: {self.data_magnetogram.shape}")
 
-#     def get_multiple_year_window(self, year_dict, data_type):
-#         """
-#             concatenate data of multiple years [window]
-#         """
-#         num_data = 0
-#         for i, year in enumerate(range(year_dict["start"],
-#                                  year_dict["end"]+1)):
-#             data_path = self.path + str(year) + "_" + data_type + ".csv"
-#             print(data_path)
-#             data = np.loadtxt(data_path, delimiter=',')
-#             data += num_data
-#             if i == 0:
-#                 result = data
-#             else:
-#                 result = np.concatenate([result, data], axis=0)
-#             num_data += data.shape[0]
-#         return result
+        seq_magnetogram = self.data_magnetogram[s_begin:s_end]
+        # print(f"index: {index}, seq_x: {seq_x.shape}, seq_magnetogram: {seq_magnetogram.shape}")
 
-#     def calc_mean(self):
-#         """
-#             calculate mean and std of images
-#         """
-#         bs = 1000000000
-#         ndata = np.ravel(self.img)
-#         mean = np.mean(ndata)
-#         std = 0
-#         for i in range(ndata.shape[0] // bs + 1):
-#             tmp = ndata[bs*i:bs*(i+1)] - mean
-#             tmp = np.power(tmp, 2)
-#             std += np.sum(tmp)
-#             print("Calculating std : ", i, "/", ndata.shape[0] // bs)
-#         std = np.sqrt(std / len(ndata))
-#         return mean, std
+        if self.inverse:
+            seq_y = np.concatenate([self.data_x[r_begin:r_begin+self.label_len], self.data_y[r_begin+self.label_len:r_end]], 0)
+        else:
+            seq_y = self.data_y[r_begin:r_end]
+        seq_x_mark = self.data_stamp[s_begin:s_end]
+        seq_y_mark = self.data_stamp[r_begin:r_end]
 
-#     def set_mean(self, mean, std):
-#         """
-#             Set self.mean and self.std
-#         """
-#         self.mean = mean
-#         self.std = std
+        
+        return seq_x, seq_magnetogram, seq_y, seq_x_mark, seq_y_mark
+    
+    def __len__(self):
+        return len(self.data_x) - self.seq_len- self.pred_len + 1
+
+    def inverse_transform(self, data):
+        return self.scaler.inverse_transform(data)
+
+
+class Dataset_Pred(Dataset):
+    def __init__(self, root_path, flag='pred', size=None, 
+                 features='S', data_path='ETTh1.csv', 
+                 target='OT', scale=True, inverse=False, timeenc=0, freq='15min', cols=None):
+        # size [seq_len, label_len, pred_len]
+        # info
+        if size == None:
+            self.seq_len = 24*4*4
+            self.label_len = 24*4
+            self.pred_len = 24*4
+        else:
+            self.seq_len = size[0]
+            self.label_len = size[1]
+            self.pred_len = size[2]
+        # init
+        assert flag in ['pred']
+        
+        self.features = features
+        self.target = target
+        self.scale = scale
+        self.inverse = inverse
+        self.timeenc = timeenc
+        self.freq = freq
+        self.cols=cols
+        self.root_path = root_path
+        self.data_path = data_path
+        self.__read_data__()
+
+    def __read_data__(self):
+        self.scaler = StandardScaler()
+        df_raw = pd.read_csv(os.path.join(self.root_path,
+                                          self.data_path))
+        '''
+        df_raw.columns: ['date', ...(other features), target feature]
+        '''
+        if self.cols:
+            cols=self.cols.copy()
+            cols.remove(self.target)
+        else:
+            cols = list(df_raw.columns); cols.remove(self.target); cols.remove('date')
+        df_raw = df_raw[['date']+cols+[self.target]]
+        
+        border1 = len(df_raw)-self.seq_len
+        border2 = len(df_raw)
+        
+        if self.features=='M' or self.features=='MS':
+            cols_data = df_raw.columns[1:]
+            df_data = df_raw[cols_data]
+        elif self.features=='S':
+            df_data = df_raw[[self.target]]
+
+        if self.scale:
+            self.scaler.fit(df_data.values)
+            data = self.scaler.transform(df_data.values)
+        else:
+            data = df_data.values
+            
+        tmp_stamp = df_raw[['date']][border1:border2]
+        tmp_stamp['date'] = pd.to_datetime(tmp_stamp.date)
+        pred_dates = pd.date_range(tmp_stamp.date.values[-1], periods=self.pred_len+1, freq=self.freq)
+        
+        df_stamp = pd.DataFrame(columns = ['date'])
+        df_stamp.date = list(tmp_stamp.date.values) + list(pred_dates[1:])
+        data_stamp = time_features(df_stamp, timeenc=self.timeenc, freq=self.freq[-1:])
+
+        self.data_x = data[border1:border2]
+        if self.inverse:
+            self.data_y = df_data.values[border1:border2]
+        else:
+            self.data_y = data[border1:border2]
+        self.data_stamp = data_stamp
+    
+    def __getitem__(self, index):
+        s_begin = index
+        s_end = s_begin + self.seq_len
+        r_begin = s_end - self.label_len
+        r_end = r_begin + self.label_len + self.pred_len
+
+        seq_x = self.data_x[s_begin:s_end]
+        if self.inverse:
+            seq_y = self.data_x[r_begin:r_begin+self.label_len]
+        else:
+            seq_y = self.data_y[r_begin:r_begin+self.label_len]
+        seq_x_mark = self.data_stamp[s_begin:s_end]
+        seq_y_mark = self.data_stamp[r_begin:r_end]
+
+        return seq_x, seq_y, seq_x_mark, seq_y_mark
+    
+    def __len__(self):
+        return len(self.data_x) - self.seq_len + 1
+
+    def inverse_transform(self, data):
+        return self.scaler.inverse_transform(data)
