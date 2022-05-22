@@ -10,3 +10,4 @@ __pycache__/
 output_dir/
 *.log
 .tmp0.txt
+results/
