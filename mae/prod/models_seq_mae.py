@@ -466,7 +466,7 @@ class SequenceMaskedAutoencoderViT(nn.Module):
     def forward_decoder(self, x, ids_restore):
         # embed tokens
         # print(f"x.shape:{x.shape}")
-        x = self.decoder_embed(x[:, 1:257, :])
+        x = self.decoder_embed(x[:, :256, :])
         # x_t_1 = (x[:, 256:, :])
 
 

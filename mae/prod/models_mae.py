@@ -504,13 +504,16 @@ class MaskedAutoencoderViT(nn.Module):
         """
         N, L, D = x.shape  # batch, length, dim
         len_keep = int(L * (1 - mask_ratio))
-
+        # print(f"N={N}, L={L}, D={D}, len_keep={len_keep}")
         noise = torch.rand(N, L, device=x.device)  # noise in [0, 1]
-
+        # print(f"device={noise.device}")
         # sort noise for each sample
         # ascend: small is keep, large is remove
+        # print(f"noise.shape: {noise}")
         ids_shuffle = torch.argsort(noise, dim=1)
+        # print(f"ids_shuffle.shape: {ids_shuffle}")
         ids_restore = torch.argsort(ids_shuffle, dim=1)
+        # print(f"ids_restore.shape: {ids_restore}")
 
         # keep the first subset
         ids_keep = ids_shuffle[:, :len_keep]
@@ -871,6 +874,8 @@ class MaskedAutoencoderViT(nn.Module):
         mask: [N, L], 0 is keep, 1 is remove,
         """
         target = self.patchify(imgs)
+        # print(target.shape)
+        # print(pred.shape)
         if self.norm_pix_loss:
             mean = target.mean(dim=-1, keepdim=True)
             var = target.var(dim=-1, keepdim=True)

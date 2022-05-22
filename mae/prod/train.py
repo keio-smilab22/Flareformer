@@ -181,7 +181,7 @@ def eval_epoch(model: torch.nn.Module,
             loss_value = loss.item()
             # pred = model.unpatchify(pred)
             
-            # ２段目のPyramid
+            # ２段のPyramid
             pred = model.mae2.unpatchify(pred)
             mse = F.mse_loss(pred, samples.cuda().to(torch.float))
             mse_value = mse.item()

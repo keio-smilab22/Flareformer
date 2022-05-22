@@ -246,7 +246,7 @@ if __name__ == "__main__":
 
     # Initialize W&B
     if wandb_flag is True:
-        wandb.init(project=args.project_name, name=params["wandb_name"])
+        wandb.init(project=args.project_name, name=params["wandb_name"], config=params)
 
     print("==========================================")
     print(json.dumps(params, indent=2))
