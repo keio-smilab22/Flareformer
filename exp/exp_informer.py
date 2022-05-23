@@ -1,6 +1,6 @@
 from src.Dataloader import Dataset_Custom, Dataset_Pred
 from exp.exp_basic import Exp_Basic
-from src.model_informer import Informer, InformerLastLinear
+from src.model_informer import *
 
 from utils.tools import EarlyStopping, adjust_learning_rate
 from utils.metrics import metric
@@ -25,34 +25,60 @@ class Exp_Informer(Exp_Basic):
     
     def _build_model(self):
         model_dict = {
-            'regression':Informer,
-            'regression_linear':InformerLastLinear,
+            'FT':FlareTransformerRegression,
+            'FT_linear':FlareTransformerRegressionLastLinear,
+            'FT_MAE':FlareTransformerRegressionMAE,
+            'FT_MAE_linear':FlareTransformerRegressionrLastLinearMAE
         }
-        if self.args.model=='regression' or self.args.model=='regression_linear':
-            e_layers = self.args.e_layers if self.args.model=='regression' or  self.args.model=='regression_linear' else self.args.s_layers
-            model = model_dict[self.args.model](
-                self.args.enc_in,
-                self.args.dec_in, 
-                self.args.c_out, 
-                self.args.seq_len, 
-                self.args.label_len,
-                self.args.pred_len, 
-                self.args.factor,
-                self.args.d_model, 
-                self.args.n_heads, 
-                e_layers, # self.args.e_layers,
-                self.args.d_layers, 
-                self.args.d_ff,
-                self.args.dropout, 
-                self.args.attn,
-                self.args.embed,
-                self.args.freq,
-                self.args.activation,
-                self.args.output_attention,
-                self.args.distil,
-                self.args.mix,
-                self.device
-            ).float()
+        # if self.args.model=='regression' or self.args.model=='regression_linear':
+        #     e_layers = self.args.e_layers if self.args.model=='regression' or  self.args.model=='regression_linear' else self.args.s_layers
+        #     model = model_dict[self.args.model](
+        #         self.args.enc_in,
+        #         self.args.dec_in, 
+        #         self.args.c_out, 
+        #         self.args.seq_len, 
+        #         self.args.label_len,
+        #         self.args.pred_len, 
+        #         self.args.factor,
+        #         self.args.d_model, 
+        #         self.args.n_heads, 
+        #         e_layers, # self.args.e_layers,
+        #         self.args.d_layers, 
+        #         self.args.d_ff,
+        #         self.args.dropout, 
+        #         self.args.attn,
+        #         self.args.embed,
+        #         self.args.freq,
+        #         self.args.activation,
+        #         self.args.output_attention,
+        #         self.args.distil,
+        #         self.args.mix,
+        #         self.device
+        #     ).float()
+        e_layers = self.args.e_layers
+        model = model_dict[self.args.model](
+            self.args.enc_in,
+            self.args.dec_in, 
+            self.args.c_out, 
+            self.args.seq_len, 
+            self.args.label_len,
+            self.args.pred_len, 
+            self.args.factor,
+            self.args.d_model, 
+            self.args.n_heads, 
+            e_layers, # self.args.e_layers,
+            self.args.d_layers, 
+            self.args.d_ff,
+            self.args.dropout, 
+            self.args.attn,
+            self.args.embed,
+            self.args.freq,
+            self.args.activation,
+            self.args.output_attention,
+            self.args.distil,
+            self.args.mix,
+            self.device
+        ).float()
         
         if self.args.use_multi_gpu and self.args.use_gpu:
             model = nn.DataParallel(model, device_ids=self.args.device_ids)
@@ -150,7 +176,10 @@ class Exp_Informer(Exp_Basic):
                 model_optim.zero_grad()
                 pred, true = self._process_one_batch(
                     train_data, batch_x, batch_mag, batch_y, batch_x_mark, batch_y_mark)
-                # print(f"pred: {pred}")
+                # NOTE:only y_t+24 is used
+                # pred = pred[:,-1:,:]
+                # true = true[:,-1:,:]
+                # print(f"pred: {pred.shape}, true: {true.shape}")
                 # print(f"true: {true}")
                 loss = criterion(pred, true)
                 train_loss.append(loss.item())
@@ -210,6 +239,9 @@ class Exp_Informer(Exp_Basic):
         for i, (batch_x,batch_mag,batch_y,batch_x_mark,batch_y_mark) in enumerate(test_loader):
             pred, true = self._process_one_batch(
                 test_data, batch_x, batch_mag, batch_y, batch_x_mark, batch_y_mark)
+            # NOTE:only y_t+24 is used
+            # pred = pred[:,-1:,:]
+            # true = true[:,-1:,:]
             preds.append(pred.detach().cpu().numpy())
             trues.append(true.detach().cpu().numpy())
 
@@ -300,6 +332,8 @@ class Exp_Informer(Exp_Basic):
         if self.args.inverse:
             outputs = dataset_object.inverse_transform(outputs)
         f_dim = -1 if self.args.features=='MS' else 0
-        batch_y = batch_y[:,-self.args.pred_len:,f_dim:].to(self.device)
+        # batch_y = batch_y[:,-self.args.pred_len:,f_dim:].to(self.device)
+        batch_y = batch_y[:,-1:,f_dim:].to(self.device)
+
 
         return outputs, batch_y
