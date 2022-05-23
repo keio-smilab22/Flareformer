@@ -989,8 +989,13 @@ class Dataset_Custom(Dataset):
             seq_y = np.concatenate([self.data_x[r_begin:r_begin+self.label_len], self.data_y[r_begin+self.label_len:r_end]], 0)
         else:
             seq_y = self.data_y[r_begin:r_end]
+        # print(f"seq_x: {seq_x.shape}, seq_y: {seq_y.shape}")
+        # seq_y = seq_y[-1]
+        # seq_y = seq_y[np.newaxis, :]
+        # print(f"seq_y: {seq_y.shape}")
         seq_x_mark = self.data_stamp[s_begin:s_end]
         seq_y_mark = self.data_stamp[r_begin:r_end]
+        # seq_y_mark = seq_y_mark[-1]
 
         
         return seq_x, seq_magnetogram, seq_y, seq_x_mark, seq_y_mark
@@ -1075,18 +1080,18 @@ class Dataset_Pred(Dataset):
         self.data_stamp = data_stamp
     
     def __getitem__(self, index):
-        s_begin = index
-        s_end = s_begin + self.seq_len
-        r_begin = s_end - self.label_len
-        r_end = r_begin + self.label_len + self.pred_len
+        s_begin = index #0
+        s_end = s_begin + self.seq_len #4
+        r_begin = s_end - self.label_len #2
+        r_end = r_begin + self.label_len + self.pred_len #28
 
         seq_x = self.data_x[s_begin:s_end]
         if self.inverse:
             seq_y = self.data_x[r_begin:r_begin+self.label_len]
         else:
-            seq_y = self.data_y[r_begin:r_begin+self.label_len]
+            seq_y = self.data_y[r_begin:r_begin+self.label_len] #2:4
         seq_x_mark = self.data_stamp[s_begin:s_end]
-        seq_y_mark = self.data_stamp[r_begin:r_end]
+        seq_y_mark = self.data_stamp[r_begin:r_end] #2:28
 
         return seq_x, seq_y, seq_x_mark, seq_y_mark
     
