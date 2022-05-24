@@ -10,6 +10,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from utils.utils import *
 import wandb
 import math
 import torch.nn.functional as F
@@ -207,20 +208,7 @@ def adjust_learning_rate(optimizer, current_epoch, epochs, lr, args): # optimize
 
     return lr
 
-def inject_args(args,target):
-    for key, value in target.items():
-        args.__setattr__(key, value)
-    return args
-
-
-if __name__ == "__main__":
-    # fix seed value
-    SEED = 42
-    np.random.seed(SEED)
-    torch.manual_seed(SEED)
-    torch.cuda.manual_seed(SEED)
- 
-    # argument parser
+def parse_params():
     parser = argparse.ArgumentParser()
     parser.add_argument('--wandb', action='store_true')
     parser.add_argument('--params', default='params/params2017.json')
@@ -236,9 +224,17 @@ if __name__ == "__main__":
     args = parser.parse_args()
     params = json.loads(open(args.params).read())
     args = inject_args(args,params)
+    return args, params
+
+if __name__ == "__main__":
+    # fix seed value
+    fix_seed(42)
+ 
+    # argument parser   
+    args, params = parse_params()
 
     # Initialize W&B
-    if  args.wandb:
+    if args.wandb:
         wandb.init(project=args.project_name, name=params["wandb_name"])
 
     print("==========================================")
@@ -251,7 +247,6 @@ if __name__ == "__main__":
     test_dataset = FlareDataset("test", args.dataset)
 
     mean, std = train_dataset.calc_mean()
-    
     train_dataset.set_mean(mean, std)    
     validation_dataset.set_mean(mean, std)
     test_dataset.set_mean(mean, std)
@@ -259,12 +254,11 @@ if __name__ == "__main__":
     
     print("Batch Sampling")
 
-    if args.imbalance:
-        train_dl = DataLoader(train_dataset, batch_size=args.bs, shuffle=True, num_workers=2)
-    else:
-        train_dl = DataLoader(train_dataset, batch_sampler=TrainBalancedBatchSampler(
-            train_dataset, args.output_channel, args.bs//args.output_channel))
+    batch_sampler = None
+    if not args.imbalance:
+        batch_sampler = TrainBalancedBatchSampler(train_dataset, args.output_channel, args.bs//args.output_channel)
 
+    train_dl = DataLoader(train_dataset, batch_size=args.bs, shuffle=args.imbalance, batch_sampler=batch_sampler, num_workers=2)
     validation_dl = DataLoader(validation_dataset, batch_size=args.bs, shuffle=False,num_workers=2)
     test_dl = DataLoader(test_dataset, batch_size=args.bs, shuffle=False,num_workers=2)
 
