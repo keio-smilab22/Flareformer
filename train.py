@@ -107,7 +107,7 @@ def train_epoch(model, train_dl, epoch,lr,  args):
     return score, train_loss/n
 
 
-def eval_epoch(model, validation_dl):
+def eval_epoch(model, val_dl):
     """Return val loss and score for val set"""
     model.eval()
     predictions = []
@@ -115,7 +115,7 @@ def eval_epoch(model, validation_dl):
     valid_loss = 0
     n = 0
     with torch.no_grad():
-        for _, (x, y, feat, idx) in enumerate(tqdm(validation_dl)):
+        for _, (x, y, feat, idx) in enumerate(tqdm(val_dl)):
             output, feat = model(x.cuda().to(torch.float),feat.cuda().to(torch.float))
                 
             # bce_loss = criterion(output, y.cuda().to(torch.long))
@@ -226,6 +226,34 @@ def parse_params():
     args = inject_args(args,params)
     return args, params
 
+def prepare_datasets(args):
+    train_dataset = FlareDataset("train", args.dataset)
+    val_dataset = FlareDataset("valid", args.dataset)
+    test_dataset = FlareDataset("test", args.dataset)
+
+    mean, std = train_dataset.calc_mean()
+    print(mean, std)
+
+    train_dataset.set_mean(mean, std)    
+    val_dataset.set_mean(mean, std)
+    test_dataset.set_mean(mean, std)
+
+    return train_dataset, val_dataset, test_dataset
+
+def prepare_dataloaders(args):
+    train_dataset, val_dataset, test_dataset = prepare_datasets(args)
+
+    batch_sampler = None
+    if not args.imbalance:
+        batch_sampler = TrainBalancedBatchSampler(train_dataset, args.output_channel, args.bs//args.output_channel)
+
+    train_dl = DataLoader(train_dataset, batch_size=args.bs, shuffle=args.imbalance, batch_sampler=batch_sampler, num_workers=2)
+    val_dl = DataLoader(val_dataset, batch_size=args.bs, shuffle=False,num_workers=2)
+    test_dl = DataLoader(test_dataset, batch_size=args.bs, shuffle=False,num_workers=2)
+    
+    return (train_dl, val_dl, test_dl), train_dataset[0]
+    
+
 if __name__ == "__main__":
     # fix seed value
     fix_seed(42)
@@ -235,32 +263,16 @@ if __name__ == "__main__":
 
     # Initialize W&B
     if args.wandb:
-        wandb.init(project=args.project_name, name=params["wandb_name"])
+        wandb.init(project=args.project_name, name=args.wandb_name)
 
     print("==========================================")
     print(json.dumps(params, indent=2))
     print("==========================================")
 
     # Initialize Dataset
-    train_dataset = FlareDataset("train", args.dataset)
-    validation_dataset = FlareDataset("valid", args.dataset)
-    test_dataset = FlareDataset("test", args.dataset)
-
-    mean, std = train_dataset.calc_mean()
-    train_dataset.set_mean(mean, std)    
-    validation_dataset.set_mean(mean, std)
-    test_dataset.set_mean(mean, std)
-    print(mean, std)
     
-    print("Batch Sampling")
-
-    batch_sampler = None
-    if not args.imbalance:
-        batch_sampler = TrainBalancedBatchSampler(train_dataset, args.output_channel, args.bs//args.output_channel)
-
-    train_dl = DataLoader(train_dataset, batch_size=args.bs, shuffle=args.imbalance, batch_sampler=batch_sampler, num_workers=2)
-    validation_dl = DataLoader(validation_dataset, batch_size=args.bs, shuffle=False,num_workers=2)
-    test_dl = DataLoader(test_dataset, batch_size=args.bs, shuffle=False,num_workers=2)
+    print("Prepare Dataloaders")
+    (train_dl, val_dl, test_dl), sample = prepare_dataloaders(args)
 
     # Initialize Loss Function
     criterion = nn.CrossEntropyLoss().cuda()
@@ -274,7 +286,7 @@ if __name__ == "__main__":
                                         window=args.dataset["window"]).to("cuda")
     
     if args.detail_summary:
-        summary(model,[(args.bs, *sample.shape) for sample in train_dataset[0][0::2]])
+        summary(model,[(args.bs, *feature.shape) for feature in sample[0::2]])
     else:
         summary(model)
 
@@ -288,7 +300,7 @@ if __name__ == "__main__":
     for e, epoch in enumerate(range(params["epochs"])):
         print("====== Epoch ", e, " ======")
         train_score, train_loss = train_epoch(model, train_dl, epoch, args.lr, args)
-        valid_score, valid_loss = eval_epoch(model, validation_dl)
+        valid_score, valid_loss = eval_epoch(model, val_dl)
         test_score, test_loss = valid_score, valid_loss
         
         torch.save(model.state_dict(), params["save_model_path"])
@@ -329,7 +341,7 @@ if __name__ == "__main__":
         for e, epoch in enumerate(range(args.epoch_stage2)):
             print("====== Epoch ", e, " ======")
             train_score, train_loss = train_epoch(model, train_dl, epoch, args.lr_stage2, args)
-            valid_score, valid_loss = eval_epoch(model, validation_dl)
+            valid_score, valid_loss = eval_epoch(model, val_dl)
             test_score, test_loss = valid_score, valid_loss
 
             log = {'epoch': epoch, 'train_loss': np.mean(train_loss),
