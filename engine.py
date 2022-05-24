@@ -1,6 +1,7 @@
 """
 Train and eval functions used in main.py
 """
+
 import numpy as np
 import torch
 from utils.eval_utils import calc_score
