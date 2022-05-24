@@ -8,12 +8,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Type, Any, Callable, Union, List, Optional
 from torch import Tensor
-from mae.prod.models_mae import SeqentialMaskedAutoencoderViT
 from src.attn import FullAttention, ProbAttention, AttentionLayer
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
-from mae.prod.eval import MaskedAutoEncoder
-from mae.prod.models_1dmae import OneDimMaskedAutoencoder
-
 from timm.models.layers import trunc_normal_, DropPath
 from timm.models.registry import register_model
 

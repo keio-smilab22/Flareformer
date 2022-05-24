@@ -229,6 +229,7 @@ if __name__ == "__main__":
     parser.add_argument('--without_schedule', action='store_false')
     parser.add_argument('--lr_stage2', default=0.000008, type=float)
     parser.add_argument('--epoch_stage2', default=25, type=float)
+    parser.add_argument('--detail_summary', action='store_true')
     parser.add_argument('--imbalance', action='store_true')
 
     # read params/params.json
@@ -277,9 +278,12 @@ if __name__ == "__main__":
                                         sfm_params=args.SFM,
                                         mm_params=args.MM,
                                         window=args.dataset["window"]).to("cuda")
-
-    summary(model)
-    # summary(model,[(args.bs, *sample.shape) for sample in train_dataset[0][0::2]])
+    
+    if args.detail_summary:
+        summary(model,[(args.bs, *sample.shape) for sample in train_dataset[0][0::2]])
+    else:
+        summary(model)
+        
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     # Start Training
