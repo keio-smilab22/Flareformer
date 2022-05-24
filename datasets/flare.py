@@ -36,8 +36,8 @@ class FlareDataset(Dataset):
         self.window = np.asarray(self.window, dtype=int)
         
         print(f"img: {self.img.shape}\n",
-              f"label: {self.label.shape}\n",
               f"feat: {self.feat.shape}\n",
+              f"label: {self.label.shape}\n",
               f"window: {self.window.shape}\n")
 
     def __len__(self):

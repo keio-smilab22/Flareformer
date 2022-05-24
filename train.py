@@ -13,7 +13,7 @@ from utils.losses import LossConfig, Losser
 from engine import calc_test_score, train_epoch, eval_epoch
 import wandb
 
-from models.model import FlareTransformerWithConvNext
+from models.model import FlareFormer
 from datasets.datasets import prepare_dataloaders
 
 import colored_traceback.always
@@ -64,7 +64,7 @@ if __name__ == "__main__":
 
     losser = Losser(loss_config)
 
-    model = FlareTransformerWithConvNext(input_channel=args.input_channel,
+    model = FlareFormer(input_channel=args.input_channel,
                                         output_channel=args.output_channel,
                                         sfm_params=args.SFM,
                                         mm_params=args.MM,
