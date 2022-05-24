@@ -14,7 +14,7 @@ import wandb
 import math
 import torch.nn.functional as F
 
-from src.model import FlareTransformer, _FlareTransformerWithGAPMAE, FlareTransformerLikeViLBERT, FlareTransformerReplacedFreezeViTWithMAE, FlareTransformerReplacedViTWithMAE, FlareTransformerWith1dMAE, FlareTransformerWithConvNext, FlareTransformerWithGAPMAE, FlareTransformerWithGAPSeqMAE, FlareTransformerWithMAE, FlareTransformerWithMultiPE, FlareTransformerWithPE, FlareTransformerWithPositonalEncoding, FlareTransformerWithoutMM, FlareTransformerWithoutPE, PureTransformerSFM
+from src.model import FlareTransformerWithConvNext
 from src.Dataloader import CombineDataloader, TrainDataloader, TrainDataloader256
 from src.eval_utils import calc_score
 from src.BalancedBatchSampler import TrainBalancedBatchSampler
@@ -34,48 +34,6 @@ def gmgs_loss_function(y_pred, y_true, score_matrix):
     output = torch.mul(output, weight)
     output = torch.mean(output)
     return -output
-
-# epoch = 0
-# def focal_loss(y_pred, y_true, gamma=0, eps=1e-7):
-#     logit = F.softmax(y_pred, dim=-1)
-#     logit = logit.clamp(eps, 1. - eps)
-    
-#     weights = torch.ones_like(y_true).float()
-#     # weights[:,-1] = 0 # X class
-#     weights[:,-1] = 0 if epoch < 15 else 1 # X class
-#     # weights[:,-1] = np.min([1.,0.6 + 0.3 / 10 * (10-(epoch+1))]) # X class
-#     loss = -1 * weights * y_true * torch.log(logit) # cross entropy
-#     loss = loss * (1 - logit) ** gamma # focal loss
-
-#     return loss.sum() / y_pred.shape[0]
-
-# def ib_focal_loss(input_values, ib, gamma):
-#     """Computes the ib focal loss"""
-#     p = torch.exp(-input_values)
-#     loss = (1 - p) ** gamma * input_values * ib
-#     return loss.mean()
-
-
-
-# switch_epoch = 100
-
-# class IB_FocalLoss(nn.Module):
-#     def __init__(self, weight=None, alpha=10000., gamma=0.):
-#         super(IB_FocalLoss, self).__init__()
-#         assert alpha > 0
-#         self.alpha = alpha
-#         self.epsilon = 0.001
-#         self.weight = weight
-#         self.gamma = gamma
-
-#     def forward(self, input, target, features, num_classes=4):
-#         grads = torch.sum(torch.abs(F.softmax(input, dim=1) - F.one_hot(target, num_classes)),1) # N * 1
-#         ib = grads*(torch.sum(torch.abs(features),dim=1))
-#         ib = self.alpha / (ib + self.epsilon)
-#         if epoch < switch_epoch:
-#             return F.cross_entropy(input, target, reduction='mean', weight=self.weight)
-#         else:
-#             return ib_focal_loss(F.cross_entropy(input, target, reduction='none', weight=self.weight), ib, self.gamma)
 
 
 def label_smoothing(y_true, epsilon):
@@ -111,10 +69,7 @@ def train_epoch(model, train_dl, epoch,lr,  args):
         if not args.without_schedule:
             adjust_learning_rate(optimizer, epoch, params["epochs"], lr, args)
         optimizer.zero_grad()
-        if isinstance(model,FlareTransformerWithMultiPE):
-            output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float), idx.cuda().to(torch.float))
-        else:
-            output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float))
+        output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float))
 
         # ib_loss = ib(output, torch.max(y, 1)[1].cuda().to(torch.long),feat)
         bce_loss = criterion(output, torch.max(y, 1)[1].cuda().to(torch.long))
@@ -177,11 +132,7 @@ def eval_epoch(model, validation_dl):
                 if x.shape[0] == 0: continue
 
 
-            if isinstance(model,FlareTransformerWithMultiPE):
-                idx += len(train_dataset)
-                output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float), idx.cuda().to(torch.float))
-            else:
-                output, feat = model(x.cuda().to(torch.float),feat.cuda().to(torch.float))
+            output, feat = model(x.cuda().to(torch.float),feat.cuda().to(torch.float))
                 
             # bce_loss = criterion(output, y.cuda().to(torch.long))
             bce_loss = criterion(output, torch.max(y, 1)[1].cuda().to(torch.long))
@@ -211,51 +162,6 @@ def eval_epoch(model, validation_dl):
 
 
 
-
-def calc_model_update(model, dl,model_update_dict): # モデルの更新量を計算する
-    model.eval()
-    with torch.no_grad():
-        for _, (x, y, feat,idx) in enumerate(tqdm(dl)):
-            x = x.cuda().to(torch.float)
-            feat = feat.cuda().to(torch.float)
-            mm_extractor = model.forward_mm_feature_extractor
-            sfm_extractor = model.forward_sfm_feature_extractor
-            mm_output = mm_extractor(x,feat).cpu().numpy() # (B, W, d_model)
-            sfm_output = sfm_extractor(x,feat).cpu().numpy()
-            # mm_mean = mm_output.cpu().numpy().mean(axis=0)
-            # sfm_mean = sfm_output.cpu().numpy().mean(axis=0)
-
-            # print(mm_output.shape)
-            # print(sfm_output.shape)
-            
-            if "mm" not in model_update_dict: model_update_dict["mm"] = [mm_output]
-            else:
-                z = model_update_dict["mm"][0]
-                z = z - mm_output
-                t = [np.linalg.norm(z[i,0,:]) for i in range(z.shape[0])] # ウィンドウのheadだけ
-                model_update_dict["mm"].append(np.mean(t))
-
-            if "sfm" not in model_update_dict: model_update_dict["sfm"] = [sfm_output]
-            else:
-                z = model_update_dict["sfm"][0]
-                z = z - sfm_output
-                t = [np.linalg.norm(z[i,0,:]) for i in range(z.shape[0])] # ウィンドウのheadだけ
-                model_update_dict["sfm"].append(np.mean(t))
-
-            break
-        # for pred, o in zip(output.cpu().numpy().tolist(),
-        #                     y.numpy().tolist()):
-        #     predictions.append(pred)
-        #     observations.append(np.argmax(o))
-
-    print("+-- model update --+")
-    for k,v in model_update_dict.items():
-        print(f" {k} = ", end='')
-        print(v[1:])
-
-    print("+------------------+\n")
-
-
 def test_epoch(model, test_dl):
     """Return test loss and score for test set"""
     model.eval()
@@ -273,11 +179,7 @@ def test_epoch(model, test_dl):
                 if x.shape[0] == 0: continue
 
 
-            if isinstance(model,FlareTransformerWithMultiPE):
-                idx += len(train_dataset)
-                output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float), idx.cuda().to(torch.float))
-            else:
-                output, feat = model(x.cuda().to(torch.float),feat.cuda().to(torch.float))
+            output, feat = model(x.cuda().to(torch.float),feat.cuda().to(torch.float))
 
             # bce_loss = criterion(output, y.cuda().to(torch.long))
             bce_loss = criterion(output, torch.max(y, 1)[1].cuda().to(torch.long))
@@ -354,7 +256,6 @@ if __name__ == "__main__":
     parser.add_argument('--lr_stage2', default=0.000008, type=float)
     parser.add_argument('--epoch_stage2', default=25, type=float)
     parser.add_argument('--imbalance', action='store_true')
-    parser.add_argument('--debug_value', default=1.0, type=float)
 
     args = parser.parse_args()
     wandb_flag = args.wandb
@@ -371,128 +272,41 @@ if __name__ == "__main__":
     print("==========================================")
 
     # Initialize Dataset
-    # train_dataset = TrainDataloader("train", params["dataset"])
     train_dataset = TrainDataloader256("train", params["dataset"])
-    # aug_train_dataset = TrainDataloader("train", params["dataset"], augmentation=True)
-    if params["dataset"]["mean"] != 0:
-        mean = params["dataset"]["mean"]
-        std = params["dataset"]["std"]
-    else:
-        mean, std = train_dataset.calc_mean()
-        print(mean, std)
+    validation_dataset = TrainDataloader256("valid", params["dataset"])
+    test_dataset = TrainDataloader256("test", params["dataset"])
 
     mean, std = train_dataset.calc_mean()
-    mean *= args.debug_value
-    std *= args.debug_value
-    print(mean, std)
-    train_dataset.set_mean(mean, std)
     
-    validation_dataset = TrainDataloader256("valid", params["dataset"])
+    train_dataset.set_mean(mean, std)    
     validation_dataset.set_mean(mean, std)
-    test_dataset = TrainDataloader256("test", params["dataset"])
     test_dataset.set_mean(mean, std)
-
-#############
-    # classes = torch.argmax(torch.Tensor(test_dataset.label),dim=1)
-    # prob = torch.zeros(4).cuda()
-    # for i in range(test_dataset.label.shape[0]):
-    #     prob[classes[i]] += 1
-
-    # prob = 1 / prob
-    # prob /= prob.sum()
-    # print(prob)
-
-#############
+    print(mean, std)
     
     print("Batch Sampling")
 
     if args.imbalance:
-        train_dl = DataLoader(train_dataset, batch_size=params["bs"], shuffle=True)
+        train_dl = DataLoader(train_dataset, batch_size=params["bs"], shuffle=True, num_workers=2)
     else:
         train_dl = DataLoader(train_dataset, batch_sampler=TrainBalancedBatchSampler(
             train_dataset, params["output_channel"], params["bs"]//params["output_channel"]))
 
-    validation_dl = DataLoader(validation_dataset,
-                               batch_size=params["bs"], shuffle=False)
-    test_dl = DataLoader(test_dataset, batch_size=params["bs"], shuffle=False)
+    validation_dl = DataLoader(validation_dataset, batch_size=params["bs"], shuffle=False,num_workers=2)
+    test_dl = DataLoader(test_dataset, batch_size=params["bs"], shuffle=False,num_workers=2)
 
     # Initialize Loss Function
     criterion = nn.CrossEntropyLoss().cuda()
-    # ib = IB_FocalLoss()
     gmgs_criterion = gmgs_loss_function
     bs_criterion = bs_loss_function
 
-
-    # model = FlareTransformerWithMAE(input_channel=params["input_channel"],
-    #                          output_channel=params["output_channel"],
-    #                          sfm_params=params["SFM"],
-    #                          mm_params=params["MM"],
-    #                          window=params["dataset"]["window"],
-    #                          baseline=args.baseline,
-    #                          embed_dim = args.dim,
-    #                          enc_depth=args.enc_depth,
-    #                          dec_depth=args.dec_depth,
-    #                          has_vit_head=args.has_vit_head).to("cuda")
-
-
-    # model = FlareTransformerWith1dMAE(input_channel=params["input_channel"],
-    #                          output_channel=params["output_channel"],
-    #                          sfm_params=params["SFM"],
-    #                          mm_params=params["MM"],
-    #                          window=params["dataset"]["window"],
-    #                          token_window=args.token_window).to("cuda")
-
-
-    # model = _FlareTransformerWithGAPMAE(input_channel=params["input_channel"],
-    #                          output_channel=params["output_channel"],
-    #                          sfm_params=params["SFM"],
-    #                          mm_params=params["MM"],
-    #                          window=params["dataset"]["window"],
-    #                          baseline=args.baseline,
-    #                          embed_dim = args.dim,
-    #                          enc_depth=args.enc_depth,
-    #                          dec_depth=args.dec_depth).to("cuda")
-
-
-    # model = FlareTransformer(input_channel=params["input_channel"],
-    #                          output_channel=params["output_channel"],
-    #                          sfm_params=params["SFM"],
-    #                          mm_params=params["MM"],
-    #                          window=params["dataset"]["window"]).to("cuda")
-
-    # model = FlareTransformerWithPE(input_channel=params["input_channel"],
-    #                             output_channel=params["output_channel"],
-    #                             sfm_params=params["SFM"],
-    #                             mm_params=params["MM"],
-    #                             window=params["dataset"]["window"]).to("cuda")
-
-
-    # model = FlareTransformerWithMultiPE(input_channel=params["input_channel"],
-    #                         output_channel=params["output_channel"],
-    #                         sfm_params=params["SFM"],
-    #                         mm_params=params["MM"],
-    #                         window=params["dataset"]["window"]).to("cuda")
-
     model = FlareTransformerWithConvNext(input_channel=params["input_channel"],
                                         output_channel=params["output_channel"],
-                                    sfm_params=params["SFM"],
-                                    mm_params=params["MM"],
-                                    window=params["dataset"]["window"]).to("cuda")
-
-
-    # model = FlareTransformerWithGAPSeqMAE(input_channel=params["input_channel"],
-    #                                     output_channel=params["output_channel"],
-    #                                     sfm_params=params["SFM"],
-    #                                     mm_params=params["MM"],
-    #                                     window=params["dataset"]["window"],
-    #                                     baseline=args.baseline,
-    #                                     embed_dim = args.dim,
-    #                                     enc_depth=args.enc_depth,
-    #                                     dec_depth=args.dec_depth,
-    #                                     need_cnn=False).to("cuda")
+                                        sfm_params=params["SFM"],
+                                        mm_params=params["MM"],
+                                        window=params["dataset"]["window"]).to("cuda")
 
     summary(model)
-    # summary(model,[(params["bs"], *train_dataset[0][0].shape),(params["bs"], *train_dataset[0][2].shape)])
+    # summary(model,[(params["bs"], *sample.shape) for sample in train_dataset[0][0::2]])
     optimizer = torch.optim.Adam(model.parameters(), lr=params["lr"])
 
     # Start Training
