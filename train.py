@@ -21,7 +21,6 @@ from src.BalancedBatchSampler import TrainBalancedBatchSampler
 
 import colored_traceback.always
 
-onlyMandX = False
 
 def gmgs_loss_function(y_pred, y_true, score_matrix):
     """Compute GMGS loss"""
@@ -29,7 +28,6 @@ def gmgs_loss_function(y_pred, y_true, score_matrix):
     y_truel = torch.argmax(y_true, dim=1)
     weight = score_matrix[y_truel]
     py = torch.log(y_pred)
-    # y_true = label_smoothing(y_true, 0.01)
     output = torch.mul(y_true, py)
     output = torch.mul(output, weight)
     output = torch.mean(output)
@@ -59,13 +57,6 @@ def train_epoch(model, train_dl, epoch,lr,  args):
     train_loss = 0
     n = 0
     for _, (x, y, feat, idx) in enumerate(tqdm(train_dl)):
-        if onlyMandX:
-            mask = (y[:,2] == 1) + (y[:,3] == 1)
-            x = x[mask]
-            feat = feat[mask]
-            y = y[mask]
-            if x.shape[0] == 0: continue
-
         if not args.without_schedule:
             adjust_learning_rate(optimizer, epoch, params["epochs"], lr, args)
         optimizer.zero_grad()
@@ -77,7 +68,7 @@ def train_epoch(model, train_dl, epoch,lr,  args):
         if params["lambda"]["GMGS"] != 0:
             gmgs_loss = gmgs_criterion(
                 output, y.cuda().to(torch.float),
-                params["dataset"]["GMGS_score_matrix"])
+                args.dataset["GMGS_score_matrix"])
         else:
             gmgs_loss = 0
 
@@ -109,7 +100,7 @@ def train_epoch(model, train_dl, epoch,lr,  args):
             observations.append(np.argmax(o))
 
     score = calc_score(predictions, observations,
-                       params["dataset"]["climatology"])
+                       args.dataset["climatology"])
     score = calc_test_score(score, "train")
 
     return score, train_loss/n
@@ -124,14 +115,6 @@ def eval_epoch(model, validation_dl):
     n = 0
     with torch.no_grad():
         for _, (x, y, feat, idx) in enumerate(tqdm(validation_dl)):
-            if onlyMandX:
-                mask = (y[:,2] == 1) + (y[:,3] == 1)
-                x = x[mask]
-                feat = feat[mask]
-                y = y[mask]
-                if x.shape[0] == 0: continue
-
-
             output, feat = model(x.cuda().to(torch.float),feat.cuda().to(torch.float))
                 
             # bce_loss = criterion(output, y.cuda().to(torch.long))
@@ -139,7 +122,7 @@ def eval_epoch(model, validation_dl):
             if params["lambda"]["GMGS"] != 0:
                 gmgs_loss = gmgs_criterion(
                     output, y.cuda().to(torch.float),
-                    params["dataset"]["GMGS_score_matrix"])
+                    args.dataset["GMGS_score_matrix"])
             else:
                 gmgs_loss = 0
             if params["lambda"]["BS"] != 0:
@@ -156,7 +139,7 @@ def eval_epoch(model, validation_dl):
                 predictions.append(pred)
                 observations.append(np.argmax(o))
         score = calc_score(predictions, observations,
-                           params["dataset"]["climatology"])
+                           args.dataset["climatology"])
         score = calc_test_score(score, "valid")
     return score, valid_loss/n
 
@@ -171,14 +154,6 @@ def test_epoch(model, test_dl):
     n = 0
     with torch.no_grad():
         for _, (x, y, feat, idx) in enumerate(tqdm(test_dl)):
-            if onlyMandX:
-                mask = (y[:,2] == 1) + (y[:,3] == 1)
-                x = x[mask]
-                feat = feat[mask]
-                y = y[mask]
-                if x.shape[0] == 0: continue
-
-
             output, feat = model(x.cuda().to(torch.float),feat.cuda().to(torch.float))
 
             # bce_loss = criterion(output, y.cuda().to(torch.long))
@@ -187,7 +162,7 @@ def test_epoch(model, test_dl):
                 gmgs_loss = \
                     gmgs_criterion(output,
                                    y.cuda().to(torch.float),
-                                   params["dataset"]["GMGS_score_matrix"])
+                                   args.dataset["GMGS_score_matrix"])
             else:
                 gmgs_loss = 0
             if params["lambda"]["BS"] != 0:
@@ -203,7 +178,7 @@ def test_epoch(model, test_dl):
                 predictions.append(pred)
                 observations.append(np.argmax(o))
         score = calc_score(predictions, observations,
-                           params["dataset"]["climatology"])
+                           args.dataset["climatology"])
         score = calc_test_score(score, "test")
     return score, test_loss/n
 
@@ -232,6 +207,11 @@ def adjust_learning_rate(optimizer, current_epoch, epochs, lr, args): # optimize
 
     return lr
 
+def inject_args(args,target):
+    for key, value in target.items():
+        args.__setattr__(key, value)
+    return args
+
 
 if __name__ == "__main__":
     # fix seed value
@@ -245,26 +225,19 @@ if __name__ == "__main__":
     parser.add_argument('--wandb', action='store_true')
     parser.add_argument('--params', default='params/params2017.json')
     parser.add_argument('--project_name', default='flare_transformer_test')
-    parser.add_argument('--baseline', default='attn')
-    parser.add_argument('--has_vit_head', action='store_true')
-    parser.add_argument('--dim', default=512, type=int)
-    parser.add_argument('--enc_depth', default=12, type=int)
-    parser.add_argument('--dec_depth', default=8, type=int)
-    parser.add_argument('--token_window', default=4, type=int)
     parser.add_argument('--warmup_epochs', default=5, type=int)
     parser.add_argument('--without_schedule', action='store_false')
     parser.add_argument('--lr_stage2', default=0.000008, type=float)
     parser.add_argument('--epoch_stage2', default=25, type=float)
     parser.add_argument('--imbalance', action='store_true')
 
-    args = parser.parse_args()
-    wandb_flag = args.wandb
-
     # read params/params.json
+    args = parser.parse_args()
     params = json.loads(open(args.params).read())
+    args = inject_args(args,params)
 
     # Initialize W&B
-    if wandb_flag is True:
+    if  args.wandb:
         wandb.init(project=args.project_name, name=params["wandb_name"])
 
     print("==========================================")
@@ -272,9 +245,9 @@ if __name__ == "__main__":
     print("==========================================")
 
     # Initialize Dataset
-    train_dataset = TrainDataloader256("train", params["dataset"])
-    validation_dataset = TrainDataloader256("valid", params["dataset"])
-    test_dataset = TrainDataloader256("test", params["dataset"])
+    train_dataset = TrainDataloader256("train", args.dataset)
+    validation_dataset = TrainDataloader256("valid", args.dataset)
+    test_dataset = TrainDataloader256("test", args.dataset)
 
     mean, std = train_dataset.calc_mean()
     
@@ -286,28 +259,28 @@ if __name__ == "__main__":
     print("Batch Sampling")
 
     if args.imbalance:
-        train_dl = DataLoader(train_dataset, batch_size=params["bs"], shuffle=True, num_workers=2)
+        train_dl = DataLoader(train_dataset, batch_size=args.bs, shuffle=True, num_workers=2)
     else:
         train_dl = DataLoader(train_dataset, batch_sampler=TrainBalancedBatchSampler(
-            train_dataset, params["output_channel"], params["bs"]//params["output_channel"]))
+            train_dataset, args.output_channel, args.bs//args.output_channel))
 
-    validation_dl = DataLoader(validation_dataset, batch_size=params["bs"], shuffle=False,num_workers=2)
-    test_dl = DataLoader(test_dataset, batch_size=params["bs"], shuffle=False,num_workers=2)
+    validation_dl = DataLoader(validation_dataset, batch_size=args.bs, shuffle=False,num_workers=2)
+    test_dl = DataLoader(test_dataset, batch_size=args.bs, shuffle=False,num_workers=2)
 
     # Initialize Loss Function
     criterion = nn.CrossEntropyLoss().cuda()
     gmgs_criterion = gmgs_loss_function
     bs_criterion = bs_loss_function
 
-    model = FlareTransformerWithConvNext(input_channel=params["input_channel"],
-                                        output_channel=params["output_channel"],
-                                        sfm_params=params["SFM"],
-                                        mm_params=params["MM"],
-                                        window=params["dataset"]["window"]).to("cuda")
+    model = FlareTransformerWithConvNext(input_channel=args.input_channel,
+                                        output_channel=args.output_channel,
+                                        sfm_params=args.SFM,
+                                        mm_params=args.MM,
+                                        window=args.dataset["window"]).to("cuda")
 
     summary(model)
-    # summary(model,[(params["bs"], *sample.shape) for sample in train_dataset[0][0::2]])
-    optimizer = torch.optim.Adam(model.parameters(), lr=params["lr"])
+    # summary(model,[(args.bs, *sample.shape) for sample in train_dataset[0][0::2]])
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     # Start Training
     best_score = {}
@@ -316,9 +289,8 @@ if __name__ == "__main__":
     model_update_dict = {}
     for e, epoch in enumerate(range(params["epochs"])):
         print("====== Epoch ", e, " ======")
-        train_score, train_loss = train_epoch(model, train_dl, epoch, params["lr"], args)
+        train_score, train_loss = train_epoch(model, train_dl, epoch, args.lr, args)
         valid_score, valid_loss = eval_epoch(model, validation_dl)
-        # test_score, test_loss = test_epoch(model, test_dl) # for train/val/test model
         test_score, test_loss = valid_score, valid_loss
         
         torch.save(model.state_dict(), params["save_model_path"])
@@ -332,27 +304,25 @@ if __name__ == "__main__":
         log.update(valid_score)
         log.update(test_score)
 
-        if wandb_flag is True:
+        if  args.wandb is True:
             wandb.log(log)
 
-        print("Epoch {}: Train loss:{:.4f}  Valid loss:{:.4f}".format(
-              e, train_loss, valid_loss), test_score)
+        print("Epoch {}: Train loss:{:.4f}  Valid loss:{:.4f}".format(e, train_loss, valid_loss), test_score)
 
-        # calc_model_update(model,train_dl,model_update_dict)
 
     # Output Test Score
     print("========== TEST ===========")
     model.load_state_dict(torch.load(params["save_model_path"])) 
     test_score, _ = test_epoch(model, test_dl)
     print("epoch : ", best_epoch, test_score)
-    if wandb_flag is True:
+    if  args.wandb is True:
         wandb.log(calc_test_score(test_score, "final"))
 
     # ここからCRT
     if args.imbalance:
         print("Start CRT")
         train_dl = DataLoader(train_dataset, batch_sampler=TrainBalancedBatchSampler(
-            train_dataset, params["output_channel"], params["bs"]//params["output_channel"]))
+            train_dataset, args.output_channel, args.bs//args.output_channel))
         
         model.freeze_feature_extractor()
         summary(model)
@@ -371,7 +341,7 @@ if __name__ == "__main__":
             log.update(valid_score)
             log.update(test_score)
 
-            if wandb_flag is True:
+            if  args.wandb is True:
                 wandb.log(log)
 
             print("Epoch {}: Train loss:{:.4f}  Valid loss:{:.4f}".format(
