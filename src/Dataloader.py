@@ -927,8 +927,10 @@ class Dataset_Custom(Dataset):
         
 
         num_vali = len(df_raw) - num_train - num_test
-        border1s = [0, num_train-self.seq_len, len(df_raw)-num_test-self.seq_len]
-        border2s = [num_train, num_train+num_vali, len(df_raw)]
+        border1s = [0, num_train-self.seq_len, len(df_raw)-num_test-self.seq_len] #[train, val, test]
+        border2s = [num_train, num_train+num_vali, len(df_raw)] #[train, val, test]
+        # border1s = [0, 0, 0]
+        # border2s = [num_train, num_train, num_train]
         border1 = border1s[self.set_type]
         border2 = border2s[self.set_type]
         
@@ -942,7 +944,7 @@ class Dataset_Custom(Dataset):
         # print(f"df_data {df_data}")
 
         if self.scale:
-            train_data = df_data[border1s[0]:border2s[0]]
+            train_data = df_data[border1s[0]:border2s[0]] # NOTE Only train dataset to be normalized
             self.scaler.fit(train_data.values)
             data = self.scaler.transform(df_data.values)
             print(f"data: {data.shape}")
@@ -988,11 +990,7 @@ class Dataset_Custom(Dataset):
         if self.inverse:
             seq_y = np.concatenate([self.data_x[r_begin:r_begin+self.label_len], self.data_y[r_begin+self.label_len:r_end]], 0)
         else:
-            seq_y = self.data_y[r_begin:r_end]
-        # print(f"seq_x: {seq_x.shape}, seq_y: {seq_y.shape}")
-        # seq_y = seq_y[-1]
-        # seq_y = seq_y[np.newaxis, :]
-        # print(f"seq_y: {seq_y.shape}")
+            seq_y = self.data_y[r_begin:r_end] #2:28
         seq_x_mark = self.data_stamp[s_begin:s_end]
         seq_y_mark = self.data_stamp[r_begin:r_end]
         # seq_y_mark = seq_y_mark[-1]
@@ -1046,8 +1044,8 @@ class Dataset_Pred(Dataset):
             cols=self.cols.copy()
             cols.remove(self.target)
         else:
-            cols = list(df_raw.columns); cols.remove(self.target); cols.remove('date')
-        df_raw = df_raw[['date']+cols+[self.target]]
+            cols = list(df_raw.columns); cols.remove(self.target); cols.remove('Time')
+        df_raw = df_raw[['Time']+cols+[self.target]]
         
         border1 = len(df_raw)-self.seq_len
         border2 = len(df_raw)
@@ -1064,12 +1062,12 @@ class Dataset_Pred(Dataset):
         else:
             data = df_data.values
             
-        tmp_stamp = df_raw[['date']][border1:border2]
-        tmp_stamp['date'] = pd.to_datetime(tmp_stamp.date)
-        pred_dates = pd.date_range(tmp_stamp.date.values[-1], periods=self.pred_len+1, freq=self.freq)
+        tmp_stamp = df_raw[['Time']][border1:border2]
+        tmp_stamp['Time'] = pd.to_datetime(tmp_stamp["Time"], format='%Y-%m-%d %H:%M:%S')
+        pred_dates = pd.date_range(tmp_stamp["Time"].values[-1], periods=self.pred_len+1, freq=self.freq)
         
-        df_stamp = pd.DataFrame(columns = ['date'])
-        df_stamp.date = list(tmp_stamp.date.values) + list(pred_dates[1:])
+        df_stamp = pd.DataFrame(columns = ['Time'])
+        df_stamp['Time'] = list(tmp_stamp["Time"].values) + list(pred_dates[1:])
         data_stamp = time_features(df_stamp, timeenc=self.timeenc, freq=self.freq[-1:])
 
         self.data_x = data[border1:border2]
