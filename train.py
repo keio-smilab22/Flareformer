@@ -1,7 +1,9 @@
 """Train Flare Transformer"""
 
+from dataclasses import dataclass
 import json
 import argparse
+from re import S
 
 from torchinfo import summary
 
@@ -22,35 +24,45 @@ from src.BalancedBatchSampler import TrainBalancedBatchSampler
 
 import colored_traceback.always
 
+@dataclass
+class LossConfig:
+    lambda_bss: float
+    lambda_gmgs: float
+    score_mtx: torch.Tensor
 
-def gmgs_loss_function(y_pred, y_true, score_matrix):
-    """Compute GMGS loss"""
-    score_matrix = torch.tensor(score_matrix).cuda()
-    y_truel = torch.argmax(y_true, dim=1)
-    weight = score_matrix[y_truel]
-    py = torch.log(y_pred)
-    output = torch.mul(y_true, py)
-    output = torch.mul(output, weight)
-    output = torch.mean(output)
-    return -output
+class Losser:
+    def __init__(self,config: LossConfig, device: str = "cuda"):
+        self.ce_loss = nn.CrossEntropyLoss().to(device)
+        self.config = config
 
+    def __call__(self, y_pred, y_true):
+        loss = self.ce_loss(y_pred,torch.argmax(y_true,dim=1))
+        gmgs_loss = self.calc_gmgs_loss(y_pred,y_true)
+        bss_loss = self.calc_bss_loss(y_pred,y_true)
+        return  loss + \
+                self.config.lambda_bss * bss_loss + \
+                self.config.lambda_gmgs * gmgs_loss
+        
+    def calc_gmgs_loss(self,y_pred, y_true):
+        """Compute GMGS loss"""
+        score_mtx = torch.tensor(self.config.score_mtx).cuda()
+        y_truel = torch.argmax(y_true, dim=1)
+        weight = score_mtx[y_truel]
+        py = torch.log(y_pred)
+        output = torch.mul(y_true, py)
+        output = torch.mul(output, weight)
+        output = torch.mean(output)
+        return -output
 
-def label_smoothing(y_true, epsilon):
-    """Return label smoothed vector"""
-    x = y_true + epsilon
-    x = x / (1+epsilon*4)
-    return x
+    def calc_bss_loss(self,y_pred, y_true):
+        """Compute BSS loss"""
+        tmp = y_pred - y_true
+        tmp = torch.mul(tmp, tmp)
+        tmp = torch.sum(tmp, dim=1)
+        tmp = torch.mean(tmp)
+        return tmp
 
-
-def bs_loss_function(y_pred, y_true):
-    """Compute BSS loss"""
-    tmp = y_pred - y_true
-    tmp = torch.mul(tmp, tmp)
-    tmp = torch.sum(tmp, dim=1)
-    tmp = torch.mean(tmp)
-    return tmp
-
-def train_epoch(model, train_dl, epoch,lr,  args):
+def train_epoch(model, train_dl, epoch,lr, args, losser):
     """Return train loss and score for train set"""
     model.train()
     predictions = []
@@ -62,33 +74,8 @@ def train_epoch(model, train_dl, epoch,lr,  args):
             adjust_learning_rate(optimizer, epoch, params["epochs"], lr, args)
         optimizer.zero_grad()
         output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float))
-
-        # ib_loss = ib(output, torch.max(y, 1)[1].cuda().to(torch.long),feat)
-        bce_loss = criterion(output, torch.max(y, 1)[1].cuda().to(torch.long))
-
-        if params["lambda"]["GMGS"] != 0:
-            gmgs_loss = gmgs_criterion(
-                output, y.cuda().to(torch.float),
-                args.dataset["GMGS_score_matrix"])
-        else:
-            gmgs_loss = 0
-
-        if params["lambda"]["BS"] != 0:
-            bs_loss = bs_criterion(output, y.cuda().to(torch.float))
-        else:
-            bs_loss = 0
-
-        loss = bce_loss + \
-            params["lambda"]["GMGS"] * gmgs_loss + \
-            params["lambda"]["BS"] * bs_loss
-        
-        # if epoch < switch_epoch:
-        #     loss = ib_loss + \
-        #         params["lambda"]["GMGS"] * gmgs_loss + \
-        #         params["lambda"]["BS"] * bs_loss
-        # else:
-        #     loss = ib_loss # ib_lossを使うように
-
+        gt = y.cuda().to(torch.float)
+        loss = losser(output, gt)
         loss.backward()
         optimizer.step()
 
@@ -107,7 +94,7 @@ def train_epoch(model, train_dl, epoch,lr,  args):
     return score, train_loss/n
 
 
-def eval_epoch(model, val_dl):
+def eval_epoch(model, val_dl,losser):
     """Return val loss and score for val set"""
     model.eval()
     predictions = []
@@ -117,22 +104,8 @@ def eval_epoch(model, val_dl):
     with torch.no_grad():
         for _, (x, y, feat, idx) in enumerate(tqdm(val_dl)):
             output, feat = model(x.cuda().to(torch.float),feat.cuda().to(torch.float))
-                
-            # bce_loss = criterion(output, y.cuda().to(torch.long))
-            bce_loss = criterion(output, torch.max(y, 1)[1].cuda().to(torch.long))
-            if params["lambda"]["GMGS"] != 0:
-                gmgs_loss = gmgs_criterion(
-                    output, y.cuda().to(torch.float),
-                    args.dataset["GMGS_score_matrix"])
-            else:
-                gmgs_loss = 0
-            if params["lambda"]["BS"] != 0:
-                bs_loss = bs_criterion(output, y.cuda().to(torch.float))
-            else:
-                bs_loss = 0 
-            loss = bce_loss + \
-                params["lambda"]["GMGS"] * gmgs_loss + \
-                params["lambda"]["BS"] * bs_loss
+            gt = y.cuda().to(torch.float)
+            loss = losser(output, gt)
             valid_loss += (loss.detach().cpu().item() * x.shape[0])
             n += x.shape[0]
             for pred, o in zip(output.cpu().numpy().tolist(),
@@ -163,7 +136,7 @@ def test_epoch(model, test_dl):
                 gmgs_loss = \
                     gmgs_criterion(output,
                                    y.cuda().to(torch.float),
-                                   args.dataset["GMGS_score_matrix"])
+                                   args.dataset["GMGS_score_mtx"])
             else:
                 gmgs_loss = 0
             if params["lambda"]["BS"] != 0:
@@ -240,11 +213,11 @@ def prepare_datasets(args):
 
     return train_dataset, val_dataset, test_dataset
 
-def prepare_dataloaders(args):
+def prepare_dataloaders(args, imbalance):
     train_dataset, val_dataset, test_dataset = prepare_datasets(args)
 
     batch_sampler = None
-    if not args.imbalance:
+    if not imbalance:
         batch_sampler = TrainBalancedBatchSampler(train_dataset, args.output_channel, args.bs//args.output_channel)
 
     train_dl = DataLoader(train_dataset, batch_size=args.bs, shuffle=args.imbalance, batch_sampler=batch_sampler, num_workers=2)
@@ -253,6 +226,7 @@ def prepare_dataloaders(args):
     
     return (train_dl, val_dl, test_dl), train_dataset[0]
     
+
 
 if __name__ == "__main__":
     # fix seed value
@@ -272,12 +246,14 @@ if __name__ == "__main__":
     # Initialize Dataset
     
     print("Prepare Dataloaders")
-    (train_dl, val_dl, test_dl), sample = prepare_dataloaders(args)
+    (train_dl, val_dl, test_dl), sample = prepare_dataloaders(args, args.imbalance)
 
     # Initialize Loss Function
-    criterion = nn.CrossEntropyLoss().cuda()
-    gmgs_criterion = gmgs_loss_function
-    bs_criterion = bs_loss_function
+    loss_config = LossConfig(lambda_bss=args.factor["BS"],
+                            lambda_gmgs=args.factor["GMGS"],
+                            score_mtx=args.dataset["GMGS_score_matrix"])
+
+    losser = Losser(loss_config)
 
     model = FlareTransformerWithConvNext(input_channel=args.input_channel,
                                         output_channel=args.output_channel,
@@ -299,8 +275,8 @@ if __name__ == "__main__":
     model_update_dict = {}
     for e, epoch in enumerate(range(params["epochs"])):
         print("====== Epoch ", e, " ======")
-        train_score, train_loss = train_epoch(model, train_dl, epoch, args.lr, args)
-        valid_score, valid_loss = eval_epoch(model, val_dl)
+        train_score, train_loss = train_epoch(model, train_dl, epoch, args.lr, args, losser)
+        valid_score, valid_loss = eval_epoch(model, val_dl, losser)
         test_score, test_loss = valid_score, valid_loss
         
         torch.save(model.state_dict(), params["save_model_path"])
@@ -331,17 +307,16 @@ if __name__ == "__main__":
     # ここからCRT
     if args.imbalance:
         print("Start CRT")
-        train_dl = DataLoader(train_dataset, batch_sampler=TrainBalancedBatchSampler(
-            train_dataset, args.output_channel, args.bs//args.output_channel))
-        
+        (train_dl, val_dl, test_dl), sample = prepare_dataloaders(args, not args.imbalance)
+
         model.freeze_feature_extractor()
         summary(model)
 
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_stage2)
         for e, epoch in enumerate(range(args.epoch_stage2)):
             print("====== Epoch ", e, " ======")
-            train_score, train_loss = train_epoch(model, train_dl, epoch, args.lr_stage2, args)
-            valid_score, valid_loss = eval_epoch(model, val_dl)
+            train_score, train_loss = train_epoch(model, train_dl, epoch, args.lr_stage2, args,losser)
+            valid_score, valid_loss = eval_epoch(model, val_dl,losser)
             test_score, test_loss = valid_score, valid_loss
 
             log = {'epoch': epoch, 'train_loss': np.mean(train_loss),
