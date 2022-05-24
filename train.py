@@ -13,9 +13,9 @@ from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from utils.utils import *
+from utils.losses import LossConfig, Losser
 import wandb
 import math
-import torch.nn.functional as F
 
 from src.model import FlareTransformerWithConvNext
 from src.datasets import FlareDataset
@@ -24,43 +24,6 @@ from src.BalancedBatchSampler import TrainBalancedBatchSampler
 
 import colored_traceback.always
 
-@dataclass
-class LossConfig:
-    lambda_bss: float
-    lambda_gmgs: float
-    score_mtx: torch.Tensor
-
-class Losser:
-    def __init__(self,config: LossConfig, device: str = "cuda"):
-        self.ce_loss = nn.CrossEntropyLoss().to(device)
-        self.config = config
-
-    def __call__(self, y_pred, y_true):
-        loss = self.ce_loss(y_pred,torch.argmax(y_true,dim=1))
-        gmgs_loss = self.calc_gmgs_loss(y_pred,y_true)
-        bss_loss = self.calc_bss_loss(y_pred,y_true)
-        return  loss + \
-                self.config.lambda_bss * bss_loss + \
-                self.config.lambda_gmgs * gmgs_loss
-        
-    def calc_gmgs_loss(self,y_pred, y_true):
-        """Compute GMGS loss"""
-        score_mtx = torch.tensor(self.config.score_mtx).cuda()
-        y_truel = torch.argmax(y_true, dim=1)
-        weight = score_mtx[y_truel]
-        py = torch.log(y_pred)
-        output = torch.mul(y_true, py)
-        output = torch.mul(output, weight)
-        output = torch.mean(output)
-        return -output
-
-    def calc_bss_loss(self,y_pred, y_true):
-        """Compute BSS loss"""
-        tmp = y_pred - y_true
-        tmp = torch.mul(tmp, tmp)
-        tmp = torch.sum(tmp, dim=1)
-        tmp = torch.mean(tmp)
-        return tmp
 
 def train_epoch(model, train_dl, epoch,lr, args, losser):
     """Return train loss and score for train set"""
@@ -116,45 +79,6 @@ def eval_epoch(model, val_dl,losser):
                            args.dataset["climatology"])
         score = calc_test_score(score, "valid")
     return score, valid_loss/n
-
-
-
-def test_epoch(model, test_dl):
-    """Return test loss and score for test set"""
-    model.eval()
-    predictions = []
-    observations = []
-    test_loss = 0
-    n = 0
-    with torch.no_grad():
-        for _, (x, y, feat, idx) in enumerate(tqdm(test_dl)):
-            output, feat = model(x.cuda().to(torch.float),feat.cuda().to(torch.float))
-
-            # bce_loss = criterion(output, y.cuda().to(torch.long))
-            bce_loss = criterion(output, torch.max(y, 1)[1].cuda().to(torch.long))
-            if params["lambda"]["GMGS"] != 0:
-                gmgs_loss = \
-                    gmgs_criterion(output,
-                                   y.cuda().to(torch.float),
-                                   args.dataset["GMGS_score_mtx"])
-            else:
-                gmgs_loss = 0
-            if params["lambda"]["BS"] != 0:
-                bs_loss = bs_criterion(output, y.cuda().to(torch.float))
-            else:
-                bs_loss = 0
-            loss = bce_loss +\
-                params["lambda"]["GMGS"] * gmgs_loss +\
-                params["lambda"]["BS"] * bs_loss
-            test_loss += (loss.detach().cpu().item() * x.shape[0])
-            n += x.shape[0]
-            for pred, o in zip(output.cpu().numpy().tolist(), y.tolist()):
-                predictions.append(pred)
-                observations.append(np.argmax(o))
-        score = calc_score(predictions, observations,
-                           args.dataset["climatology"])
-        score = calc_test_score(score, "test")
-    return score, test_loss/n
 
 
 def calc_test_score(score, label):
@@ -299,7 +223,7 @@ if __name__ == "__main__":
     # Output Test Score
     print("========== TEST ===========")
     model.load_state_dict(torch.load(params["save_model_path"])) 
-    test_score, _ = test_epoch(model, test_dl)
+    test_score, _ = eval_epoch(model, test_dl,losser)
     print("epoch : ", best_epoch, test_score)
     if  args.wandb is True:
         wandb.log(calc_test_score(test_score, "final"))
