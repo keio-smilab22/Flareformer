@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Type, Any, Callable, Union, List, Optional
 from torch import Tensor
-from src.attn import FullAttention, ProbAttention, AttentionLayer
+from models.attn import FullAttention, ProbAttention, AttentionLayer
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from timm.models.layers import trunc_normal_, DropPath
 from timm.models.registry import register_model

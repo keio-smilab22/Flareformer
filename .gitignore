@@ -2,7 +2,7 @@ data/
 .python-version
 .csv
 .jsonl
-models/
+checkpoints/
 wandb/
 __pycache__/
 .pth

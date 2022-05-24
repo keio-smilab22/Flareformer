@@ -7,7 +7,7 @@
         "GMGS": 0.0001,
         "BS": 10
     },
-    "save_model_path": "models/id23_2014.pth",
+    "save_model_path": "checkpoints/id23_2014.pth",
     "dataset": {
         "window": 24,
         "year_split": {

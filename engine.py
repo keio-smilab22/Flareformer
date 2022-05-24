@@ -3,7 +3,7 @@ Train and eval functions used in main.py
 """
 import numpy as np
 import torch
-from src.eval_utils import calc_score
+from utils.eval_utils import calc_score
 from utils.utils import *
 from tqdm import tqdm
 

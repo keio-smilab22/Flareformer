@@ -1,6 +1,6 @@
 from torch.utils.data import DataLoader
 from datasets.flare import FlareDataset
-from src.BalancedBatchSampler import TrainBalancedBatchSampler
+from datasets.BalancedBatchSampler import TrainBalancedBatchSampler
 
 def load_datasets(args):
     train_dataset = FlareDataset("train", args.dataset)

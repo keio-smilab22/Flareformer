@@ -13,8 +13,7 @@ from utils.losses import LossConfig, Losser
 from engine import calc_test_score, train_epoch, eval_epoch
 import wandb
 
-from src.model import FlareTransformerWithConvNext
-from src.BalancedBatchSampler import TrainBalancedBatchSampler
+from models.model import FlareTransformerWithConvNext
 from datasets.datasets import prepare_dataloaders
 
 import colored_traceback.always
