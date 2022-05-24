@@ -26,8 +26,8 @@ def parse_params():
     parser.add_argument('--project_name', default='flare_transformer_test')
     parser.add_argument('--warmup_epochs', default=5, type=int)
     parser.add_argument('--without_schedule', action='store_false')
-    parser.add_argument('--lr_stage2', default=0.000008, type=float)
-    parser.add_argument('--epoch_stage2', default=25, type=float)
+    parser.add_argument('--lr_for_stage2', default=0.000008, type=float)
+    parser.add_argument('--epoch_for_2stage', default=25, type=float)
     parser.add_argument('--detail_summary', action='store_true')
     parser.add_argument('--imbalance', action='store_true')
 
@@ -121,10 +121,10 @@ if __name__ == "__main__":
         model.freeze_feature_extractor()
         summary(model)
 
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_stage2)
-        for e, epoch in enumerate(range(args.epoch_stage2)):
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_for_stage2)
+        for e, epoch in enumerate(range(args.epoch_for_2stage)):
             print("====== Epoch ", e, " ======")
-            train_score, train_loss = train_epoch(model, optimizer, train_dl, epoch, args.lr_stage2, args,losser)
+            train_score, train_loss = train_epoch(model, optimizer, train_dl, epoch, args.lr_for_stage2, args,losser)
             valid_score, valid_loss = eval_epoch(model, val_dl,losser,args)
             test_score, test_loss = valid_score, valid_loss
 
