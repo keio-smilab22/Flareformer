@@ -14,7 +14,7 @@ import wandb
 import math
 import torch.nn.functional as F
 
-from src.model import FlareTransformer, _FlareTransformerWithGAPMAE, FlareTransformerLikeViLBERT, FlareTransformerReplacedFreezeViTWithMAE, FlareTransformerReplacedViTWithMAE, FlareTransformerWith1dMAE, FlareTransformerWithConvNext, FlareTransformerWithGAPMAE, FlareTransformerWithGAPSeqMAE, FlareTransformerWithMAE, FlareTransformerWithMultiPE, FlareTransformerWithPE, FlareTransformerWithPositonalEncoding, FlareTransformerWithoutMM, FlareTransformerWithoutPE, PureTransformerSFM
+from src.model import FlareTransformer, _FlareTransformerWithGAPMAE, FlareTransformerLikeViLBERT, FlareTransformerReplacedFreezeViTWithMAE, FlareTransformerReplacedViTWithMAE, FlareTransformerWith1dMAE, FlareTransformerWithConvNext, FlareTransformerWithGAPMAE, FlareTransformerWithGAPSeqMAE, FlareTransformerWithMAE, FlareTransformerWithMultiPE, FlareTransformerWithPE, FlareTransformerWithPositonalEncoding, FlareTransformerWithoutMM, FlareTransformerWithoutPE, MultiFlareTransformerWithConvNext, MultiTransformerFlareTransformer, PureTransformerSFM
 from src.Dataloader import CombineDataloader, TrainDataloader, TrainDataloader256
 from src.eval_utils import calc_score
 from src.BalancedBatchSampler import TrainBalancedBatchSampler
@@ -473,7 +473,7 @@ if __name__ == "__main__":
     #                         mm_params=params["MM"],
     #                         window=params["dataset"]["window"]).to("cuda")
 
-    model = FlareTransformerWithConvNext(input_channel=params["input_channel"],
+    model = MultiFlareTransformerWithConvNext(input_channel=params["input_channel"],
                                         output_channel=params["output_channel"],
                                     sfm_params=params["SFM"],
                                     mm_params=params["MM"],

@@ -13,6 +13,7 @@ from src.attn import FullAttention, ProbAttention, AttentionLayer
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from mae.prod.eval import MaskedAutoEncoder
 from mae.prod.models_1dmae import OneDimMaskedAutoencoder
+from ema_module import *
 
 # early fusion 
 class FlareTransformer(nn.Module):
@@ -111,6 +112,730 @@ class FlareTransformer(nn.Module):
         
         for param in self.generator.parameters():
             param.requires_grad = True
+
+
+
+
+class MultiTransformerFlareTransformer(nn.Module):
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24):
+        super(MultiTransformerFlareTransformer, self).__init__()
+
+        # Informer``
+        self.magnetogram_module = nn.Sequential(*[InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
+                           d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
+            mm_params["d_model"],
+            mm_params["d_ff"],
+            dropout=mm_params["dropout"],
+            activation="relu"
+        ) for _ in range(3)])
+
+        self.sunspot_feature_module = nn.Sequential(*[InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
+                           d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
+            sfm_params["d_model"],
+            sfm_params["d_ff"],
+            dropout=sfm_params["dropout"],
+            activation="relu"
+        ) for _ in range(3)])
+
+        # Image Feature Extractor
+        self.magnetogram_feature_extractor = CNNModel(
+            output_channel=output_channel, pretrain=False)
+
+        self.generator = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
+                                   output_channel)
+
+        self.linear = nn.Linear(
+            window*mm_params["d_model"]*2, sfm_params["d_model"])
+        self.softmax = nn.Softmax(dim=1)
+
+        self.generator_image = nn.Linear(
+            mm_params["d_model"]*window, mm_params["d_model"])
+
+        self.generator_phys = nn.Linear(
+            sfm_params["d_model"]*window, sfm_params["d_model"])
+        self.relu = torch.nn.ReLU()
+        self.linear_in_1 = torch.nn.Linear(
+            input_channel, sfm_params["d_model"])  # 79 -> 128
+        self.bn1 = torch.nn.BatchNorm1d(window)  # 128
+
+    def forward_mm_feature_extractor(self, img_list, feat):
+        for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
+            img_output = self.magnetogram_feature_extractor(img)
+            if i == 0:
+                img_feat = img_output.unsqueeze(0)
+            else:
+                img_feat = torch.cat(
+                    [img_feat, img_output.unsqueeze(0)], dim=0)
+
+        return img_feat
+
+    def forward_sfm_feature_extractor(self, img_list, feat):
+        phys_feat = self.linear_in_1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+        return phys_feat
+
+
+    def forward(self, img_list, feat):
+        # img_feat[bs, k, mm_d_model]
+        img_feat = self.forward_mm_feature_extractor(img_list,feat)
+
+        # physical feat
+        phys_feat = self.forward_sfm_feature_extractor(img_list,feat)
+
+        for i in range(3):
+            merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+            phys_feat = self.sunspot_feature_module[i](phys_feat, merged_feat)  #
+            img_feat = self.magnetogram_module[i](img_feat, merged_feat)  #
+
+        feat_output = torch.flatten(phys_feat, 1, 2)  # [bs, k*SFM_d_model]
+        feat_output = self.generator_phys(feat_output)  # [bs, SFM_d_model]
+
+        img_output = torch.flatten(img_feat, 1, 2)  # [bs, k*SFM_d_model]
+        img_output = self.generator_image(img_output)  # [bs, MM_d_model]
+
+        # Late fusion
+        x = torch.cat((feat_output, img_output), 1)
+        output = self.generator(x)
+
+        output = self.softmax(output)
+
+        return output, x
+
+    def freeze_feature_extractor(self):
+        for param in self.parameters():
+            param.requires_grad = False # 重み固定
+        
+        for param in self.generator.parameters():
+            param.requires_grad = True
+
+class FlareTransformerAIA(nn.Module):
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24):
+        super(FlareTransformerAIA, self).__init__()
+
+        # Informer``
+        self.magnetogram_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
+                           d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
+            mm_params["d_model"],
+            mm_params["d_ff"],
+            dropout=mm_params["dropout"],
+            activation="relu"
+        )
+
+        self.sunspot_feature_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
+                           d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
+            sfm_params["d_model"],
+            sfm_params["d_ff"],
+            dropout=sfm_params["dropout"],
+            activation="relu"
+        )
+
+        # Image Feature Extractor
+        self.magnetogram_feature_extractor = CNNModel(in_channel=3, output_channel=output_channel, pretrain=False)
+
+        self.generator = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
+                                   output_channel)
+
+        self.linear = nn.Linear(
+            window*mm_params["d_model"]*2, sfm_params["d_model"])
+        self.softmax = nn.Softmax(dim=1)
+
+        self.generator_image = nn.Linear(
+            mm_params["d_model"]*window, mm_params["d_model"])
+
+        self.generator_phys = nn.Linear(
+            sfm_params["d_model"]*window, sfm_params["d_model"])
+        self.relu = torch.nn.ReLU()
+        self.linear_in_1 = torch.nn.Linear(
+            input_channel, sfm_params["d_model"])  # 79 -> 128
+        self.bn1 = torch.nn.BatchNorm1d(window)  # 128
+
+    def forward_mm_feature_extractor(self, img_list, feat):
+        for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
+            img_output = self.magnetogram_feature_extractor(img)
+            if i == 0:
+                img_feat = img_output.unsqueeze(0)
+            else:
+                img_feat = torch.cat(
+                    [img_feat, img_output.unsqueeze(0)], dim=0)
+
+        return img_feat
+
+    def forward_sfm_feature_extractor(self, img_list, feat):
+        phys_feat = self.linear_in_1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+        return phys_feat
+
+
+    def forward(self, img_list, feat):
+        # img_feat[bs, k, mm_d_model]
+        img_feat = self.forward_mm_feature_extractor(img_list,feat)
+
+        # physical feat
+        phys_feat = self.forward_sfm_feature_extractor(img_list,feat)
+
+        # concat
+        merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+
+        # SFM
+        feat_output = self.sunspot_feature_module(phys_feat, merged_feat)  #
+        feat_output = torch.flatten(feat_output, 1, 2)  # [bs, k*SFM_d_model]
+        feat_output = self.generator_phys(feat_output)  # [bs, SFM_d_model]
+
+        # MM
+        img_output = self.magnetogram_module(img_feat, merged_feat)  #
+        img_output = torch.flatten(img_output, 1, 2)  # [bs, k*SFM_d_model]
+        img_output = self.generator_image(img_output)  # [bs, MM_d_model]
+
+        # Late fusion
+        x = torch.cat((feat_output, img_output), 1)
+        output = self.generator(x)
+
+        output = self.softmax(output)
+
+        return output, x
+
+    def freeze_feature_extractor(self):
+        for param in self.parameters():
+            param.requires_grad = False # 重み固定
+        
+        for param in self.generator.parameters():
+            param.requires_grad = True
+
+class ImageModel(nn.Module):
+    def __init__(self):
+        super(ImageModel,self).__init__()
+        self.image_feature_extractor = CNNModel(output_channel=4, pretrain=False)
+        self.linear = torch.nn.Linear(128, 3) # magnetogram, aia131, aia1600
+        self.softmax = nn.Softmax(dim=1)
+    
+    def forward(self,x):
+        x = self.image_feature_extractor(x)
+        x = self.linear(x)
+        x = self.softmax(x)
+        return x
+
+class FlareEncoder(nn.Module):
+
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24):
+        super(FlareEncoder, self).__init__()
+
+        # Informer``
+        self.magnetogram_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
+                           d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
+            mm_params["d_model"],
+            mm_params["d_ff"],
+            dropout=mm_params["dropout"],
+            activation="relu"
+        )
+
+        self.sunspot_feature_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
+                           d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
+            sfm_params["d_model"],
+            sfm_params["d_ff"],
+            dropout=sfm_params["dropout"],
+            activation="relu"
+        )
+
+        # Image Feature Extractor
+        self.magnetogram_feature_extractor = CNNModel(
+            output_channel=output_channel, pretrain=False)
+
+    
+        self.linear = nn.Linear(
+            window*mm_params["d_model"]*2, sfm_params["d_model"])
+
+        self.relu = torch.nn.ReLU()
+        self.linear_in_1 = torch.nn.Linear(
+            input_channel, sfm_params["d_model"])  # 79 -> 128
+        self.bn1 = torch.nn.BatchNorm1d(window)  # 128
+
+
+    def forward_mm_feature_extractor(self, img_list, feat):
+        for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
+            img_output = self.magnetogram_feature_extractor(img)
+            if i == 0:
+                img_feat = img_output.unsqueeze(0)
+            else:
+                img_feat = torch.cat(
+                    [img_feat, img_output.unsqueeze(0)], dim=0)
+
+        return img_feat
+
+    def forward_sfm_feature_extractor(self, img_list, feat):
+        phys_feat = self.linear_in_1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+        return phys_feat
+
+
+    def forward(self, img_list, feat):
+        # img_feat[bs, k, mm_d_model]
+        img_feat = self.forward_mm_feature_extractor(img_list,feat)
+
+        # physical feat
+        phys_feat = self.forward_sfm_feature_extractor(img_list,feat)
+
+        # concat
+        merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+
+        # SFM
+        feat_output = self.sunspot_feature_module(phys_feat, merged_feat)  #
+
+        # MM
+        img_output = self.magnetogram_module(img_feat, merged_feat)  #
+
+        # Late fusion
+        # x = torch.cat((feat_output, img_output), 1)
+
+        return feat_output, img_output
+
+    def freeze_feature_extractor(self):
+        for param in self.parameters():
+            param.requires_grad = False # 重み固定
+        
+
+
+class FlareEncoderConvNext(nn.Module):
+
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24):
+        super(FlareEncoderConvNext, self).__init__()
+
+        # Informer``
+        self.magnetogram_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
+                           d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
+            mm_params["d_model"],
+            mm_params["d_ff"],
+            dropout=mm_params["dropout"],
+            activation="relu"
+        )
+
+        self.sunspot_feature_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
+                           d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
+            sfm_params["d_model"],
+            sfm_params["d_ff"],
+            dropout=sfm_params["dropout"],
+            activation="relu"
+        )
+
+        # Image Feature Extractor
+        self.magnetogram_feature_extractor = ConvNeXt(in_chans=1,out_chans=mm_params["d_model"],depths=[2,2,2,2],dims=[64,128,256,512])
+
+
+    
+        self.linear = nn.Linear(
+            window*mm_params["d_model"]*2, sfm_params["d_model"])
+
+        self.relu = torch.nn.ReLU()
+        self.linear_in_1 = torch.nn.Linear(
+            input_channel, sfm_params["d_model"])  # 79 -> 128
+        self.bn1 = torch.nn.BatchNorm1d(window)  # 128
+
+
+    def forward_mm_feature_extractor(self, img_list, feat):
+        for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
+            img_output = self.magnetogram_feature_extractor(img)
+            if i == 0:
+                img_feat = img_output.unsqueeze(0)
+            else:
+                img_feat = torch.cat(
+                    [img_feat, img_output.unsqueeze(0)], dim=0)
+
+        return img_feat
+
+    def forward_sfm_feature_extractor(self, img_list, feat):
+        phys_feat = self.linear_in_1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+        return phys_feat
+
+
+    def forward(self, img_list, feat):
+        # img_feat[bs, k, mm_d_model]
+        img_feat = self.forward_mm_feature_extractor(img_list,feat)
+
+        # physical feat
+        phys_feat = self.forward_sfm_feature_extractor(img_list,feat)
+
+        # concat
+        merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+
+        # SFM
+        feat_output = self.sunspot_feature_module(phys_feat, merged_feat)  #
+
+        # MM
+        img_output = self.magnetogram_module(img_feat, merged_feat)  #
+
+        # Late fusion
+        # x = torch.cat((feat_output, img_output), 1)
+
+        return feat_output, img_output
+
+    def freeze_feature_extractor(self):
+        for param in self.parameters():
+            param.requires_grad = False # 重み固定
+
+
+# early fusion 
+class FlareTransformer2vec(nn.Module):
+
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24, learn_type="finetune"):
+        super(FlareTransformer2vec, self).__init__()
+
+        self.encoder = FlareEncoder(input_channel,output_channel,sfm_params,mm_params,window)
+        self.generator = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
+                                   output_channel)
+        self.softmax = nn.Softmax(dim=1)
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, 90))
+
+        self.generator_image = nn.Linear(
+            mm_params["d_model"]*window, mm_params["d_model"])
+
+        self.generator_phys = nn.Linear(
+            sfm_params["d_model"]*window, sfm_params["d_model"])
+
+        self.ema = None
+        self.switch_learn_type(learn_type)
+
+
+    def switch_learn_type(self,learn_type):
+        assert learn_type == "pretrain" or learn_type == "finetune"
+        self.learn_type = learn_type
+        for param in self.generator.parameters():
+            param.requires_grad = learn_type == "pretrain"
+
+        if learn_type == "pretrain":
+            config = EMAModuleConfig()
+            self.ema = EMAModule(self.encoder,config)
+
+
+    def forward_mm_feature_extractor(self, img_list, feat):
+        for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
+            img_output = self.magnetogram_feature_extractor(img)
+            if i == 0:
+                img_feat = img_output.unsqueeze(0)
+            else:
+                img_feat = torch.cat(
+                    [img_feat, img_output.unsqueeze(0)], dim=0)
+
+        return img_feat
+
+    def forward_sfm_feature_extractor(self, img_list, feat):
+        phys_feat = self.linear_in_1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+        return phys_feat
+
+    def forward_for_pretrain(self, img_list, feat):
+        B, L, D = feat.shape
+        mask_ratio = 0.25
+        len_keep = int(L * (1-mask_ratio))
+        noise = torch.rand(B, L, device=feat.device)  # noise in [0, 1]
+        ids_shuffle = torch.argsort(noise, dim=1)
+        ids_restore = torch.argsort(ids_shuffle, dim=1)
+        keep_idx, mask_idx = ids_shuffle[:,:len_keep], ids_shuffle[:, len_keep:] 
+        # mask = torch.ones([B, L], device=img_list.device)
+        # mask[:, :len_keep] = 0
+        # mask = torch.gather(mask, dim=1, index=ids_restore) # mask部分が1
+        # mask = mask.unsqueeze(-1).repeat(1,1,D).bool()
+        
+        masked_feat = copy.deepcopy(feat)
+        masked_feat = torch.gather(masked_feat,dim=1,index=ids_shuffle.unsqueeze(-1).repeat(1, 1, D))
+        masked_feat[:,len_keep:,:] = self.mask_token.repeat(B,L - len_keep,1) # learnableなmask-tokenに置き換え
+        masked_feat = torch.gather(masked_feat,dim=1,index=ids_restore.unsqueeze(-1).repeat(1, 1, D))
+        assert feat.shape == masked_feat.shape
+
+        x_feat, x_img = self.encoder(img_list,masked_feat)
+
+        with torch.no_grad():
+            # use EMA parameter as the teacher
+            self.ema.model.eval()
+            y_feat, y_img = self.ema.model(img_list,feat)
+            # y = sum(y) / len(y) # おそらくyはlayer方向に積んであって, layer方向への平均を計算しているっぽい 
+
+        # x = torch.cat((feat_output, img_output), 1) なので, keep_idxは同じ
+        # x = torch.gather(x,dim=1,index=keep_idx.unsqueeze(-1).repeat(1, 1, D))
+        # y = torch.gather(y,dim=1,index=keep_idx.unsqueeze(-1).repeat(1, 1, D))
+        # x = self.regression_head(x)
+
+        assert x_feat.shape == y_feat.shape
+        x_feat = torch.gather(x_feat,dim=1,index=ids_shuffle.unsqueeze(-1).repeat(1, 1, D))
+        y_feat = torch.gather(y_feat,dim=1,index=ids_shuffle.unsqueeze(-1).repeat(1, 1, D))
+
+        # todo: smooth relu を使う
+        loss = F.mse_loss(x_feat[:,len_keep:,:].float(), y_feat[:,len_keep:,:].float(), reduction="none").sum(dim=-1) 
+    
+        return loss
+
+    def forward_for_finetune(self, img_list, feat):
+        x_feat, x_img = self.encoder(img_list,feat)
+        feat_output = torch.flatten(x_feat, 1, 2)  # [bs, k*SFM_d_model]
+        feat_output = self.generator_phys(feat_output)  # [bs, SFM_d_model]
+
+        # MM
+        img_output = torch.flatten(x_img, 1, 2)  # [bs, k*SFM_d_model]
+        img_output = self.generator_image(img_output)  # [bs, MM_d_model]
+        
+        x = torch.cat((feat_output, img_output), 1)
+        output = self.generator(x)
+        output = self.softmax(output)
+
+        return output, x
+
+    def forward(self, img_list, feat):
+        if self.learn_type == "pretrain":
+            return self.forward_for_pretrain(img_list,feat)
+        elif self.learn_type == "finetune":
+            return self.forward_for_finetune(img_list,feat)
+
+
+    def step_ema(self):
+        self.ema.step(self.encoder)
+
+    def freeze_feature_extractor(self):
+        for param in self.parameters():
+            param.requires_grad = False # 重み固定
+        
+        for param in self.generator.parameters():
+            param.requires_grad = True
+
+
+
+class FlareTransformerBERT(nn.Module):
+
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24, learn_type="finetune"):
+        super(FlareTransformerBERT, self).__init__()
+
+        self.encoder = FlareEncoder(input_channel,output_channel,sfm_params,mm_params,window)
+        self.generator = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
+                                   output_channel)
+        self.softmax = nn.Softmax(dim=1)
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, 90))
+
+        self.generator_image = nn.Linear(
+            mm_params["d_model"]*window, mm_params["d_model"])
+
+        self.generator_phys = nn.Linear(
+            sfm_params["d_model"]*window, sfm_params["d_model"])
+
+        self.head_for_pretrain = nn.Linear(128,90)
+        self.ema = None
+        self.switch_learn_type(learn_type)
+
+
+    def switch_learn_type(self,learn_type):
+        assert learn_type == "pretrain" or learn_type == "finetune"
+        self.learn_type = learn_type
+        module_for_finetune = [self.generator, self.generator_image, self.generator_phys]
+        module_for_pretrain = [self.head_for_pretrain]
+
+        for module in module_for_pretrain:
+            for param in module.parameters():
+                param.requires_grad = learn_type == "pretrain"
+
+        for module in module_for_finetune:
+            for param in module.parameters():
+                param.requires_grad = learn_type == "finetune"
+
+
+    def forward_mm_feature_extractor(self, img_list, feat):
+        for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
+            img_output = self.magnetogram_feature_extractor(img)
+            if i == 0:
+                img_feat = img_output.unsqueeze(0)
+            else:
+                img_feat = torch.cat(
+                    [img_feat, img_output.unsqueeze(0)], dim=0)
+
+        return img_feat
+
+    def forward_sfm_feature_extractor(self, img_list, feat):
+        phys_feat = self.linear_in_1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+        return phys_feat
+
+    def forward_for_pretrain(self, img_list, feat):
+        B, L, D = feat.shape
+        mask_ratio = 0.5
+        len_keep = int(L * (1-mask_ratio))
+        noise = torch.rand(B, L, device=feat.device)  # noise in [0, 1]
+        ids_shuffle = torch.argsort(noise, dim=1)
+        ids_restore = torch.argsort(ids_shuffle, dim=1)
+        keep_idx, mask_idx = ids_shuffle[:,:len_keep], ids_shuffle[:, len_keep:] 
+        mask = torch.ones([B, L], device=img_list.device)
+        mask[:, len_keep:] = 0
+        mask = torch.gather(mask, dim=1, index=ids_restore) # mask = 1
+        mask = mask.unsqueeze(-1).repeat(1,1,D).bool()
+        
+        masked_feat = copy.deepcopy(feat)
+        masked_feat = torch.gather(masked_feat,dim=1,index=ids_shuffle.unsqueeze(-1).repeat(1, 1, D))
+        masked_feat[:,len_keep:,:] = self.mask_token.repeat(B,L - len_keep,1) # learnableなmask-tokenに置き換え
+        masked_feat = torch.gather(masked_feat,dim=1,index=ids_restore.unsqueeze(-1).repeat(1, 1, D))
+        assert feat.shape == masked_feat.shape
+
+        x_feat, x_img = self.encoder(img_list,masked_feat)
+        x_feat = self.head_for_pretrain(x_feat)
+        # x_feat = torch.gather(x_feat,dim=1,index=ids_shuffle.unsqueeze(-1).repeat(1, 1, D))
+
+        return x_feat, ids_shuffle, len_keep
+
+    def forward_for_finetune(self, img_list, feat):
+        x_feat, x_img = self.encoder(img_list,feat)
+        feat_output = torch.flatten(x_feat, 1, 2)  # [bs, k*SFM_d_model]
+        feat_output = self.generator_phys(feat_output)  # [bs, SFM_d_model]
+
+        # MM
+        img_output = torch.flatten(x_img, 1, 2)  # [bs, k*SFM_d_model]
+        img_output = self.generator_image(img_output)  # [bs, MM_d_model]
+        
+        x = torch.cat((feat_output, img_output), 1)
+        output = self.generator(x)
+        output = self.softmax(output)
+
+        return output, x
+
+    def forward(self, img_list, feat):
+        if self.learn_type == "pretrain":
+            return self.forward_for_pretrain(img_list,feat)
+        elif self.learn_type == "finetune":
+            return self.forward_for_finetune(img_list,feat)
+
+
+    def step_ema(self):
+        self.ema.step(self.encoder)
+
+    def freeze_feature_extractor(self):
+        for param in self.parameters():
+            param.requires_grad = False # 重み固定
+        
+        for param in self.generator.parameters():
+            param.requires_grad = True
+
+
+
+class FlareTransformerConvNextBERT(nn.Module):
+
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24, learn_type="finetune"):
+        super(FlareTransformerConvNextBERT, self).__init__()
+
+        self.encoder = FlareEncoderConvNext(input_channel,output_channel,sfm_params,mm_params,window)
+        self.generator = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
+                                   output_channel)
+        self.softmax = nn.Softmax(dim=1)
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, 90))
+
+        self.generator_image = nn.Linear(
+            mm_params["d_model"]*window, mm_params["d_model"])
+
+        self.generator_phys = nn.Linear(
+            sfm_params["d_model"]*window, sfm_params["d_model"])
+
+        self.head_for_pretrain = nn.Linear(128,90)
+        self.ema = None
+        self.switch_learn_type(learn_type)
+
+
+    def switch_learn_type(self,learn_type):
+        assert learn_type == "pretrain" or learn_type == "finetune"
+        self.learn_type = learn_type
+        module_for_finetune = [self.generator, self.generator_image, self.generator_phys]
+        module_for_pretrain = [self.head_for_pretrain]
+
+        for module in module_for_pretrain:
+            for param in module.parameters():
+                param.requires_grad = learn_type == "pretrain"
+
+        for module in module_for_finetune:
+            for param in module.parameters():
+                param.requires_grad = learn_type == "finetune"
+
+
+    def forward_mm_feature_extractor(self, img_list, feat):
+        for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
+            img_output = self.magnetogram_feature_extractor(img)
+            if i == 0:
+                img_feat = img_output.unsqueeze(0)
+            else:
+                img_feat = torch.cat(
+                    [img_feat, img_output.unsqueeze(0)], dim=0)
+
+        return img_feat
+
+    def forward_sfm_feature_extractor(self, img_list, feat):
+        phys_feat = self.linear_in_1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+        return phys_feat
+
+    def forward_for_pretrain(self, img_list, feat):
+        B, L, D = feat.shape
+        mask_ratio = 0.5
+        len_keep = int(L * (1-mask_ratio))
+        noise = torch.rand(B, L, device=feat.device)  # noise in [0, 1]
+        ids_shuffle = torch.argsort(noise, dim=1)
+        ids_restore = torch.argsort(ids_shuffle, dim=1)
+        keep_idx, mask_idx = ids_shuffle[:,:len_keep], ids_shuffle[:, len_keep:] 
+        mask = torch.ones([B, L], device=img_list.device)
+        mask[:, len_keep:] = 0
+        mask = torch.gather(mask, dim=1, index=ids_restore) # mask = 1
+        mask = mask.unsqueeze(-1).repeat(1,1,D).bool()
+        
+        masked_feat = copy.deepcopy(feat)
+        masked_feat = torch.gather(masked_feat,dim=1,index=ids_shuffle.unsqueeze(-1).repeat(1, 1, D))
+        masked_feat[:,len_keep:,:] = self.mask_token.repeat(B,L - len_keep,1) # learnableなmask-tokenに置き換え
+        masked_feat = torch.gather(masked_feat,dim=1,index=ids_restore.unsqueeze(-1).repeat(1, 1, D))
+        assert feat.shape == masked_feat.shape
+
+        x_feat, x_img = self.encoder(img_list,masked_feat)
+        x_feat = self.head_for_pretrain(x_feat)
+        # x_feat = torch.gather(x_feat,dim=1,index=ids_shuffle.unsqueeze(-1).repeat(1, 1, D))
+
+        return x_feat, ids_shuffle, len_keep
+
+    def forward_for_finetune(self, img_list, feat):
+        x_feat, x_img = self.encoder(img_list,feat)
+        feat_output = torch.flatten(x_feat, 1, 2)  # [bs, k*SFM_d_model]
+        feat_output = self.generator_phys(feat_output)  # [bs, SFM_d_model]
+
+        # MM
+        img_output = torch.flatten(x_img, 1, 2)  # [bs, k*SFM_d_model]
+        img_output = self.generator_image(img_output)  # [bs, MM_d_model]
+        
+        x = torch.cat((feat_output, img_output), 1)
+        output = self.generator(x)
+        output = self.softmax(output)
+
+        return output, x
+
+    def forward(self, img_list, feat):
+        if self.learn_type == "pretrain":
+            return self.forward_for_pretrain(img_list,feat)
+        elif self.learn_type == "finetune":
+            return self.forward_for_finetune(img_list,feat)
+
+
+    def step_ema(self):
+        self.ema.step(self.encoder)
+
+    def freeze_feature_extractor(self):
+        for param in self.parameters():
+            param.requires_grad = False # 重み固定
+        
+        for param in self.generator.parameters():
+            param.requires_grad = True
+
+
+
 
 class FlareTransformerWithPE(nn.Module):
     def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24):
@@ -2034,6 +2759,192 @@ class FlareTransformerWithConvNext(nn.Module):
 
 
 
+class MultiFlareTransformerWithConvNext(nn.Module):
+    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24):
+        super(MultiFlareTransformerWithConvNext, self).__init__()
+
+        # Informer``
+        self.magnetogram_module = nn.Sequential(*[InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
+                           d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
+            mm_params["d_model"],
+            mm_params["d_ff"],
+            dropout=mm_params["dropout"],
+            activation="relu"
+        ) for _ in range(3)])
+
+        self.sunspot_feature_module = nn.Sequential(*[InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
+                           d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
+            sfm_params["d_model"],
+            sfm_params["d_ff"],
+            dropout=sfm_params["dropout"],
+            activation="relu"
+        ) for _ in range(3)])
+        
+        # Image Feature Extractor
+        # self.magnetogram_feature_extractor = CNNModel(
+        #     output_channel=output_channel, pretrain=False)
+
+        # resnet18 + ConvNext
+        self.magnetogram_feature_extractor = ConvNeXt(in_chans=1,out_chans=mm_params["d_model"],depths=[2,2,2,2],dims=[64,128,256,512])
+
+        self.generator = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
+                                   output_channel)
+
+        self.linear = nn.Linear(
+            window*mm_params["d_model"]*2, sfm_params["d_model"])
+        self.softmax = nn.Softmax(dim=1)
+
+        self.generator_image = nn.Linear(
+            mm_params["d_model"]*window, mm_params["d_model"])
+
+        self.generator_phys = nn.Linear(
+            sfm_params["d_model"]*window, sfm_params["d_model"])
+        self.relu = torch.nn.ReLU()
+        self.linear_in_1 = torch.nn.Linear(
+            input_channel, sfm_params["d_model"])  # 79 -> 128
+        self.bn1 = torch.nn.BatchNorm1d(window)  # 128
+
+    def forward(self, img_list, feat):
+        # img_feat[bs, k, mm_d_model]
+        for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
+            img_output = self.magnetogram_feature_extractor(img)
+            if i == 0:
+                img_feat = img_output.unsqueeze(0)
+            else:
+                img_feat = torch.cat(
+                    [img_feat, img_output.unsqueeze(0)], dim=0)
+
+        # physical feat
+        phys_feat = self.linear_in_1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+
+        # concat
+        for i in range(3):
+            merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+            phys_feat = self.sunspot_feature_module[i](phys_feat, merged_feat)  #
+            img_feat = self.magnetogram_module[i](img_feat, merged_feat)  #
+
+
+        feat_output = torch.flatten(phys_feat, 1, 2)  # [bs, k*SFM_d_model]
+        feat_output = self.generator_phys(feat_output)  # [bs, SFM_d_model]
+
+        img_output = torch.flatten(img_feat, 1, 2)  # [bs, k*SFM_d_model]
+        img_output = self.generator_image(img_output)  # [bs, MM_d_model]
+
+        # Late fusion
+        x = torch.cat((feat_output, img_output), 1)
+        output = self.generator(x)
+
+        output = self.softmax(output)
+
+        return output, x 
+
+    def freeze_feature_extractor(self):
+        for param in self.parameters():
+            param.requires_grad = False # 重み固定
+        
+        for param in self.generator.parameters():
+            param.requires_grad = True
+
+
+
+class FlareTransformerWithConvNextAIA(nn.Module):
+    def __init__(self, input_channel, output_channel,input_conv_channel, sfm_params, mm_params, window=24):
+        super(FlareTransformerWithConvNextAIA, self).__init__()
+
+        # Informer``
+        self.magnetogram_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
+                           d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
+            mm_params["d_model"],
+            mm_params["d_ff"],
+            dropout=mm_params["dropout"],
+            activation="relu"
+        )
+
+        self.sunspot_feature_module = InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
+                           d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
+            sfm_params["d_model"],
+            sfm_params["d_ff"],
+            dropout=sfm_params["dropout"],
+            activation="relu"
+        )
+
+        # Image Feature Extractor
+        # self.magnetogram_feature_extractor = CNNModel(
+        #     output_channel=output_channel, pretrain=False)
+
+        # resnet18 + ConvNext
+        # caution: AIA分加算して3チャネルなので注意
+        self.magnetogram_feature_extractor = ConvNeXt(in_chans=input_conv_channel,out_chans=mm_params["d_model"],depths=[2,2,2,2],dims=[64,128,256,512])
+
+        self.generator = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
+                                   output_channel)
+
+        self.linear = nn.Linear(
+            window*mm_params["d_model"]*2, sfm_params["d_model"])
+        self.softmax = nn.Softmax(dim=1)
+
+        self.generator_image = nn.Linear(
+            mm_params["d_model"]*window, mm_params["d_model"])
+
+        self.generator_phys = nn.Linear(
+            sfm_params["d_model"]*window, sfm_params["d_model"])
+        self.relu = torch.nn.ReLU()
+        self.linear_in_1 = torch.nn.Linear(
+            input_channel, sfm_params["d_model"])  # 79 -> 128
+        self.bn1 = torch.nn.BatchNorm1d(window)  # 128
+
+    def forward(self, img_list, feat):
+        # img_feat[bs, k, mm_d_model]
+        for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
+            img_output = self.magnetogram_feature_extractor(img)
+            if i == 0:
+                img_feat = img_output.unsqueeze(0)
+            else:
+                img_feat = torch.cat(
+                    [img_feat, img_output.unsqueeze(0)], dim=0)
+
+        # physical feat
+        phys_feat = self.linear_in_1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+
+        # concat
+        merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+
+        # SFM
+        feat_output = self.sunspot_feature_module(phys_feat, merged_feat)  #
+        feat_output = torch.flatten(feat_output, 1, 2)  # [bs, k*SFM_d_model]
+        feat_output = self.generator_phys(feat_output)  # [bs, SFM_d_model]
+
+        # MM
+        img_output = self.magnetogram_module(img_feat, merged_feat)  #
+        img_output = torch.flatten(img_output, 1, 2)  # [bs, k*SFM_d_model]
+        img_output = self.generator_image(img_output)  # [bs, MM_d_model]
+
+        # Late fusion
+        x = torch.cat((feat_output, img_output), 1)
+        output = self.generator(x)
+
+        output = self.softmax(output)
+
+        return output, x 
+
+    def freeze_feature_extractor(self):
+        for param in self.parameters():
+            param.requires_grad = False # 重み固定
+        
+        for param in self.generator.parameters():
+            param.requires_grad = True
+
+
+
+
 class SunspotFeatureModule(torch.nn.Module):
     def __init__(self, N=6,
                  d_model=256, h=4, d_ff=16, dropout=0.1, mid_output=False, window=1):
@@ -2243,11 +3154,11 @@ def attention(query, key, value, mask=None, dropout=None):
 
 
 class CNNModel(nn.Module):
-    def __init__(self, output_channel=4, size=2, pretrain=False):
+    def __init__(self, in_channel=1, output_channel=4, size=2, pretrain=False):
         super().__init__()
 
         self.pretrain = pretrain
-        self.conv1 = nn.Conv2d(1, 16, kernel_size=7,
+        self.conv1 = nn.Conv2d(in_channel, 16, kernel_size=7,
                                stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(16)
         self.relu = nn.ReLU(inplace=True)

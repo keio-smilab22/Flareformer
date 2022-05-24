@@ -1,13 +1,13 @@
 {
-    "wandb_name": "id13-4b_2014_with_mae",
+    "wandb_name": "id1_2014_convnext_crt",
     "epochs": 40,
-    "lr": 0.0000007,
-    "bs":52,
+    "lr": 0.0000021,
+    "bs": 48,
     "lambda": {
         "GMGS": 0.0001,
         "BS": 10
     },
-    "save_model_path": "models/id1-4b.pth",
+    "save_model_path": "models/id23_2014.pth",
     "dataset": {
         "window": 4,
         "year_split": {
