@@ -15,7 +15,7 @@ import math
 import torch.nn.functional as F
 
 from src.model import FlareTransformerWithConvNext
-from src.Dataloader import CombineDataloader, TrainDataloader, TrainDataloader256
+from src.datasets import FlareDataset
 from src.eval_utils import calc_score
 from src.BalancedBatchSampler import TrainBalancedBatchSampler
 
@@ -246,9 +246,9 @@ if __name__ == "__main__":
     print("==========================================")
 
     # Initialize Dataset
-    train_dataset = TrainDataloader256("train", args.dataset)
-    validation_dataset = TrainDataloader256("valid", args.dataset)
-    test_dataset = TrainDataloader256("test", args.dataset)
+    train_dataset = FlareDataset("train", args.dataset)
+    validation_dataset = FlareDataset("valid", args.dataset)
+    test_dataset = FlareDataset("test", args.dataset)
 
     mean, std = train_dataset.calc_mean()
     
@@ -283,7 +283,7 @@ if __name__ == "__main__":
         summary(model,[(args.bs, *sample.shape) for sample in train_dataset[0][0::2]])
     else:
         summary(model)
-        
+
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     # Start Training
