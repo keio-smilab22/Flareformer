@@ -1,5 +1,5 @@
 {
-    "wandb_name": "id1_2016_convnext_crt",
+    "wandb_name": "id26_2016",
     "epochs": 40,
     "lr": 0.0000021,
     "bs": 48,
