@@ -8,7 +8,7 @@ def load_datasets(args):
     test_dataset = FlareDataset("test", args.dataset)
 
     mean, std = train_dataset.calc_mean()
-    print(mean, std)
+    print(f"(mean,std) = ({mean},{std})")
 
     train_dataset.set_mean(mean, std)    
     val_dataset.set_mean(mean, std)
@@ -19,7 +19,6 @@ def load_datasets(args):
 def prepare_dataloaders(args, imbalance):
     train_dataset, val_dataset, test_dataset = load_datasets(args)
 
-    batch_sampler = None
     if imbalance:
         train_dl = DataLoader(train_dataset, batch_size=args.bs, shuffle=True, num_workers=2)
     else:
