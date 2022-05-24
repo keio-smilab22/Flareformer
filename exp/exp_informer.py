@@ -89,7 +89,7 @@ class Exp_Informer(Exp_Basic):
 
         data_dict = {
             'Flare':Dataset_Custom,
-            
+
         }
         Data = data_dict[self.args.data]
         timeenc = 0 if args.embed!='timeF' else 1
@@ -287,7 +287,7 @@ class Exp_Informer(Exp_Basic):
         
         for i, (batch_x,batch_mag,batch_y,batch_x_mark,batch_y_mark) in enumerate(pred_loader):
             pred, true = self._process_one_batch(
-                pred_data, batch_x, batch_y, batch_x_mark, batch_y_mark)
+                pred_data, batch_x, batch_mag, batch_y, batch_x_mark, batch_y_mark)
             preds.append(pred.detach().cpu().numpy())
 
         preds = np.array(preds)
