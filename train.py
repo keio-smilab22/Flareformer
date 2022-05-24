@@ -1,109 +1,24 @@
 """Train Flare Transformer"""
 
-from dataclasses import dataclass
 import json
 import argparse
-from re import S
 
 from torchinfo import summary
 
 import numpy as np
 import torch
 from torch import nn
-from torch.utils.data import DataLoader
-from tqdm import tqdm
 from utils.utils import *
 from utils.losses import LossConfig, Losser
+from engine import calc_test_score, train_epoch, eval_epoch
 import wandb
-import math
 
 from src.model import FlareTransformerWithConvNext
-from src.datasets import FlareDataset
-from src.eval_utils import calc_score
 from src.BalancedBatchSampler import TrainBalancedBatchSampler
+from datasets.datasets import prepare_dataloaders
 
 import colored_traceback.always
 
-
-def train_epoch(model, train_dl, epoch,lr, args, losser):
-    """Return train loss and score for train set"""
-    model.train()
-    predictions = []
-    observations = []
-    train_loss = 0
-    n = 0
-    for _, (x, y, feat, idx) in enumerate(tqdm(train_dl)):
-        if not args.without_schedule:
-            adjust_learning_rate(optimizer, epoch, params["epochs"], lr, args)
-        optimizer.zero_grad()
-        output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float))
-        gt = y.cuda().to(torch.float)
-        loss = losser(output, gt)
-        loss.backward()
-        optimizer.step()
-
-        train_loss += (loss.detach().cpu().item() * x.shape[0])
-        n += x.shape[0]
-
-        for pred, o in zip(output.cpu().detach().numpy().tolist(),
-                           y.detach().numpy().tolist()):
-            predictions.append(pred)
-            observations.append(np.argmax(o))
-
-    score = calc_score(predictions, observations,
-                       args.dataset["climatology"])
-    score = calc_test_score(score, "train")
-
-    return score, train_loss/n
-
-
-def eval_epoch(model, val_dl,losser):
-    """Return val loss and score for val set"""
-    model.eval()
-    predictions = []
-    observations = []
-    valid_loss = 0
-    n = 0
-    with torch.no_grad():
-        for _, (x, y, feat, idx) in enumerate(tqdm(val_dl)):
-            output, feat = model(x.cuda().to(torch.float),feat.cuda().to(torch.float))
-            gt = y.cuda().to(torch.float)
-            loss = losser(output, gt)
-            valid_loss += (loss.detach().cpu().item() * x.shape[0])
-            n += x.shape[0]
-            for pred, o in zip(output.cpu().numpy().tolist(),
-                               y.numpy().tolist()):
-                predictions.append(pred)
-                observations.append(np.argmax(o))
-        score = calc_score(predictions, observations,
-                           args.dataset["climatology"])
-        score = calc_test_score(score, "valid")
-    return score, valid_loss/n
-
-
-def calc_test_score(score, label):
-    """Return dict with key of label"""
-    test_score = {}
-    for k, v in score.items():
-        test_score[label+"_"+k] = v
-    return test_score
-
-def adjust_learning_rate(optimizer, current_epoch, epochs, lr, args): # optimizerの内部パラメタを直接変えちゃうので注意
-    """Decay the learning rate with half-cycle cosine after warmup"""
-    min_lr = 0
-    if current_epoch < args.warmup_epochs:
-        lr = lr * epoch / args.warmup_epochs
-    else:
-        theta = math.pi * (current_epoch - args.warmup_epochs) / (epochs - args.warmup_epochs)
-        lr = min_lr + (lr - min_lr) * 0.5 * (1. + math.cos(theta))
-
-    for param_group in optimizer.param_groups:
-        if "lr_scale" in param_group:
-            param_group["lr"] = lr * param_group["lr_scale"]
-        else:
-            param_group["lr"] = lr
-
-    return lr
 
 def parse_params():
     parser = argparse.ArgumentParser()
@@ -123,40 +38,11 @@ def parse_params():
     args = inject_args(args,params)
     return args, params
 
-def prepare_datasets(args):
-    train_dataset = FlareDataset("train", args.dataset)
-    val_dataset = FlareDataset("valid", args.dataset)
-    test_dataset = FlareDataset("test", args.dataset)
-
-    mean, std = train_dataset.calc_mean()
-    print(mean, std)
-
-    train_dataset.set_mean(mean, std)    
-    val_dataset.set_mean(mean, std)
-    test_dataset.set_mean(mean, std)
-
-    return train_dataset, val_dataset, test_dataset
-
-def prepare_dataloaders(args, imbalance):
-    train_dataset, val_dataset, test_dataset = prepare_datasets(args)
-
-    batch_sampler = None
-    if not imbalance:
-        batch_sampler = TrainBalancedBatchSampler(train_dataset, args.output_channel, args.bs//args.output_channel)
-
-    train_dl = DataLoader(train_dataset, batch_size=args.bs, shuffle=args.imbalance, batch_sampler=batch_sampler, num_workers=2)
-    val_dl = DataLoader(val_dataset, batch_size=args.bs, shuffle=False,num_workers=2)
-    test_dl = DataLoader(test_dataset, batch_size=args.bs, shuffle=False,num_workers=2)
-    
-    return (train_dl, val_dl, test_dl), train_dataset[0]
-    
 
 
 if __name__ == "__main__":
-    # fix seed value
-    fix_seed(42)
- 
-    # argument parser   
+    
+    fix_seed(seed=42) 
     args, params = parse_params()
 
     # Initialize W&B
@@ -199,8 +85,8 @@ if __name__ == "__main__":
     model_update_dict = {}
     for e, epoch in enumerate(range(params["epochs"])):
         print("====== Epoch ", e, " ======")
-        train_score, train_loss = train_epoch(model, train_dl, epoch, args.lr, args, losser)
-        valid_score, valid_loss = eval_epoch(model, val_dl, losser)
+        train_score, train_loss = train_epoch(model, optimizer, train_dl, epoch, args.lr, args, losser)
+        valid_score, valid_loss = eval_epoch(model, val_dl, losser,args)
         test_score, test_loss = valid_score, valid_loss
         
         torch.save(model.state_dict(), params["save_model_path"])
@@ -239,8 +125,8 @@ if __name__ == "__main__":
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_stage2)
         for e, epoch in enumerate(range(args.epoch_stage2)):
             print("====== Epoch ", e, " ======")
-            train_score, train_loss = train_epoch(model, train_dl, epoch, args.lr_stage2, args,losser)
-            valid_score, valid_loss = eval_epoch(model, val_dl,losser)
+            train_score, train_loss = train_epoch(model, optimizer, train_dl, epoch, args.lr_stage2, args,losser)
+            valid_score, valid_loss = eval_epoch(model, val_dl,losser,args)
             test_score, test_loss = valid_score, valid_loss
 
             log = {'epoch': epoch, 'train_loss': np.mean(train_loss),
