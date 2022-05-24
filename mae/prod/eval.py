@@ -233,7 +233,7 @@ def run_one_image_sp(img, model, mean=None, std=None, mask_ratio=0.75):
 
 class MaskedAutoEncoder:
     def __init__(self,baseline,embed_dim):
-        chkpt_dir = f'/home/katsuyuki/temp/flare_transformer/output_dir/{baseline}/checkpoint-50-64d4b_base-16.pth' # パス注意
+        chkpt_dir = f'output_dir/{baseline}/checkpoint-50-64d4b_base-16.pth' # パス注意
         self.model = prepare_model(chkpt_dir,baseline=baseline,embed_dim=embed_dim)
         self.dim = self.model.embed_dim
 
