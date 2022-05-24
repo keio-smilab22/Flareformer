@@ -23,15 +23,15 @@ class FlareDataset(Dataset):
         self.img = torch.Tensor(self.img)
 
         # get label
-        print("\nLoading labels ...")
+        print("Loading labels ...")
         self.label = self.get_multiple_year_data(start_year, end_year, "label")
 
         # get feat
-        print("\nLoading features ...")
+        print("Loading features ...")
         self.feat = self.get_multiple_year_data(start_year, end_year,"feat")[:, :90]
 
         # get window
-        print("\nLoading windows ...")
+        print("Loading windows ...")
         self.window = self.get_multiple_year_window(start_year, end_year, "window_48")[:, :self.window_size]
         self.window = np.asarray(self.window, dtype=int)
         
@@ -73,12 +73,15 @@ class FlareDataset(Dataset):
         """
             concatenate data of multiple years [image]
         """
+        result = []
         for i, year in enumerate(tqdm(range(start_year,
                                  end_year+1))):
             data_path_256 = f"{self.path}{year}_{image_type}_256.npy"
             data_path_512 = f"{self.path}{year}_{image_type}.npy"
                 
-            if not os.path.exists(data_path_256):
+            if os.path.exists(data_path_256):
+                image_data = np.load(data_path_256)
+            else:
                 image_data = np.load(data_path_512)
                 N,C,H,W = image_data.shape
                 _image_data = np.empty((N,1,256,256))
@@ -88,19 +91,13 @@ class FlareDataset(Dataset):
                 
                 image_data = _image_data
                 np.save(data_path_256,image_data)
-            else:
-                image_data = np.load(data_path_256)
 
             for j in range(image_data.shape[0]):
                 assert np.max(image_data[j,:,:,:]) <= 1
 
-            if i == 0:
-                result = image_data
-            else:
-                result = np.concatenate([result, image_data], axis=0)
+            result.append(image_data)
 
-
-        return result
+        return np.concatenate(result, axis=0)
 
     def get_multiple_year_data(self, start_year, end_year, data_type):
         """

@@ -108,9 +108,9 @@ if __name__ == "__main__":
     # Output Test Score
     print("========== TEST ===========")
     model.load_state_dict(torch.load(params["save_model_path"])) 
-    test_score, _ = eval_epoch(model, test_dl,losser)
+    test_score, _ = eval_epoch(model, test_dl,losser, args)
     print("epoch : ", best_epoch, test_score)
-    if  args.wandb is True:
+    if args.wandb is True:
         wandb.log(calc_test_score(test_score, "final"))
 
     # ここからCRT

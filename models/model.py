@@ -10,7 +10,7 @@ class FlareFormer(nn.Module):
         super(FlareFormer, self).__init__()
 
         # Informer``
-        self.magnetogram_module = InformerEncoderLayer(
+        self.mag_encoder = InformerEncoderLayer(
             AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
                            d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
             mm_params["d_model"],
@@ -19,7 +19,7 @@ class FlareFormer(nn.Module):
             activation="relu"
         )
 
-        self.sunspot_feature_module = InformerEncoderLayer(
+        self.phys_encoder = InformerEncoderLayer(
             AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
                            d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
             sfm_params["d_model"],
@@ -29,37 +29,31 @@ class FlareFormer(nn.Module):
         )
 
         # Image Feature Extractor
-        self.magnetogram_feature_extractor = ConvNeXt(in_chans=1,out_chans=mm_params["d_model"],depths=[2,2,2,2],dims=[64,128,256,512])
+        self.img_embedder = ConvNeXt(in_chans=1,out_chans=mm_params["d_model"],depths=[2,2,2,2],dims=[64,128,256,512])
 
-        self.generator = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
+        self.linear = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
                                    output_channel)
 
-        self.linear = nn.Linear(
+        self._linear = nn.Linear(
             window*mm_params["d_model"]*2, sfm_params["d_model"])
         self.softmax = nn.Softmax(dim=1)
 
-        self.generator_image = nn.Linear(
+        self.img_linear = nn.Linear(
             mm_params["d_model"]*window, mm_params["d_model"])
 
-        self.generator_phys = nn.Linear(
+        self.phys_linear = nn.Linear(
             sfm_params["d_model"]*window, sfm_params["d_model"])
         self.relu = torch.nn.ReLU()
-        self.linear_in_1 = torch.nn.Linear(
+        self.linear1 = torch.nn.Linear(
             input_channel, sfm_params["d_model"])  # 79 -> 128
         self.bn1 = torch.nn.BatchNorm1d(window)  # 128
 
     def forward(self, img_list, feat):
-        # img_feat[bs, k, mm_d_model]
-        for i, img in enumerate(img_list):  # img_list = [bs, k, 256]
-            img_output = self.magnetogram_feature_extractor(img)
-            if i == 0:
-                img_feat = img_output.unsqueeze(0)
-            else:
-                img_feat = torch.cat(
-                    [img_feat, img_output.unsqueeze(0)], dim=0)
-
+        # image feat
+        img_feat = torch.cat([self.img_embedder(img).unsqueeze(0) for img in img_list])
+        
         # physical feat
-        phys_feat = self.linear_in_1(feat)
+        phys_feat = self.linear1(feat)
         phys_feat = self.bn1(phys_feat)
         phys_feat = self.relu(phys_feat)
 
@@ -67,19 +61,18 @@ class FlareFormer(nn.Module):
         merged_feat = torch.cat([phys_feat, img_feat], dim=1)
 
         # SFM
-        feat_output = self.sunspot_feature_module(phys_feat, merged_feat)  #
-        feat_output = torch.flatten(feat_output, 1, 2)  # [bs, k*SFM_d_model]
-        feat_output = self.generator_phys(feat_output)  # [bs, SFM_d_model]
+        phys_feat = self.phys_encoder(phys_feat, merged_feat) 
+        phys_feat = torch.flatten(phys_feat, 1, 2) 
+        phys_feat = self.phys_linear(phys_feat) 
 
         # MM
-        img_output = self.magnetogram_module(img_feat, merged_feat)  #
-        img_output = torch.flatten(img_output, 1, 2)  # [bs, k*SFM_d_model]
-        img_output = self.generator_image(img_output)  # [bs, MM_d_model]
+        img_feat = self.mag_encoder(img_feat, merged_feat) 
+        img_feat = torch.flatten(img_feat, 1, 2)
+        img_feat = self.img_linear(img_feat)
 
         # Late fusion
-        x = torch.cat((feat_output, img_output), 1)
-        output = self.generator(x)
-
+        x = torch.cat((phys_feat, img_feat), 1)
+        output = self.linear(x)
         output = self.softmax(output)
 
         return output, x 
@@ -88,7 +81,7 @@ class FlareFormer(nn.Module):
         for param in self.parameters():
             param.requires_grad = False # 重み固定
         
-        for param in self.generator.parameters():
+        for param in self.linear.parameters():
             param.requires_grad = True
 
 
