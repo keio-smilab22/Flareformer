@@ -14,18 +14,21 @@ def train_epoch(model, optimizer, train_dl, epoch,lr, args, losser):
     observations = []
     train_loss = 0
     n = 0
-    for _, (x, y, feat, idx) in enumerate(tqdm(train_dl)):
+    for _, (x, y, idx) in enumerate(tqdm(train_dl)):
         if not args.without_schedule:
             adjust_learning_rate(optimizer, epoch, args.dataset["epochs"], lr, args)
         optimizer.zero_grad()
-        output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float))
+
+        imgs, feats = x
+        imgs, feats = imgs.cuda().float(), feats.cuda().float()
+        output, _ = model(imgs,feats)
         gt = y.cuda().to(torch.float)
         loss = losser(output, gt)
         loss.backward()
         optimizer.step()
 
-        train_loss += (loss.detach().cpu().item() * x.shape[0])
-        n += x.shape[0]
+        train_loss += (loss.detach().cpu().item() * imgs.shape[0])
+        n += imgs.shape[0]
 
         for pred, o in zip(output.cpu().detach().numpy().tolist(),
                            y.detach().numpy().tolist()):
@@ -47,12 +50,14 @@ def eval_epoch(model, val_dl,losser, args):
     valid_loss = 0
     n = 0
     with torch.no_grad():
-        for _, (x, y, feat, idx) in enumerate(tqdm(val_dl)):
-            output, feat = model(x.cuda().to(torch.float),feat.cuda().to(torch.float))
+        for _, (x, y, idx) in enumerate(tqdm(val_dl)):
+            imgs, feats = x
+            imgs, feats = imgs.cuda().float(), feats.cuda().float()
+            output, _ = model(imgs,feats)
             gt = y.cuda().to(torch.float)
             loss = losser(output, gt)
-            valid_loss += (loss.detach().cpu().item() * x.shape[0])
-            n += x.shape[0]
+            valid_loss += (loss.detach().cpu().item() * imgs.shape[0])
+            n += imgs.shape[0]
             for pred, o in zip(output.cpu().numpy().tolist(),
                                y.numpy().tolist()):
                 predictions.append(pred)
