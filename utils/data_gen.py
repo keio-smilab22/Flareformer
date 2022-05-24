@@ -33,11 +33,11 @@ def data_gen(path: str):
     xmax1h_df = df.loc[:,['logXmax1h', 'Xmax1h']]
     # Extract columns other than ['logXmax1h', 'Xmax1h']
     feat_df = df.drop(['logXmax1h', 'Xmax1h'], axis=1)
-    df_all = df.drop(['ID', 'Xhis', 'MHis', 'Xhis1d', 'Mhis1d', 'Chis', 'Chis1d', 'Class', 'X24', 'M24', 'XM24', 'C24', 'XMC24', 'Flrflag', 'Xmax1h', 'logXmax1m1', 'logXmax1m2', 'uv131max1h', 'uv131max1m2'], axis=1)
+    df_all = df.drop(['ID', 'Xhis', 'MHis', 'Xhis1d', 'Mhis1d', 'Chis', 'Chis1d', 'Class', 'X24', 'M24', 'XM24', 'C24', 'XMC24', 'Flrflag', 'Xmax1h', 'logXmax1m1', 'logXmax1m2', 'uv131max1h', 'uv131max1m1', 'uv131max1m2'], axis=1)
     # # print(df.index.is_unique)
-    save_path_target = '../data/data_target_v2.csv'
-    save_path_feature = '../data/data_feat_v2.csv'
-    save_path_all = '../data/data_all_v2.csv'
+    save_path_target = 'data/data_target_v2.csv'
+    save_path_feature = 'data/data_feat_v2.csv'
+    save_path_all = 'data/data_all_v2.csv'
     # # save xmax1h_df to csv
     xmax1h_df.to_csv(save_path_target, index=True)
     feat_df.to_csv(save_path_feature, index=True)
@@ -59,8 +59,8 @@ def create_magnetogram_data(jsonl_path: str, csv_path):
             image_np_path = data[i]['magnetogram']
             # image_np_path = '../flare_transformer/data/magnetogram/2017-11/hmi.M_720s.20171120_085832.magnetogram.png'
             # image_np_path -> '../data/magnetogram/2017-11/hmi.M_720s.20171120_085832.magnetogram.png'
-            image_np_path = image_np_path.replace('../flare_transformer/data/magnetogram/', '/home/katsuyuki/temp/flare_transformer/data/magnetogram/')
-            # print(image_np_path)
+            image_np_path = image_np_path.replace('../flare_transformer/data/magnetogram/', 'data/magnetogram/')
+            print(image_np_path)
             image_np = cv2.imread(image_np_path)
             image_np = cv2.cvtColor(image_np, cv2.COLOR_BGR2GRAY)
             image_np = cv2.resize(image_np, (256, 256))
@@ -70,7 +70,7 @@ def create_magnetogram_data(jsonl_path: str, csv_path):
         image_data = np.stack(image_data, axis=0)
         print(image_data.shape)
         # save image_data to npy
-        np.save('/home/katsuyuki/temp/flare_transformer/data/data_magnetogram_256.npy', image_data)
+        np.save('data/data_magnetogram_256.npy', image_data)
 
 
 
@@ -79,8 +79,8 @@ def create_magnetogram_data(jsonl_path: str, csv_path):
 
 
 def main():
-    data_gen('../data/defn_feature_database_v2.csv')
-    # create_magnetogram_data('data/ft_database_all17.jsonl', 'data/defn_feature_database_v2.csv')
+    # data_gen('data/defn_feature_database_v2.csv')
+    create_magnetogram_data('data/ft_database_all17.jsonl', 'data/defn_feature_database_v2.csv')
 
 
 if __name__ == '__main__':
