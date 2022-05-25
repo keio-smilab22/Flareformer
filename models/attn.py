@@ -20,7 +20,7 @@ class FullAttention(nn.Module):
     def forward(self, queries, keys, values, attn_mask):
         B, L, H, E = queries.shape
         _, S, _, D = values.shape
-        scale = self.scale or 1./sqrt(E)
+        scale = self.scale or 1. / sqrt(E)
 
         scores = torch.einsum("blhe,bshe->bhls", queries, keys)
         if self.mask_flag:
@@ -76,7 +76,7 @@ class ProbAttention(nn.Module):
         Q_K = torch.matmul(Q_reduce, K.transpose(-2, -1))  # factor*ln(L_q)*L_k
 
         return Q_K, M_top
- 
+
     def _get_initial_context(self, V, L_Q):
         B, H, L_V, D = V.shape
         if not self.mask_flag:
@@ -131,7 +131,7 @@ class ProbAttention(nn.Module):
             queries, keys, sample_k=U_part, n_top=u)
 
         # add scale factor
-        scale = self.scale or 1./sqrt(D)
+        scale = self.scale or 1. / sqrt(D)
         if scale is not None:
             scores_top = scores_top * scale
         # get the context
@@ -148,8 +148,8 @@ class AttentionLayer(nn.Module):
                  d_keys=None, d_values=None, mix=False):
         super(AttentionLayer, self).__init__()
 
-        d_keys = d_keys or (d_model//n_heads)
-        d_values = d_values or (d_model//n_heads)
+        d_keys = d_keys or (d_model // n_heads)
+        d_values = d_values or (d_model // n_heads)
 
         self.inner_attention = attention
         self.query_projection = nn.Linear(d_model, d_keys * n_heads)

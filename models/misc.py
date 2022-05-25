@@ -2,6 +2,7 @@ import math
 import torch
 import torch.nn.functional as F
 
+
 class LayerNorm(torch.nn.Module):
     "Construct a layernorm module (See citation for details)."
 
@@ -49,7 +50,6 @@ class SublayerConnection(torch.nn.Module):
         return x + self.dropout(sublayer(self.norm(x)))
 
 
-
 class MultiHeadedAttention(torch.nn.Module):
     def __init__(self, h, d_model, dropout=0.1):
         "Take in model size and number of heads."
@@ -95,4 +95,3 @@ def attention(query, key, value, mask=None, dropout=None):
     if dropout is not None:
         p_attn = dropout(p_attn)
     return torch.matmul(p_attn, value), p_attn
-

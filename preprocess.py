@@ -38,9 +38,9 @@ def sub_1h(str_time):
 
 def get_fancy_index(num, db, current_data):
     """tmp"""
-    index = list(range(max(num-horizon+1, 0), num))
+    index = list(range(max(num - horizon + 1, 0), num))
     index.append(num)
-    candidate_time = [data["time"] for data in db[max(num-horizon+1, 0):num]]
+    candidate_time = [data["time"] for data in db[max(num - horizon + 1, 0):num]]
     candidate_time.append(current_data["time"])
 
     fancy_index = []
@@ -49,7 +49,7 @@ def get_fancy_index(num, db, current_data):
         if time in candidate_time:
             fancy_index.append(index[candidate_time.index(time)])
         else:
-            fancy_index.append(fancy_index[i-1])
+            fancy_index.append(fancy_index[i - 1])
         time = sub_1h(time)
 
     return fancy_index
@@ -72,8 +72,8 @@ if __name__ == "__main__":
     horizon = int(args.horizon)
 
     # find index
-    year = [str(y) for y in range(start_year, end_year+1)]
-    idx = {str(start_year-1): {"start": 0, "end": 0}}
+    year = [str(y) for y in range(start_year, end_year + 1)]
+    idx = {str(start_year - 1): {"start": 0, "end": 0}}
     for y in year:
         idx[y] = {"start": 0, "end": 0}
 
@@ -84,11 +84,11 @@ if __name__ == "__main__":
             year_str = data["time"][-7:-3]
             if year_str in year_tmp:
                 idx[year_str]["start"] = i
-                idx[str(int(year_str)-1)]["end"] = i - 1
+                idx[str(int(year_str) - 1)]["end"] = i - 1
                 year_tmp.remove(year_str)
     idx[str(end_year)]["end"] = i  # last data
 
-    del idx[str(start_year-1)]
+    del idx[str(start_year - 1)]
 
     with open(database_path) as f:
         db = f.readlines()
@@ -96,7 +96,7 @@ if __name__ == "__main__":
 
     # Magnetogram Image
     for y in year:
-        db_split = db[idx[y]["start"]:idx[y]["end"]+1]
+        db_split = db[idx[y]["start"]:idx[y]["end"] + 1]
         image_data = []
         output_path = path + y + "_magnetogram.npy"
         print(output_path)
@@ -107,7 +107,7 @@ if __name__ == "__main__":
 
     # Feature and label
     for y in year:
-        db_split = db[idx[y]["start"]:idx[y]["end"]+1]
+        db_split = db[idx[y]["start"]:idx[y]["end"] + 1]
         image_data = []
         output_feat_path = path + y + "_feat.csv"
         output_label_path = path + y + "_label.csv"
@@ -124,12 +124,12 @@ if __name__ == "__main__":
     # Window index
     fancy_index = []
     for y in year:
-        db_split = db[idx[y]["start"]:idx[y]["end"]+1]
+        db_split = db[idx[y]["start"]:idx[y]["end"] + 1]
         output_window_path = path + y + "_window_" + str(horizon) + ".csv"
         with open(output_window_path, "w") as wf:
             for i, data in enumerate(tqdm(db_split)):
                 fancy_index = np.array(get_fancy_index(
-                    i+idx[y]["start"], db, data)) - idx[y]["start"]
+                    i + idx[y]["start"], db, data)) - idx[y]["start"]
                 fancy_index = [max(x, 0) for x in fancy_index]
                 wf.write(",".join(map(str, fancy_index)))
                 wf.write("\n")

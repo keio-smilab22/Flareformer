@@ -23,6 +23,7 @@ import colored_traceback.always
 
 onlyMandX = False
 
+
 def gmgs_loss_function(y_pred, y_true, score_matrix):
     """Compute GMGS loss"""
     score_matrix = torch.tensor(score_matrix).cuda()
@@ -39,7 +40,7 @@ def gmgs_loss_function(y_pred, y_true, score_matrix):
 # def focal_loss(y_pred, y_true, gamma=0, eps=1e-7):
 #     logit = F.softmax(y_pred, dim=-1)
 #     logit = logit.clamp(eps, 1. - eps)
-    
+
 #     weights = torch.ones_like(y_true).float()
 #     # weights[:,-1] = 0 # X class
 #     weights[:,-1] = 0 if epoch < 15 else 1 # X class
@@ -54,7 +55,6 @@ def gmgs_loss_function(y_pred, y_true, score_matrix):
 #     p = torch.exp(-input_values)
 #     loss = (1 - p) ** gamma * input_values * ib
 #     return loss.mean()
-
 
 
 # switch_epoch = 100
@@ -81,7 +81,7 @@ def gmgs_loss_function(y_pred, y_true, score_matrix):
 def label_smoothing(y_true, epsilon):
     """Return label smoothed vector"""
     x = y_true + epsilon
-    x = x / (1+epsilon*4)
+    x = x / (1 + epsilon * 4)
     return x
 
 
@@ -93,7 +93,8 @@ def bs_loss_function(y_pred, y_true):
     tmp = torch.mean(tmp)
     return tmp
 
-def train_epoch(model, train_dl, epoch,lr,  args):
+
+def train_epoch(model, train_dl, epoch, lr, args):
     """Return train loss and score for train set"""
     model.train()
     predictions = []
@@ -102,16 +103,17 @@ def train_epoch(model, train_dl, epoch,lr,  args):
     n = 0
     for _, (x, y, feat, idx) in enumerate(tqdm(train_dl)):
         if onlyMandX:
-            mask = (y[:,2] == 1) + (y[:,3] == 1)
+            mask = (y[:, 2] == 1) + (y[:, 3] == 1)
             x = x[mask]
             feat = feat[mask]
             y = y[mask]
-            if x.shape[0] == 0: continue
+            if x.shape[0] == 0:
+                continue
 
         if not args.without_schedule:
             adjust_learning_rate(optimizer, epoch, params["epochs"], lr, args)
         optimizer.zero_grad()
-        if isinstance(model,FlareTransformerWithMultiPE):
+        if isinstance(model, FlareTransformerWithMultiPE):
             output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float), idx.cuda().to(torch.float))
         else:
             output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float))
@@ -134,7 +136,7 @@ def train_epoch(model, train_dl, epoch,lr,  args):
         loss = bce_loss + \
             params["lambda"]["GMGS"] * gmgs_loss + \
             params["lambda"]["BS"] * bs_loss
-        
+
         # if epoch < switch_epoch:
         #     loss = ib_loss + \
         #         params["lambda"]["GMGS"] * gmgs_loss + \
@@ -157,7 +159,7 @@ def train_epoch(model, train_dl, epoch,lr,  args):
                        params["dataset"]["climatology"])
     score = calc_test_score(score, "train")
 
-    return score, train_loss/n
+    return score, train_loss / n
 
 
 def eval_epoch(model, validation_dl):
@@ -170,19 +172,19 @@ def eval_epoch(model, validation_dl):
     with torch.no_grad():
         for _, (x, y, feat, idx) in enumerate(tqdm(validation_dl)):
             if onlyMandX:
-                mask = (y[:,2] == 1) + (y[:,3] == 1)
+                mask = (y[:, 2] == 1) + (y[:, 3] == 1)
                 x = x[mask]
                 feat = feat[mask]
                 y = y[mask]
-                if x.shape[0] == 0: continue
+                if x.shape[0] == 0:
+                    continue
 
-
-            if isinstance(model,FlareTransformerWithMultiPE):
+            if isinstance(model, FlareTransformerWithMultiPE):
                 idx += len(train_dataset)
                 output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float), idx.cuda().to(torch.float))
             else:
-                output, feat = model(x.cuda().to(torch.float),feat.cuda().to(torch.float))
-                
+                output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float))
+
             # bce_loss = criterion(output, y.cuda().to(torch.long))
             bce_loss = criterion(output, torch.max(y, 1)[1].cuda().to(torch.long))
             if params["lambda"]["GMGS"] != 0:
@@ -194,7 +196,7 @@ def eval_epoch(model, validation_dl):
             if params["lambda"]["BS"] != 0:
                 bs_loss = bs_criterion(output, y.cuda().to(torch.float))
             else:
-                bs_loss = 0 
+                bs_loss = 0
             loss = bce_loss + \
                 params["lambda"]["GMGS"] * gmgs_loss + \
                 params["lambda"]["BS"] * bs_loss
@@ -207,39 +209,39 @@ def eval_epoch(model, validation_dl):
         score = calc_score(predictions, observations,
                            params["dataset"]["climatology"])
         score = calc_test_score(score, "valid")
-    return score, valid_loss/n
+    return score, valid_loss / n
 
 
-
-
-def calc_model_update(model, dl,model_update_dict): # モデルの更新量を計算する
+def calc_model_update(model, dl, model_update_dict):  # モデルの更新量を計算する
     model.eval()
     with torch.no_grad():
-        for _, (x, y, feat,idx) in enumerate(tqdm(dl)):
+        for _, (x, y, feat, idx) in enumerate(tqdm(dl)):
             x = x.cuda().to(torch.float)
             feat = feat.cuda().to(torch.float)
             mm_extractor = model.forward_mm_feature_extractor
             sfm_extractor = model.forward_sfm_feature_extractor
-            mm_output = mm_extractor(x,feat).cpu().numpy() # (B, W, d_model)
-            sfm_output = sfm_extractor(x,feat).cpu().numpy()
+            mm_output = mm_extractor(x, feat).cpu().numpy()  # (B, W, d_model)
+            sfm_output = sfm_extractor(x, feat).cpu().numpy()
             # mm_mean = mm_output.cpu().numpy().mean(axis=0)
             # sfm_mean = sfm_output.cpu().numpy().mean(axis=0)
 
             # print(mm_output.shape)
             # print(sfm_output.shape)
-            
-            if "mm" not in model_update_dict: model_update_dict["mm"] = [mm_output]
+
+            if "mm" not in model_update_dict:
+                model_update_dict["mm"] = [mm_output]
             else:
                 z = model_update_dict["mm"][0]
                 z = z - mm_output
-                t = [np.linalg.norm(z[i,0,:]) for i in range(z.shape[0])] # ウィンドウのheadだけ
+                t = [np.linalg.norm(z[i, 0, :]) for i in range(z.shape[0])]  # ウィンドウのheadだけ
                 model_update_dict["mm"].append(np.mean(t))
 
-            if "sfm" not in model_update_dict: model_update_dict["sfm"] = [sfm_output]
+            if "sfm" not in model_update_dict:
+                model_update_dict["sfm"] = [sfm_output]
             else:
                 z = model_update_dict["sfm"][0]
                 z = z - sfm_output
-                t = [np.linalg.norm(z[i,0,:]) for i in range(z.shape[0])] # ウィンドウのheadだけ
+                t = [np.linalg.norm(z[i, 0, :]) for i in range(z.shape[0])]  # ウィンドウのheadだけ
                 model_update_dict["sfm"].append(np.mean(t))
 
             break
@@ -249,7 +251,7 @@ def calc_model_update(model, dl,model_update_dict): # モデルの更新量を�
         #     observations.append(np.argmax(o))
 
     print("+-- model update --+")
-    for k,v in model_update_dict.items():
+    for k, v in model_update_dict.items():
         print(f" {k} = ", end='')
         print(v[1:])
 
@@ -266,18 +268,18 @@ def test_epoch(model, test_dl):
     with torch.no_grad():
         for _, (x, y, feat, idx) in enumerate(tqdm(test_dl)):
             if onlyMandX:
-                mask = (y[:,2] == 1) + (y[:,3] == 1)
+                mask = (y[:, 2] == 1) + (y[:, 3] == 1)
                 x = x[mask]
                 feat = feat[mask]
                 y = y[mask]
-                if x.shape[0] == 0: continue
+                if x.shape[0] == 0:
+                    continue
 
-
-            if isinstance(model,FlareTransformerWithMultiPE):
+            if isinstance(model, FlareTransformerWithMultiPE):
                 idx += len(train_dataset)
                 output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float), idx.cuda().to(torch.float))
             else:
-                output, feat = model(x.cuda().to(torch.float),feat.cuda().to(torch.float))
+                output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float))
 
             # bce_loss = criterion(output, y.cuda().to(torch.long))
             bce_loss = criterion(output, torch.max(y, 1)[1].cuda().to(torch.long))
@@ -303,17 +305,18 @@ def test_epoch(model, test_dl):
         score = calc_score(predictions, observations,
                            params["dataset"]["climatology"])
         score = calc_test_score(score, "test")
-    return score, test_loss/n
+    return score, test_loss / n
 
 
 def calc_test_score(score, label):
     """Return dict with key of label"""
     test_score = {}
     for k, v in score.items():
-        test_score[label+"_"+k] = v
+        test_score[label + "_" + k] = v
     return test_score
 
-def adjust_learning_rate(optimizer, current_epoch, epochs, lr, args): # optimizerの内部パラメタを直接変えちゃうので注意
+
+def adjust_learning_rate(optimizer, current_epoch, epochs, lr, args):  # optimizerの内部パラメタを直接変えちゃうので注意
     """Decay the learning rate with half-cycle cosine after warmup"""
     min_lr = 0
     if current_epoch < args.warmup_epochs:
@@ -337,7 +340,7 @@ if __name__ == "__main__":
     np.random.seed(SEED)
     torch.manual_seed(SEED)
     torch.cuda.manual_seed(SEED)
- 
+
     # argument parser
     parser = argparse.ArgumentParser()
     parser.add_argument('--wandb', action='store_true')
@@ -372,7 +375,7 @@ if __name__ == "__main__":
 
     # Initialize Dataset
     # train_dataset = TrainDataloader("train", params["dataset"])
-    train_dataset = TrainDataloader256("train", params["dataset"],use_aia131=True,use_aia1600=True,aia_mix="mix")
+    train_dataset = TrainDataloader256("train", params["dataset"], use_aia131=True, use_aia1600=True, aia_mix="mix")
     # aug_train_dataset = TrainDataloader("train", params["dataset"], augmentation=True)
     if params["dataset"]["mean"] != 0:
         mean = params["dataset"]["mean"]
@@ -386,10 +389,10 @@ if __name__ == "__main__":
     std *= args.debug_value
     print(mean, std)
     train_dataset.set_mean(mean, std)
-    
-    validation_dataset = TrainDataloader256("valid", params["dataset"],use_aia131=True,use_aia1600=True,aia_mix="mix")
+
+    validation_dataset = TrainDataloader256("valid", params["dataset"], use_aia131=True, use_aia1600=True, aia_mix="mix")
     validation_dataset.set_mean(mean, std)
-    test_dataset = TrainDataloader256("test", params["dataset"],use_aia131=True,use_aia1600=True,aia_mix="mix")
+    test_dataset = TrainDataloader256("test", params["dataset"], use_aia131=True, use_aia1600=True, aia_mix="mix")
     test_dataset.set_mean(mean, std)
 
 #############
@@ -403,14 +406,14 @@ if __name__ == "__main__":
     # print(prob)
 
 #############
-    
+
     print("Batch Sampling")
 
     if args.imbalance:
         train_dl = DataLoader(train_dataset, batch_size=params["bs"], shuffle=True, num_workers=2)
     else:
         train_dl = DataLoader(train_dataset, batch_sampler=TrainBalancedBatchSampler(
-            train_dataset, params["output_channel"], params["bs"]//params["output_channel"]), num_workers=2)
+            train_dataset, params["output_channel"], params["bs"] // params["output_channel"]), num_workers=2)
 
     validation_dl = DataLoader(validation_dataset,
                                batch_size=params["bs"], shuffle=False, num_workers=2)
@@ -421,7 +424,6 @@ if __name__ == "__main__":
     # ib = IB_FocalLoss()
     gmgs_criterion = gmgs_loss_function
     bs_criterion = bs_loss_function
-
 
     # model = FlareTransformerWithMAE(input_channel=params["input_channel"],
     #                          output_channel=params["output_channel"],
@@ -434,14 +436,12 @@ if __name__ == "__main__":
     #                          dec_depth=args.dec_depth,
     #                          has_vit_head=args.has_vit_head).to("cuda")
 
-
     # model = FlareTransformerWith1dMAE(input_channel=params["input_channel"],
     #                          output_channel=params["output_channel"],
     #                          sfm_params=params["SFM"],
     #                          mm_params=params["MM"],
     #                          window=params["dataset"]["window"],
     #                          token_window=args.token_window).to("cuda")
-
 
     # model = _FlareTransformerWithGAPMAE(input_channel=params["input_channel"],
     #                          output_channel=params["output_channel"],
@@ -452,7 +452,6 @@ if __name__ == "__main__":
     #                          embed_dim = args.dim,
     #                          enc_depth=args.enc_depth,
     #                          dec_depth=args.dec_depth).to("cuda")
-
 
     # model = FlareTransformerAIA(input_channel=params["input_channel"],
     #                          output_channel=params["output_channel"],
@@ -466,7 +465,6 @@ if __name__ == "__main__":
     #                             mm_params=params["MM"],
     #                             window=params["dataset"]["window"]).to("cuda")
 
-
     # model = FlareTransformerWithMultiPE(input_channel=params["input_channel"],
     #                         output_channel=params["output_channel"],
     #                         sfm_params=params["SFM"],
@@ -474,12 +472,11 @@ if __name__ == "__main__":
     #                         window=params["dataset"]["window"]).to("cuda")
 
     model = FlareTransformerWithConvNextAIA(input_channel=params["input_channel"],
-                                        output_channel=params["output_channel"],
-                                        input_conv_channel=1,
-                                    sfm_params=params["SFM"],
-                                    mm_params=params["MM"],
-                                    window=params["dataset"]["window"]).to("cuda")
-
+                                            output_channel=params["output_channel"],
+                                            input_conv_channel=1,
+                                            sfm_params=params["SFM"],
+                                            mm_params=params["MM"],
+                                            window=params["dataset"]["window"]).to("cuda")
 
     # model = FlareTransformerWithGAPSeqMAE(input_channel=params["input_channel"],
     #                                     output_channel=params["output_channel"],
@@ -498,7 +495,7 @@ if __name__ == "__main__":
 
     # Start Training
     best_score = {}
-    best_score["valid_"+params["main_metric"]] = -10
+    best_score["valid_" + params["main_metric"]] = -10
     best_epoch = 0
     model_update_dict = {}
     for e, epoch in enumerate(range(params["epochs"])):
@@ -507,7 +504,7 @@ if __name__ == "__main__":
         valid_score, valid_loss = eval_epoch(model, validation_dl)
         # test_score, test_loss = test_epoch(model, test_dl) # for train/val/test model
         test_score, test_loss = valid_score, valid_loss
-        
+
         torch.save(model.state_dict(), params["save_model_path"])
         best_score = valid_score
         best_epoch = e
@@ -529,7 +526,7 @@ if __name__ == "__main__":
 
     # Output Test Score
     print("========== TEST ===========")
-    model.load_state_dict(torch.load(params["save_model_path"])) 
+    model.load_state_dict(torch.load(params["save_model_path"]))
     test_score, _ = test_epoch(model, test_dl)
     print("epoch : ", best_epoch, test_score)
     if wandb_flag is True:
@@ -539,8 +536,8 @@ if __name__ == "__main__":
     if args.imbalance:
         print("Start CRT")
         train_dl = DataLoader(train_dataset, batch_sampler=TrainBalancedBatchSampler(
-            train_dataset, params["output_channel"], params["bs"]//params["output_channel"]))
-        
+            train_dataset, params["output_channel"], params["bs"] // params["output_channel"]))
+
         model.freeze_feature_extractor()
         summary(model)
 
@@ -552,8 +549,8 @@ if __name__ == "__main__":
             test_score, test_loss = valid_score, valid_loss
 
             log = {'epoch': epoch, 'train_loss': np.mean(train_loss),
-                'valid_loss': np.mean(valid_loss),
-                'test_loss': np.mean(test_loss)}
+                   'valid_loss': np.mean(valid_loss),
+                   'test_loss': np.mean(test_loss)}
             log.update(train_score)
             log.update(valid_score)
             log.update(test_score)

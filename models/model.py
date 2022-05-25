@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from models.attn import ProbAttention, AttentionLayer
 from timm.models.layers import trunc_normal_, DropPath
 
+
 class FlareFormer(nn.Module):
     def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24):
         super(FlareFormer, self).__init__()
@@ -29,20 +30,20 @@ class FlareFormer(nn.Module):
         )
 
         # Image Feature Extractor
-        self.img_embedder = ConvNeXt(in_chans=1,out_chans=mm_params["d_model"],depths=[2,2,2,2],dims=[64,128,256,512])
+        self.img_embedder = ConvNeXt(in_chans=1, out_chans=mm_params["d_model"], depths=[2, 2, 2, 2], dims=[64, 128, 256, 512])
 
-        self.linear = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
-                                   output_channel)
+        self.linear = nn.Linear(sfm_params["d_model"] + mm_params["d_model"],
+                                output_channel)
 
         self._linear = nn.Linear(
-            window*mm_params["d_model"]*2, sfm_params["d_model"])
+            window * mm_params["d_model"] * 2, sfm_params["d_model"])
         self.softmax = nn.Softmax(dim=1)
 
         self.img_linear = nn.Linear(
-            mm_params["d_model"]*window, mm_params["d_model"])
+            mm_params["d_model"] * window, mm_params["d_model"])
 
         self.phys_linear = nn.Linear(
-            sfm_params["d_model"]*window, sfm_params["d_model"])
+            sfm_params["d_model"] * window, sfm_params["d_model"])
         self.relu = torch.nn.ReLU()
         self.linear1 = torch.nn.Linear(
             input_channel, sfm_params["d_model"])  # 79 -> 128
@@ -51,7 +52,7 @@ class FlareFormer(nn.Module):
     def forward(self, img_list, feat):
         # image feat
         img_feat = torch.cat([self.img_embedder(img).unsqueeze(0) for img in img_list])
-        
+
         # physical feat
         phys_feat = self.linear1(feat)
         phys_feat = self.bn1(phys_feat)
@@ -61,12 +62,12 @@ class FlareFormer(nn.Module):
         merged_feat = torch.cat([phys_feat, img_feat], dim=1)
 
         # SFM
-        phys_feat = self.phys_encoder(phys_feat, merged_feat) 
-        phys_feat = torch.flatten(phys_feat, 1, 2) 
-        phys_feat = self.phys_linear(phys_feat) 
+        phys_feat = self.phys_encoder(phys_feat, merged_feat)
+        phys_feat = torch.flatten(phys_feat, 1, 2)
+        phys_feat = self.phys_linear(phys_feat)
 
         # MM
-        img_feat = self.mag_encoder(img_feat, merged_feat) 
+        img_feat = self.mag_encoder(img_feat, merged_feat)
         img_feat = torch.flatten(img_feat, 1, 2)
         img_feat = self.img_linear(img_feat)
 
@@ -75,16 +76,14 @@ class FlareFormer(nn.Module):
         output = self.linear(x)
         output = self.softmax(output)
 
-        return output, x 
+        return output, x
 
     def freeze_feature_extractor(self):
         for param in self.parameters():
-            param.requires_grad = False # 重み固定
-        
+            param.requires_grad = False  # 重み固定
+
         for param in self.linear.parameters():
             param.requires_grad = True
-
-
 
 
 class Block(nn.Module):
@@ -92,37 +91,39 @@ class Block(nn.Module):
     (1) DwConv -> LayerNorm (channels_first) -> 1x1 Conv -> GELU -> 1x1 Conv; all in (N, C, H, W)
     (2) DwConv -> Permute to (N, H, W, C); LayerNorm (channels_last) -> Linear -> GELU -> Linear; Permute back
     We use (2) as we find it slightly faster in PyTorch
-    
+
     Args:
         dim (int): Number of input channels.
         drop_path (float): Stochastic depth rate. Default: 0.0
         layer_scale_init_value (float): Init value for Layer Scale. Default: 1e-6.
     """
+
     def __init__(self, dim, drop_path=0., layer_scale_init_value=1e-6):
         super().__init__()
-        self.dwconv = nn.Conv2d(dim, dim, kernel_size=7, padding=3, groups=dim) # depthwise conv
+        self.dwconv = nn.Conv2d(dim, dim, kernel_size=7, padding=3, groups=dim)  # depthwise conv
         self.norm = LayerNorm2(dim, eps=1e-6)
-        self.pwconv1 = nn.Linear(dim, 4 * dim) # pointwise/1x1 convs, implemented with linear layers
+        self.pwconv1 = nn.Linear(dim, 4 * dim)  # pointwise/1x1 convs, implemented with linear layers
         self.act = nn.GELU()
         self.pwconv2 = nn.Linear(4 * dim, dim)
-        self.gamma = nn.Parameter(layer_scale_init_value * torch.ones((dim)), 
-                                    requires_grad=True) if layer_scale_init_value > 0 else None
+        self.gamma = nn.Parameter(layer_scale_init_value * torch.ones((dim)),
+                                  requires_grad=True) if layer_scale_init_value > 0 else None
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
     def forward(self, x):
         input = x
         x = self.dwconv(x)
-        x = x.permute(0, 2, 3, 1) # (N, C, H, W) -> (N, H, W, C)
+        x = x.permute(0, 2, 3, 1)  # (N, C, H, W) -> (N, H, W, C)
         x = self.norm(x)
         x = self.pwconv1(x)
         x = self.act(x)
         x = self.pwconv2(x)
         if self.gamma is not None:
             x = self.gamma * x
-        x = x.permute(0, 3, 1, 2) # (N, H, W, C) -> (N, C, H, W)
+        x = x.permute(0, 3, 1, 2)  # (N, H, W, C) -> (N, C, H, W)
 
         x = input + self.drop_path(x)
         return x
+
 
 class ConvNeXt(nn.Module):
     r""" ConvNeXt
@@ -137,13 +138,14 @@ class ConvNeXt(nn.Module):
         layer_scale_init_value (float): Init value for Layer Scale. Default: 1e-6.
         head_init_scale (float): Init scaling value for classifier weights and biases. Default: 1.
     """
-    def __init__(self, in_chans=3, out_chans=1000, 
-                 depths=[3, 3, 9, 3], dims=[96, 192, 384, 768], drop_path_rate=0., 
+
+    def __init__(self, in_chans=3, out_chans=1000,
+                 depths=[3, 3, 9, 3], dims=[96, 192, 384, 768], drop_path_rate=0.,
                  layer_scale_init_value=1e-6, head_init_scale=1.,
                  ):
         super().__init__()
 
-        self.downsample_layers = nn.ModuleList() # stem and 3 intermediate downsampling conv layers
+        self.downsample_layers = nn.ModuleList()  # stem and 3 intermediate downsampling conv layers
         stem = nn.Sequential(
             nn.Conv2d(in_chans, dims[0], kernel_size=4, stride=4),
             LayerNorm2(dims[0], eps=1e-6, data_format="channels_first")
@@ -151,23 +153,23 @@ class ConvNeXt(nn.Module):
         self.downsample_layers.append(stem)
         for i in range(3):
             downsample_layer = nn.Sequential(
-                    LayerNorm2(dims[i], eps=1e-6, data_format="channels_first"),
-                    nn.Conv2d(dims[i], dims[i+1], kernel_size=2, stride=2),
+                LayerNorm2(dims[i], eps=1e-6, data_format="channels_first"),
+                nn.Conv2d(dims[i], dims[i + 1], kernel_size=2, stride=2),
             )
             self.downsample_layers.append(downsample_layer)
 
-        self.stages = nn.ModuleList() # 4 feature resolution stages, each consisting of multiple residual blocks
-        dp_rates=[x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))] 
+        self.stages = nn.ModuleList()  # 4 feature resolution stages, each consisting of multiple residual blocks
+        dp_rates = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
         cur = 0
         for i in range(4):
             stage = nn.Sequential(
-                *[Block(dim=dims[i], drop_path=dp_rates[cur + j], 
-                layer_scale_init_value=layer_scale_init_value) for j in range(depths[i])]
+                *[Block(dim=dims[i], drop_path=dp_rates[cur + j],
+                        layer_scale_init_value=layer_scale_init_value) for j in range(depths[i])]
             )
             self.stages.append(stage)
             cur += depths[i]
 
-        self.norm = nn.LayerNorm(dims[-1], eps=1e-6) # final norm layer
+        self.norm = nn.LayerNorm(dims[-1], eps=1e-6)  # final norm layer
         # self.head = nn.Linear(dims[-1], num_classes)
         self.linear = nn.Linear(dims[-1], out_chans)
 
@@ -184,7 +186,7 @@ class ConvNeXt(nn.Module):
         for i in range(4):
             x = self.downsample_layers[i](x)
             x = self.stages[i](x)
-        return self.norm(x.mean([-2, -1])) # global average pooling, (N, C, H, W) -> (N, C)
+        return self.norm(x.mean([-2, -1]))  # global average pooling, (N, C, H, W) -> (N, C)
 
     def forward(self, x):
         x = self.forward_features(x)
@@ -192,12 +194,14 @@ class ConvNeXt(nn.Module):
         # x = self.head(x)
         return x
 
+
 class LayerNorm2(nn.Module):
-    r""" LayerNorm that supports two data formats: channels_last (default) or channels_first. 
-    The ordering of the dimensions in the inputs. channels_last corresponds to inputs with 
-    shape (batch_size, height, width, channels) while channels_first corresponds to inputs 
+    r""" LayerNorm that supports two data formats: channels_last (default) or channels_first.
+    The ordering of the dimensions in the inputs. channels_last corresponds to inputs with
+    shape (batch_size, height, width, channels) while channels_first corresponds to inputs
     with shape (batch_size, channels, height, width).
     """
+
     def __init__(self, normalized_shape, eps=1e-6, data_format="channels_last"):
         super().__init__()
         self.weight = nn.Parameter(torch.ones(normalized_shape))
@@ -205,9 +209,9 @@ class LayerNorm2(nn.Module):
         self.eps = eps
         self.data_format = data_format
         if self.data_format not in ["channels_last", "channels_first"]:
-            raise NotImplementedError 
+            raise NotImplementedError
         self.normalized_shape = (normalized_shape, )
-    
+
     def forward(self, x):
         if self.data_format == "channels_last":
             return F.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
@@ -219,12 +223,11 @@ class LayerNorm2(nn.Module):
             return x
 
 
-
 class InformerEncoderLayer(nn.Module):
     def __init__(self, attention, d_model, d_ff=None, dropout=0.1, activation="relu"):
         super(InformerEncoderLayer, self).__init__()
 
-        d_ff = d_ff or 4*d_model
+        d_ff = d_ff or 4 * d_model
         self.attention = attention
         self.conv1 = nn.Conv1d(in_channels=d_model,
                                out_channels=d_ff, kernel_size=1)
@@ -256,9 +259,7 @@ class InformerEncoderLayer(nn.Module):
         y = self.dropout(self.activation(self.conv1(y.transpose(-1, 1))))
         y = self.dropout(self.conv2(y).transpose(-1, 1))
 
-        return self.norm2(q+y)  # , attn
-
-
+        return self.norm2(q + y)  # , attn
 
 
 class PositionwiseFeedForward(torch.nn.Module):
@@ -272,4 +273,3 @@ class PositionwiseFeedForward(torch.nn.Module):
 
     def forward(self, x):
         return self.w_2(self.dropout(F.relu(self.w_1(x))))
-

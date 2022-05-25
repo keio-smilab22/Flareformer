@@ -8,6 +8,7 @@ from torch.utils.data import Dataset
 from skimage.transform import resize
 from tqdm import tqdm
 
+
 class FlareDataset(Dataset):
     def __init__(self, dataset_type, params, image_type="magnetogram", path="data/data_", has_window=True):
         self.path = path
@@ -28,13 +29,13 @@ class FlareDataset(Dataset):
 
         # get feat
         print("Loading features ...")
-        self.feat = self.get_multiple_year_data(start_year, end_year,"feat")[:, :90]
+        self.feat = self.get_multiple_year_data(start_year, end_year, "feat")[:, :90]
 
         # get window
         print("Loading windows ...")
         self.window = self.get_multiple_year_window(start_year, end_year, "window_48")[:, :self.window_size]
         self.window = np.asarray(self.window, dtype=int)
-        
+
         print(f"img: {self.img.shape}\n",
               f"feat: {self.feat.shape}\n",
               f"label: {self.label.shape}\n",
@@ -51,9 +52,10 @@ class FlareDataset(Dataset):
         """
             get sample
         """
-        if not self.has_window: return self.get_plain(idx)
+        if not self.has_window:
+            return self.get_plain(idx)
 
-        window = np.asarray(self.window[idx][:self.window_size],dtype=int)
+        window = np.asarray(self.window[idx][:self.window_size], dtype=int)
         imgs, feats = self.img[window], self.feat[window]
         imgs = (imgs - self.mean) / self.std
         x = (imgs, feats)
@@ -61,10 +63,10 @@ class FlareDataset(Dataset):
 
         return x, y, idx
 
-    def get_plain(self,idx):
+    def get_plain(self, idx):
         imgs, feats = self.img[idx], self.feat[idx]
         imgs = (imgs - self.mean) / self.std
-        x = (imgs,feats)
+        x = (imgs, feats)
         y = self.label[idx]
 
         return x, y, idx
@@ -75,25 +77,25 @@ class FlareDataset(Dataset):
         """
         result = []
         for i, year in enumerate(tqdm(range(start_year,
-                                 end_year+1))):
+                                 end_year + 1))):
             data_path_256 = f"{self.path}{year}_{image_type}_256.npy"
             data_path_512 = f"{self.path}{year}_{image_type}.npy"
-                
+
             if os.path.exists(data_path_256):
                 image_data = np.load(data_path_256)
             else:
                 image_data = np.load(data_path_512)
-                N,C,H,W = image_data.shape
-                _image_data = np.empty((N,1,256,256))
+                N, C, H, W = image_data.shape
+                _image_data = np.empty((N, 1, 256, 256))
                 for n in range(N):
-                    source = image_data[n,0,:,:].astype(np.uint8)
-                    _image_data[n,0,:,:] = resize(source,(256,256))
-                
+                    source = image_data[n, 0, :, :].astype(np.uint8)
+                    _image_data[n, 0, :, :] = resize(source, (256, 256))
+
                 image_data = _image_data
-                np.save(data_path_256,image_data)
+                np.save(data_path_256, image_data)
 
             for j in range(image_data.shape[0]):
-                assert np.max(image_data[j,:,:,:]) <= 1
+                assert np.max(image_data[j, :, :, :]) <= 1
 
             result.append(image_data)
 
@@ -104,7 +106,7 @@ class FlareDataset(Dataset):
             concatenate data of multiple years [feat/label]
         """
         result = []
-        for year in tqdm(range(start_year, end_year+1)):
+        for year in tqdm(range(start_year, end_year + 1)):
             data_path = f"{self.path}{year}_{data_type}.csv"
             data = np.loadtxt(data_path, delimiter=',')
             result.append(data)
@@ -115,7 +117,7 @@ class FlareDataset(Dataset):
             concatenate data of multiple years [window]
         """
         result, N = [], 0
-        for year in tqdm(range(start_year, end_year+1)):
+        for year in tqdm(range(start_year, end_year + 1)):
             data_path = f"{self.path}{year}_{data_type}.csv"
             data_path = self.path + str(year) + "_" + data_type + ".csv"
             data = np.loadtxt(data_path, delimiter=',')
@@ -132,7 +134,7 @@ class FlareDataset(Dataset):
         mean = np.mean(ndata)
         std = 0
         for i in tqdm(range(ndata.shape[0] // bs + 1)):
-            tmp = ndata[bs*i:bs*(i+1)] - mean
+            tmp = ndata[bs * i:bs * (i + 1)] - mean
             tmp = np.power(tmp, 2)
             std += np.sum(tmp)
         std = np.sqrt(std / len(ndata))
@@ -144,5 +146,3 @@ class FlareDataset(Dataset):
         """
         self.mean = mean
         self.std = std
-
- 

@@ -23,6 +23,7 @@ import colored_traceback.always
 
 onlyMandX = False
 
+
 def gmgs_loss_function(y_pred, y_true, score_matrix):
     """Compute GMGS loss"""
     score_matrix = torch.tensor(score_matrix).cuda()
@@ -39,7 +40,7 @@ def gmgs_loss_function(y_pred, y_true, score_matrix):
 # def focal_loss(y_pred, y_true, gamma=0, eps=1e-7):
 #     logit = F.softmax(y_pred, dim=-1)
 #     logit = logit.clamp(eps, 1. - eps)
-    
+
 #     weights = torch.ones_like(y_true).float()
 #     # weights[:,-1] = 0 # X class
 #     weights[:,-1] = 0 if epoch < 15 else 1 # X class
@@ -54,7 +55,6 @@ def gmgs_loss_function(y_pred, y_true, score_matrix):
 #     p = torch.exp(-input_values)
 #     loss = (1 - p) ** gamma * input_values * ib
 #     return loss.mean()
-
 
 
 # switch_epoch = 100
@@ -81,7 +81,7 @@ def gmgs_loss_function(y_pred, y_true, score_matrix):
 def label_smoothing(y_true, epsilon):
     """Return label smoothed vector"""
     x = y_true + epsilon
-    x = x / (1+epsilon*4)
+    x = x / (1 + epsilon * 4)
     return x
 
 
@@ -93,7 +93,8 @@ def bs_loss_function(y_pred, y_true):
     tmp = torch.mean(tmp)
     return tmp
 
-def train_epoch(model, train_dl, epoch,lr,  args):
+
+def train_epoch(model, train_dl, epoch, lr, args):
     """Return train loss and score for train set"""
     model.train()
     predictions = []
@@ -102,16 +103,17 @@ def train_epoch(model, train_dl, epoch,lr,  args):
     n = 0
     for _, (x, y, feat, idx) in enumerate(tqdm(train_dl)):
         if onlyMandX:
-            mask = (y[:,2] == 1) + (y[:,3] == 1)
+            mask = (y[:, 2] == 1) + (y[:, 3] == 1)
             x = x[mask]
             feat = feat[mask]
             y = y[mask]
-            if x.shape[0] == 0: continue
+            if x.shape[0] == 0:
+                continue
 
         if not args.without_schedule:
             adjust_learning_rate(optimizer, epoch, params["epochs"], lr, args)
         optimizer.zero_grad()
-        if isinstance(model,FlareTransformerWithMultiPE):
+        if isinstance(model, FlareTransformerWithMultiPE):
             output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float), idx.cuda().to(torch.float))
         else:
             output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float))
@@ -134,7 +136,7 @@ def train_epoch(model, train_dl, epoch,lr,  args):
         loss = bce_loss + \
             params["lambda"]["GMGS"] * gmgs_loss + \
             params["lambda"]["BS"] * bs_loss
-        
+
         # if epoch < switch_epoch:
         #     loss = ib_loss + \
         #         params["lambda"]["GMGS"] * gmgs_loss + \
@@ -157,8 +159,7 @@ def train_epoch(model, train_dl, epoch,lr,  args):
                        params["dataset"]["climatology"])
     score = calc_test_score(score, "train")
 
-    return score, train_loss/n
-
+    return score, train_loss / n
 
 
 def eval_epoch(model, validation_dl):
@@ -171,19 +172,19 @@ def eval_epoch(model, validation_dl):
     with torch.no_grad():
         for _, (x, y, feat, idx) in enumerate(tqdm(validation_dl)):
             if onlyMandX:
-                mask = (y[:,2] == 1) + (y[:,3] == 1)
+                mask = (y[:, 2] == 1) + (y[:, 3] == 1)
                 x = x[mask]
                 feat = feat[mask]
                 y = y[mask]
-                if x.shape[0] == 0: continue
+                if x.shape[0] == 0:
+                    continue
 
-
-            if isinstance(model,FlareTransformerWithMultiPE):
+            if isinstance(model, FlareTransformerWithMultiPE):
                 idx += len(train_dataset)
                 output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float), idx.cuda().to(torch.float))
             else:
-                output, feat = model(x.cuda().to(torch.float),feat.cuda().to(torch.float))
-                
+                output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float))
+
             # bce_loss = criterion(output, y.cuda().to(torch.long))
             bce_loss = criterion(output, torch.max(y, 1)[1].cuda().to(torch.long))
             if params["lambda"]["GMGS"] != 0:
@@ -195,7 +196,7 @@ def eval_epoch(model, validation_dl):
             if params["lambda"]["BS"] != 0:
                 bs_loss = bs_criterion(output, y.cuda().to(torch.float))
             else:
-                bs_loss = 0 
+                bs_loss = 0
             loss = bce_loss + \
                 params["lambda"]["GMGS"] * gmgs_loss + \
                 params["lambda"]["BS"] * bs_loss
@@ -208,11 +209,10 @@ def eval_epoch(model, validation_dl):
         score = calc_score(predictions, observations,
                            params["dataset"]["climatology"])
         score = calc_test_score(score, "valid")
-    return score, valid_loss/n
+    return score, valid_loss / n
 
 
-
-def pretrain_image_epoch(model, train_dl, epoch,lr,  args):
+def pretrain_image_epoch(model, train_dl, epoch, lr, args):
     """Return train loss and score for train set"""
     from sklearn import metrics
     model.train()
@@ -220,26 +220,27 @@ def pretrain_image_epoch(model, train_dl, epoch,lr,  args):
     observations = []
     train_loss = 0
     n = 0
-    confusion_mtx = np.zeros((3,3))
+    confusion_mtx = np.zeros((3, 3))
     for _, (x, y) in enumerate(tqdm(train_dl)):
         if not args.without_schedule:
             adjust_learning_rate(optimizer, epoch, params["epochs"], lr, args)
 
         optimizer.zero_grad()
         out = model(x.cuda().to(torch.float))
-        loss = criterion(out,y.cuda().long())
-        
-        loss = loss.mean() # finetune時のCEはmeanにしているので揃える
+        loss = criterion(out, y.cuda().long())
+
+        loss = loss.mean()  # finetune時のCEはmeanにしているので揃える
         loss.backward()
         optimizer.step()
 
         train_loss += (loss.detach().cpu().item() * x.shape[0])
         n += x.shape[0]
-        confusion_mtx += metrics.confusion_matrix(y, torch.argmax(out,dim=1).cpu(), labels=[0,1,2])
+        confusion_mtx += metrics.confusion_matrix(y, torch.argmax(out, dim=1).cpu(), labels=[0, 1, 2])
 
     print(confusion_mtx)
 
-    return train_loss/n
+    return train_loss / n
+
 
 def preeval_image_epoch(model, validation_dl):
     """Return val loss and score for val set"""
@@ -249,26 +250,24 @@ def preeval_image_epoch(model, validation_dl):
     observations = []
     valid_loss = 0
     n = 0
-    confusion_mtx = np.zeros((3,3))
+    confusion_mtx = np.zeros((3, 3))
     with torch.no_grad():
         for _, (x, y) in enumerate(tqdm(validation_dl)):
             optimizer.zero_grad()
             out = model(x.cuda().to(torch.float))
-            loss = criterion(out,y.cuda().long())
+            loss = criterion(out, y.cuda().long())
             loss = loss.mean()
             valid_loss += (loss.detach().cpu().item() * x.shape[0])
             n += x.shape[0]
-            confusion_mtx += metrics.confusion_matrix(y, torch.argmax(out,dim=1).cpu(), labels=[0,1,2])
-    
+            confusion_mtx += metrics.confusion_matrix(y, torch.argmax(out, dim=1).cpu(), labels=[0, 1, 2])
+
     print(confusion_mtx)
     acc = np.diag(confusion_mtx).sum() / confusion_mtx.sum()
     print("acc:", acc)
-    return valid_loss/n
+    return valid_loss / n
 
 
-
-
-def pretrain_epoch(model, train_dl, epoch,lr,  args):
+def pretrain_epoch(model, train_dl, epoch, lr, args):
     """Return train loss and score for train set"""
     model.train()
     predictions = []
@@ -281,7 +280,7 @@ def pretrain_epoch(model, train_dl, epoch,lr,  args):
 
         optimizer.zero_grad()
         loss = model(x.cuda().to(torch.float), feat.cuda().to(torch.float))
-        loss = loss.mean() # finetune時のCEはmeanにしているので揃える
+        loss = loss.mean()  # finetune時のCEはmeanにしているので揃える
         loss.backward()
         optimizer.step()
         model.step_ema()
@@ -289,7 +288,7 @@ def pretrain_epoch(model, train_dl, epoch,lr,  args):
         train_loss += (loss.detach().cpu().item() * x.shape[0])
         n += x.shape[0]
 
-    return train_loss/n
+    return train_loss / n
 
 
 def preeval_epoch(model, validation_dl):
@@ -302,11 +301,12 @@ def preeval_epoch(model, validation_dl):
     with torch.no_grad():
         for _, (x, y, feat, idx) in enumerate(tqdm(validation_dl)):
             if onlyMandX:
-                mask = (y[:,2] == 1) + (y[:,3] == 1)
+                mask = (y[:, 2] == 1) + (y[:, 3] == 1)
                 x = x[mask]
                 feat = feat[mask]
                 y = y[mask]
-                if x.shape[0] == 0: continue
+                if x.shape[0] == 0:
+                    continue
 
             optimizer.zero_grad()
             loss = model(x.cuda().to(torch.float), feat.cuda().to(torch.float))
@@ -314,40 +314,39 @@ def preeval_epoch(model, validation_dl):
             valid_loss += (loss.detach().cpu().item() * x.shape[0])
             n += x.shape[0]
 
-    return valid_loss/n
+    return valid_loss / n
 
 
-
-
-
-def calc_model_update(model, dl,model_update_dict): # モデルの更新量を計算する
+def calc_model_update(model, dl, model_update_dict):  # モデルの更新量を計算する
     model.eval()
     with torch.no_grad():
-        for _, (x, y, feat,idx) in enumerate(tqdm(dl)):
+        for _, (x, y, feat, idx) in enumerate(tqdm(dl)):
             x = x.cuda().to(torch.float)
             feat = feat.cuda().to(torch.float)
             mm_extractor = model.forward_mm_feature_extractor
             sfm_extractor = model.forward_sfm_feature_extractor
-            mm_output = mm_extractor(x,feat).cpu().numpy() # (B, W, d_model)
-            sfm_output = sfm_extractor(x,feat).cpu().numpy()
+            mm_output = mm_extractor(x, feat).cpu().numpy()  # (B, W, d_model)
+            sfm_output = sfm_extractor(x, feat).cpu().numpy()
             # mm_mean = mm_output.cpu().numpy().mean(axis=0)
             # sfm_mean = sfm_output.cpu().numpy().mean(axis=0)
 
             # print(mm_output.shape)
             # print(sfm_output.shape)
-            
-            if "mm" not in model_update_dict: model_update_dict["mm"] = [mm_output]
+
+            if "mm" not in model_update_dict:
+                model_update_dict["mm"] = [mm_output]
             else:
                 z = model_update_dict["mm"][0]
                 z = z - mm_output
-                t = [np.linalg.norm(z[i,0,:]) for i in range(z.shape[0])] # ウィンドウのheadだけ
+                t = [np.linalg.norm(z[i, 0, :]) for i in range(z.shape[0])]  # ウィンドウのheadだけ
                 model_update_dict["mm"].append(np.mean(t))
 
-            if "sfm" not in model_update_dict: model_update_dict["sfm"] = [sfm_output]
+            if "sfm" not in model_update_dict:
+                model_update_dict["sfm"] = [sfm_output]
             else:
                 z = model_update_dict["sfm"][0]
                 z = z - sfm_output
-                t = [np.linalg.norm(z[i,0,:]) for i in range(z.shape[0])] # ウィンドウのheadだけ
+                t = [np.linalg.norm(z[i, 0, :]) for i in range(z.shape[0])]  # ウィンドウのheadだけ
                 model_update_dict["sfm"].append(np.mean(t))
 
             break
@@ -357,7 +356,7 @@ def calc_model_update(model, dl,model_update_dict): # モデルの更新量を�
         #     observations.append(np.argmax(o))
 
     print("+-- model update --+")
-    for k,v in model_update_dict.items():
+    for k, v in model_update_dict.items():
         print(f" {k} = ", end='')
         print(v[1:])
 
@@ -374,18 +373,18 @@ def test_epoch(model, test_dl):
     with torch.no_grad():
         for _, (x, y, feat, idx) in enumerate(tqdm(test_dl)):
             if onlyMandX:
-                mask = (y[:,2] == 1) + (y[:,3] == 1)
+                mask = (y[:, 2] == 1) + (y[:, 3] == 1)
                 x = x[mask]
                 feat = feat[mask]
                 y = y[mask]
-                if x.shape[0] == 0: continue
+                if x.shape[0] == 0:
+                    continue
 
-
-            if isinstance(model,FlareTransformerWithMultiPE):
+            if isinstance(model, FlareTransformerWithMultiPE):
                 idx += len(train_dataset)
                 output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float), idx.cuda().to(torch.float))
             else:
-                output, feat = model(x.cuda().to(torch.float),feat.cuda().to(torch.float))
+                output, feat = model(x.cuda().to(torch.float), feat.cuda().to(torch.float))
 
             # bce_loss = criterion(output, y.cuda().to(torch.long))
             bce_loss = criterion(output, torch.max(y, 1)[1].cuda().to(torch.long))
@@ -411,17 +410,18 @@ def test_epoch(model, test_dl):
         score = calc_score(predictions, observations,
                            params["dataset"]["climatology"])
         score = calc_test_score(score, "test")
-    return score, test_loss/n
+    return score, test_loss / n
 
 
 def calc_test_score(score, label):
     """Return dict with key of label"""
     test_score = {}
     for k, v in score.items():
-        test_score[label+"_"+k] = v
+        test_score[label + "_" + k] = v
     return test_score
 
-def adjust_learning_rate(optimizer, current_epoch, epochs, lr, args): # optimizerの内部パラメタを直接変えちゃうので注意
+
+def adjust_learning_rate(optimizer, current_epoch, epochs, lr, args):  # optimizerの内部パラメタを直接変えちゃうので注意
     """Decay the learning rate with half-cycle cosine after warmup"""
     min_lr = 0
     if current_epoch < args.warmup_epochs:
@@ -445,7 +445,7 @@ if __name__ == "__main__":
     np.random.seed(SEED)
     torch.manual_seed(SEED)
     torch.cuda.manual_seed(SEED)
- 
+
     # argument parser
     parser = argparse.ArgumentParser()
     parser.add_argument('--wandb', action='store_true')
@@ -480,13 +480,11 @@ if __name__ == "__main__":
     print(json.dumps(params, indent=2))
     print("==========================================")
 
-
     # Initialize Loss Function
     criterion = nn.CrossEntropyLoss().cuda()
     # ib = IB_FocalLoss()
     gmgs_criterion = gmgs_loss_function
     bs_criterion = bs_loss_function
-
 
     # model = FlareTransformerWithMAE(input_channel=params["input_channel"],
     #                          output_channel=params["output_channel"],
@@ -499,14 +497,12 @@ if __name__ == "__main__":
     #                          dec_depth=args.dec_depth,
     #                          has_vit_head=args.has_vit_head).to("cuda")
 
-
     # model = FlareTransformerWith1dMAE(input_channel=params["input_channel"],
     #                          output_channel=params["output_channel"],
     #                          sfm_params=params["SFM"],
     #                          mm_params=params["MM"],
     #                          window=params["dataset"]["window"],
     #                          token_window=args.token_window).to("cuda")
-
 
     # model = _FlareTransformerWithGAPMAE(input_channel=params["input_channel"],
     #                          output_channel=params["output_channel"],
@@ -518,20 +514,17 @@ if __name__ == "__main__":
     #                          enc_depth=args.enc_depth,
     #                          dec_depth=args.dec_depth).to("cuda")
 
-
     model = FlareTransformer2vec(input_channel=params["input_channel"],
-                             output_channel=params["output_channel"],
-                             sfm_params=params["SFM"],
-                             mm_params=params["MM"],
-                             window=params["dataset"]["window"]).to("cuda")
-
+                                 output_channel=params["output_channel"],
+                                 sfm_params=params["SFM"],
+                                 mm_params=params["MM"],
+                                 window=params["dataset"]["window"]).to("cuda")
 
     # model = FlareTransformerWithPE(input_channel=params["input_channel"],
     #                             output_channel=params["output_channel"],
     #                             sfm_params=params["SFM"],
     #                             mm_params=params["MM"],
     #                             window=params["dataset"]["window"]).to("cuda")
-
 
     # model = FlareTransformerWithMultiPE(input_channel=params["input_channel"],
     #                         output_channel=params["output_channel"],
@@ -544,7 +537,6 @@ if __name__ == "__main__":
     #                                 sfm_params=params["SFM"],
     #                                 mm_params=params["MM"],
     #                                 window=params["dataset"]["window"]).to("cuda")
-
 
     # model = FlareTransformerWithGAPSeqMAE(input_channel=params["input_channel"],
     #                                     output_channel=params["output_channel"],
@@ -560,9 +552,8 @@ if __name__ == "__main__":
     model.switch_learn_type("pretrain")
     summary(model)
 
-
     # Pre-Train for Image Feature Extractor
-    import copy 
+    import copy
 
     model_for_image = ImageModel().cuda()
     model.encoder.magnetogram_feature_extractor.load_state_dict(copy.deepcopy(model_for_image.image_feature_extractor.state_dict()))
@@ -573,18 +564,18 @@ if __name__ == "__main__":
     val_image_dataset = PureImageDataset("valid", params["dataset"])
 
     mean, std = train_image_dataset.calc_mean()
-    train_image_dataset.set_mean(mean,std)
-    val_image_dataset.set_mean(mean,std)
+    train_image_dataset.set_mean(mean, std)
+    val_image_dataset.set_mean(mean, std)
     train_image_dl = DataLoader(train_image_dataset, batch_size=params["bs"], num_workers=2, shuffle=True)
-    val_image_dl = DataLoader(val_image_dataset,batch_size=params["bs"], num_workers=2, shuffle=False)
-    
+    val_image_dl = DataLoader(val_image_dataset, batch_size=params["bs"], num_workers=2, shuffle=False)
+
     for e, epoch in enumerate(range(100)):
         print("====== Epoch ", e, " ======")
         train_loss = pretrain_image_epoch(model_for_image, train_image_dl, epoch, params["lr"], args)
         valid_loss = preeval_image_epoch(model_for_image, val_image_dl)
-        
+
         log = {'image_pretrained_train_loss': np.mean(train_loss),
-            'image_pretrained_valid_loss': np.mean(valid_loss)}
+               'image_pretrained_valid_loss': np.mean(valid_loss)}
 
         torch.save(model.state_dict(), params["save_model_path"] + "pretrain_img.pth")
         if wandb_flag is True:
@@ -592,10 +583,9 @@ if __name__ == "__main__":
 
         print("Epoch {}: Train loss:{:.4f}  Valid loss:{:.4f}".format(e, train_loss, valid_loss))
 
-
     model.encoder.magnetogram_feature_extractor.load_state_dict(copy.deepcopy(model_for_image.image_feature_extractor.state_dict()))
     for param in model.encoder.magnetogram_feature_extractor.parameters():
-        param.requires_grad = False # pretrain時はimageの方の重みを固定する
+        param.requires_grad = False  # pretrain時はimageの方の重みを固定する
 
     # Pre-Train
     # Initialize Dataset
@@ -614,26 +604,25 @@ if __name__ == "__main__":
     std *= args.debug_value
     print(mean, std)
     train_dataset.set_mean(mean, std)
-    
+
     validation_dataset = TrainDataloader256("valid", params["dataset"])
     validation_dataset.set_mean(mean, std)
     test_dataset = TrainDataloader256("test", params["dataset"])
     test_dataset.set_mean(mean, std)
-    
+
     print("Batch Sampling")
 
     if args.imbalance:
         train_dl = DataLoader(train_dataset, batch_size=params["bs"], num_workers=2, shuffle=True)
     else:
         train_dl = DataLoader(train_dataset, num_workers=2, batch_sampler=TrainBalancedBatchSampler(
-            train_dataset, params["output_channel"], params["bs"]//params["output_channel"]))
+            train_dataset, params["output_channel"], params["bs"] // params["output_channel"]))
 
     validation_dl = DataLoader(validation_dataset, num_workers=2,
                                batch_size=params["bs"], shuffle=False)
     test_dl = DataLoader(test_dataset, num_workers=2, batch_size=params["bs"], shuffle=False)
 
-
-    #Pre-Train
+    # Pre-Train
     if not args.no_pretrained:
         optimizer = torch.optim.Adam(model.parameters(), lr=params["lr"])
         print("start pretraining ...")
@@ -642,9 +631,9 @@ if __name__ == "__main__":
             train_loss = pretrain_epoch(model, train_dl, epoch, params["lr"], args)
             valid_loss = preeval_epoch(model, validation_dl)
             # test_score, test_loss = test_epoch(model, test_dl) # for train/val/test model
-            
+
             log = {'pretrained_train_loss': np.mean(train_loss),
-                'pretrained_valid_loss': np.mean(valid_loss)}
+                   'pretrained_valid_loss': np.mean(valid_loss)}
 
             torch.save(model.state_dict(), params["save_model_path"] + "pretrain.pth")
             if wandb_flag is True:
@@ -655,29 +644,29 @@ if __name__ == "__main__":
     print("========== pretrained test ===========")
     model.switch_learn_type("finetune")
 
-    model.load_state_dict(torch.load(params["save_model_path"] + "pretrain.pth"),strict=False) 
+    model.load_state_dict(torch.load(params["save_model_path"] + "pretrain.pth"), strict=False)
     test_score, _ = test_epoch(model, test_dl)
     print(test_score)
 
     # Fine-Tuning
     best_score = {}
-    best_score["valid_"+params["main_metric"]] = -10
+    best_score["valid_" + params["main_metric"]] = -10
     best_epoch = 0
     model_update_dict = {}
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0000021)
-    
+
     print("start finetuning ...")
     model.switch_learn_type("finetune")
     if args.linear_probe:
         model.freeze_feature_extractor()
-    
+
     for e, epoch in enumerate(range(params["epochs"])):
         print("====== Epoch ", e, " ======")
         train_score, train_loss = train_epoch(model, train_dl, epoch, params["lr"], args)
         valid_score, valid_loss = eval_epoch(model, validation_dl)
         # test_score, test_loss = test_epoch(model, test_dl) # for train/val/test model
         test_score, test_loss = valid_score, valid_loss
-        
+
         torch.save(model.state_dict(), params["save_model_path"])
         best_score = valid_score
         best_epoch = e
@@ -699,7 +688,7 @@ if __name__ == "__main__":
 
     # Output Test Score
     print("========== TEST ===========")
-    model.load_state_dict(torch.load(params["save_model_path"])) 
+    model.load_state_dict(torch.load(params["save_model_path"]))
     test_score, _ = test_epoch(model, test_dl)
     print("epoch : ", best_epoch, test_score)
     if wandb_flag is True:
@@ -709,8 +698,8 @@ if __name__ == "__main__":
     if args.imbalance:
         print("Start CRT")
         train_dl = DataLoader(train_dataset, batch_sampler=TrainBalancedBatchSampler(
-            train_dataset, params["output_channel"], params["bs"]//params["output_channel"]))
-        
+            train_dataset, params["output_channel"], params["bs"] // params["output_channel"]))
+
         model.freeze_feature_extractor()
         summary(model)
 
@@ -722,8 +711,8 @@ if __name__ == "__main__":
             test_score, test_loss = valid_score, valid_loss
 
             log = {'epoch': epoch, 'train_loss': np.mean(train_loss),
-                'valid_loss': np.mean(valid_loss),
-                'test_loss': np.mean(test_loss)}
+                   'valid_loss': np.mean(valid_loss),
+                   'test_loss': np.mean(test_loss)}
             log.update(train_score)
             log.update(valid_score)
             log.update(test_score)

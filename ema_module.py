@@ -11,6 +11,7 @@ import logging
 
 import torch
 
+
 @dataclass
 class EMAModuleConfig:
     ema_decay: float = field(
@@ -114,8 +115,8 @@ class EMAModule:
             if "version" in key:
                 # Do not decay a model.version pytorch param
                 continue
-            
-            valid_type_set = set([torch.float16,torch.float32,torch.float64])
+
+            valid_type_set = set([torch.float16, torch.float32, torch.float64])
             if ema_param.dtype in valid_type_set:
                 if key in self.skip_keys:
                     ema_param = param.to(dtype=ema_param.dtype).clone()

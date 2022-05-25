@@ -2,6 +2,7 @@ import torch.nn as nn
 from typing import Callable, Optional
 from torch import Tensor
 
+
 class CNNModel(nn.Module):
     def __init__(self, output_channel=4, size=2, pretrain=False):
         super().__init__()
@@ -26,7 +27,7 @@ class CNNModel(nn.Module):
         # self.fc = nn.Linear(32*size*size, output_channel)
         self.softmax = nn.Softmax(dim=1)
 
-        self.fc = nn.Linear(32*size*size, 32)
+        self.fc = nn.Linear(32 * size * size, 32)
         self.fc2 = nn.Linear(32, output_channel)
         self.bn3 = nn.BatchNorm2d(8 * 4)
         self.dropout = nn.Dropout()
