@@ -1,13 +1,13 @@
 {
-    "wandb_name": "id1_2016_convnext_crt",
+    "wandb_name": "id26_2016",
     "epochs": 40,
     "lr": 0.0000021,
     "bs": 48,
-    "lambda": {
+    "factor": {
         "GMGS": 0.0001,
         "BS": 10
     },
-    "save_model_path": "models/id23_2016.pth",
+    "save_model_path": "checkpoints/id23_2016.pth",
     "dataset": {
         "window": 4,
         "year_split": {

@@ -6,7 +6,7 @@ from torchvision import transforms
 from PIL import Image
 import numpy as np
 from tqdm import tqdm
-from pathlib import Path
+
 
 def preprocess_magnetogram(img_path):
     """tmp"""
@@ -18,27 +18,9 @@ def preprocess_magnetogram(img_path):
     )
     img = transform(img)
     img = np.array(img)
-    print(img.shape)
     img = img[:, :, 0]
     img = img[np.newaxis, :, :]
     return img
-
-
-def preprocess_aia(img_path):
-    """tmp"""
-    img = Image.open(img_path)
-    transform = transforms.Compose(
-        [
-            transforms.Resize(512)
-        ]
-    )
-    img = transform(img)
-    img = np.array(img)
-    # img = img[:, :, 0]
-    # img = img[np.newaxis, :, :]
-    # img = img[np.newaxis, :, :, :] # (1,H,W,3)
-    img = img.transpose(2,0,1) # (3,H,W)
-    return img 
 
 
 def get_time(str_time):
@@ -82,12 +64,6 @@ if __name__ == "__main__":
     parser.add_argument('--start_year', default='2010')
     parser.add_argument('--end_year', default='2017')
     parser.add_argument('--horizon', default='48')
-    parser.add_argument('--magnetogram', action='store_true')
-    parser.add_argument('--aia131', action='store_true')
-    parser.add_argument('--aia1600', action='store_true')
-    parser.add_argument('--feature_and_label', action='store_true')
-    parser.add_argument('--window', action='store_true')
-
     args = parser.parse_args()
     database_path = args.database_path
     path = args.path
@@ -119,72 +95,41 @@ if __name__ == "__main__":
         db = list(map(json.loads, db))
 
     # Magnetogram Image
-    if args.magnetogram:
-        for y in year:
-            db_split = db[idx[y]["start"]:idx[y]["end"]+1]
-            image_data = []
-            output_path = path + y + "_magnetogram.npy"
-            print(output_path)
-            for i, data in enumerate(tqdm(db_split, total=len(db_split))):
-                # image
-                image_data.append(preprocess_magnetogram(data["magnetogram"]))
-            np.save(output_path, image_data)
-
-
-    # AIA131
-    if args.aia131:
-        for y in year:
-            db_split = db[idx[y]["start"]:idx[y]["end"]+1]
-            image_data = []
-            output_path = path + y + "_aia131.npy"
-            print(output_path)
-            for i, data in enumerate(tqdm(db_split, total=len(db_split))):
-                # image
-                data_path = data["aia131"]
-                data_path = data_path.replace("../flare_transformer/data/","/home/initial/workspace/flare_transformer/aia/")
-                image_data.append(preprocess_aia(data_path))
-            np.save(output_path, image_data)
-
-    if args.aia1600:
-        for y in year:
-            db_split = db[idx[y]["start"]:idx[y]["end"]+1]
-            image_data = []
-            output_path = path + y + "_aia1600.npy"
-            print(output_path)
-            for i, data in enumerate(tqdm(db_split, total=len(db_split))):
-                # image
-                data_path = data["aia1600"]
-                data_path = data_path.replace("../flare_transformer/data/","/home/initial/workspace/flare_transformer/aia/")
-                image_data.append(preprocess_aia(data_path))
-            np.save(output_path, image_data)
+    for y in year:
+        db_split = db[idx[y]["start"]:idx[y]["end"]+1]
+        image_data = []
+        output_path = path + y + "_magnetogram.npy"
+        print(output_path)
+        for i, data in enumerate(tqdm(db_split, total=len(db_split))):
+            # image
+            image_data.append(preprocess_magnetogram(data["magnetogram"]))
+        np.save(output_path, image_data)
 
     # Feature and label
-    if args.feature_and_label:
-        for y in year:
-            db_split = db[idx[y]["start"]:idx[y]["end"]+1]
-            image_data = []
-            output_feat_path = path + y + "_feat.csv"
-            output_label_path = path + y + "_label.csv"
-            with open(output_feat_path, "w") as wwf:
-                with open(output_label_path, "w") as wf:
-                    for i, data in enumerate(tqdm(db_split, total=len(db_split))):
-                        # feature
-                        wwf.write(data["feature"])
-                        wwf.write("\n")
-                        # label
-                        wf.write(data["flag"])
-                        wf.write("\n")
+    for y in year:
+        db_split = db[idx[y]["start"]:idx[y]["end"]+1]
+        image_data = []
+        output_feat_path = path + y + "_feat.csv"
+        output_label_path = path + y + "_label.csv"
+        with open(output_feat_path, "w") as wwf:
+            with open(output_label_path, "w") as wf:
+                for i, data in enumerate(tqdm(db_split, total=len(db_split))):
+                    # feature
+                    wwf.write(data["feature"])
+                    wwf.write("\n")
+                    # label
+                    wf.write(data["flag"])
+                    wf.write("\n")
 
     # Window index
-    if args.window:
-        fancy_index = []
-        for y in year:
-            db_split = db[idx[y]["start"]:idx[y]["end"]+1]
-            output_window_path = path + y + "_window_" + str(horizon) + ".csv"
-            with open(output_window_path, "w") as wf:
-                for i, data in enumerate(tqdm(db_split)):
-                    fancy_index = np.array(get_fancy_index(
-                        i+idx[y]["start"], db, data)) - idx[y]["start"]
-                    fancy_index = [max(x, 0) for x in fancy_index]
-                    wf.write(",".join(map(str, fancy_index)))
-                    wf.write("\n")
+    fancy_index = []
+    for y in year:
+        db_split = db[idx[y]["start"]:idx[y]["end"]+1]
+        output_window_path = path + y + "_window_" + str(horizon) + ".csv"
+        with open(output_window_path, "w") as wf:
+            for i, data in enumerate(tqdm(db_split)):
+                fancy_index = np.array(get_fancy_index(
+                    i+idx[y]["start"], db, data)) - idx[y]["start"]
+                fancy_index = [max(x, 0) for x in fancy_index]
+                wf.write(",".join(map(str, fancy_index)))
+                wf.write("\n")
