@@ -6,10 +6,21 @@ import os
 from torch.utils.data import Dataset
 from skimage.transform import resize
 from tqdm import tqdm
+from typing import Any
+from typing import Dict
+from numpy import ndarray
+from torch import Tensor
+from typing import Tuple
+from numpy import float32
 
 
 class FlareDataset(Dataset):
-    def __init__(self, dataset_type, params, image_type="magnetogram", path="data/data_", has_window=True):
+    def __init__(self,
+                 dataset_type: Dict[str, Any],
+                 params: str,
+                 image_type: str = "magnetogram",
+                 path: str = "data/data_",
+                 has_window: bool = True):
         self.path = path
         self.window_size = params["window"]
         self.has_window = has_window
@@ -40,14 +51,14 @@ class FlareDataset(Dataset):
               f"label: {self.label.shape}\n",
               f"window: {self.window.shape}\n")
 
-    def __len__(self):
+    def __len__(self) -> int:
         """
         Returns:
             [int]: [length of sample]
         """
         return len(self.label)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Tuple[Tuple[Tensor, ndarray], ndarray, int]:
         """
             get sample
         """
@@ -62,7 +73,7 @@ class FlareDataset(Dataset):
 
         return x, y, idx
 
-    def get_plain(self, idx):
+    def get_plain(self, idx: int) -> Tuple[Tuple[Tensor, ndarray], ndarray, int]:
         imgs, feats = self.img[idx], self.feat[idx]
         imgs = (imgs - self.mean) / self.std
         x = (imgs, feats)
@@ -70,7 +81,7 @@ class FlareDataset(Dataset):
 
         return x, y, idx
 
-    def get_multiple_year_image(self, start_year, end_year, image_type):
+    def get_multiple_year_image(self, start_year: int, end_year: int, image_type: str) -> ndarray:
         """
             concatenate data of multiple years [image]
         """
@@ -100,7 +111,7 @@ class FlareDataset(Dataset):
 
         return np.concatenate(result, axis=0)
 
-    def get_multiple_year_data(self, start_year, end_year, data_type):
+    def get_multiple_year_data(self, start_year: int, end_year: int, data_type: str) -> ndarray:
         """
             concatenate data of multiple years [feat/label]
         """
@@ -111,7 +122,7 @@ class FlareDataset(Dataset):
             result.append(data)
         return np.concatenate(result, axis=0)
 
-    def get_multiple_year_window(self, start_year, end_year, data_type):
+    def get_multiple_year_window(self, start_year: int, end_year: int, data_type: str) -> ndarray:
         """
             concatenate data of multiple years [window]
         """
@@ -124,7 +135,7 @@ class FlareDataset(Dataset):
             N += data.shape[0]
         return np.concatenate(result, axis=0)
 
-    def calc_mean(self):
+    def calc_mean(self) -> Tuple[float32, float32]:
         """
             calculate mean and std of images
         """
@@ -139,7 +150,7 @@ class FlareDataset(Dataset):
         std = np.sqrt(std / len(ndata))
         return mean, std
 
-    def set_mean(self, mean, std):
+    def set_mean(self, mean: float32, std: float32):
         """
             Set self.mean and self.std
         """

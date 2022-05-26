@@ -4,10 +4,18 @@ import torch.nn.functional as F
 
 from models.attn import ProbAttention, AttentionLayer
 from timm.models.layers import trunc_normal_, DropPath
+from torch import Tensor
+from typing import Tuple, List, Dict, Union
+from torch.nn.modules.container import Sequential
+from torch.nn.modules.conv import Conv2d
 
 
 class FlareFormer(nn.Module):
-    def __init__(self, input_channel, output_channel, sfm_params, mm_params, window=24):
+    def __init__(self, input_channel: int,
+                 output_channel: int,
+                 sfm_params: Dict[str, float],
+                 mm_params: Dict[str, float],
+                 window: int = 24):
         super(FlareFormer, self).__init__()
 
         # Informer``
@@ -49,7 +57,7 @@ class FlareFormer(nn.Module):
             input_channel, sfm_params["d_model"])  # 79 -> 128
         self.bn1 = torch.nn.BatchNorm1d(window)  # 128
 
-    def forward(self, img_list, feat):
+    def forward(self, img_list: Tensor, feat: Tensor) -> Tuple[Tensor, Tensor]:
         # image feat
         img_feat = torch.cat([self.img_embedder(img).unsqueeze(0) for img in img_list])
 
@@ -98,7 +106,9 @@ class Block(nn.Module):
         layer_scale_init_value (float): Init value for Layer Scale. Default: 1e-6.
     """
 
-    def __init__(self, dim, drop_path=0., layer_scale_init_value=1e-6):
+    def __init__(self, dim: int,
+                 drop_path: float = 0.,
+                 layer_scale_init_value: float = 1e-6):
         super().__init__()
         self.dwconv = nn.Conv2d(dim, dim, kernel_size=7, padding=3, groups=dim)  # depthwise conv
         self.norm = LayerNorm2(dim, eps=1e-6)
@@ -109,7 +119,7 @@ class Block(nn.Module):
                                   requires_grad=True) if layer_scale_init_value > 0 else None
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         input = x
         x = self.dwconv(x)
         x = x.permute(0, 2, 3, 1)  # (N, C, H, W) -> (N, H, W, C)
@@ -139,9 +149,14 @@ class ConvNeXt(nn.Module):
         head_init_scale (float): Init scaling value for classifier weights and biases. Default: 1.
     """
 
-    def __init__(self, in_chans=3, out_chans=1000,
-                 depths=[3, 3, 9, 3], dims=[96, 192, 384, 768], drop_path_rate=0.,
-                 layer_scale_init_value=1e-6, head_init_scale=1.,
+    def __init__(self,
+                 in_chans: int = 3,
+                 out_chans: int = 1000,
+                 depths: List[int] = [3, 3, 9, 3],
+                 dims: List[int] = [96, 192, 384, 768],
+                 drop_path_rate: float = 0.,
+                 layer_scale_init_value: float = 1e-6,
+                 head_init_scale: float = 1.
                  ):
         super().__init__()
 
@@ -177,18 +192,18 @@ class ConvNeXt(nn.Module):
         # self.head.weight.data.mul_(head_init_scale)
         # self.head.bias.data.mul_(head_init_scale)
 
-    def _init_weights(self, m):
+    def _init_weights(self, m: Union[nn.Module, nn.Module, nn.Module]):
         if isinstance(m, (nn.Conv2d, nn.Linear)):
             trunc_normal_(m.weight, std=.02)
             nn.init.constant_(m.bias, 0)
 
-    def forward_features(self, x):
+    def forward_features(self, x: Tensor) -> Tensor:
         for i in range(4):
             x = self.downsample_layers[i](x)
             x = self.stages[i](x)
         return self.norm(x.mean([-2, -1]))  # global average pooling, (N, C, H, W) -> (N, C)
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         x = self.forward_features(x)
         x = self.linear(x)
         # x = self.head(x)
@@ -202,7 +217,7 @@ class LayerNorm2(nn.Module):
     with shape (batch_size, channels, height, width).
     """
 
-    def __init__(self, normalized_shape, eps=1e-6, data_format="channels_last"):
+    def __init__(self, normalized_shape: int, eps: float = 1e-6, data_format: str = "channels_last"):
         super().__init__()
         self.weight = nn.Parameter(torch.ones(normalized_shape))
         self.bias = nn.Parameter(torch.zeros(normalized_shape))
@@ -212,7 +227,7 @@ class LayerNorm2(nn.Module):
             raise NotImplementedError
         self.normalized_shape = (normalized_shape, )
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         if self.data_format == "channels_last":
             return F.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
         elif self.data_format == "channels_first":
@@ -224,7 +239,12 @@ class LayerNorm2(nn.Module):
 
 
 class InformerEncoderLayer(nn.Module):
-    def __init__(self, attention, d_model, d_ff=None, dropout=0.1, activation="relu"):
+    def __init__(self,
+                 attention: AttentionLayer,
+                 d_model: int,
+                 d_ff: int = None,
+                 dropout: float = 0.1,
+                 activation: str = "relu"):
         super(InformerEncoderLayer, self).__init__()
 
         d_ff = d_ff or 4 * d_model
@@ -238,7 +258,7 @@ class InformerEncoderLayer(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.activation = F.relu if activation == "relu" else F.gelu
 
-    def forward(self, q, kv):
+    def forward(self, q: Tensor, kv: Tensor) -> Tensor:
         """
         How to use'
             x = encoder_layer(x)

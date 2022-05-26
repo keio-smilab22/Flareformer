@@ -5,12 +5,16 @@ import torch.nn.functional as F
 import numpy as np
 
 from math import sqrt
-import sys
-# from utils.masking import TriangularCausalMask, ProbMask
+from torch import Tensor
+from typing import Tuple, Optional, Any
 
 
 class FullAttention(nn.Module):
-    def __init__(self, mask_flag=True, factor=5, scale=None, attention_dropout=0.1, output_attention=False):
+    def __init__(self, mask_flag=True,
+                 factor=5,
+                 scale=None,
+                 attention_dropout=0.1,
+                 output_attention=False):
         super(FullAttention, self).__init__()
         self.scale = scale
         self.mask_flag = mask_flag
@@ -39,7 +43,12 @@ class FullAttention(nn.Module):
 
 
 class ProbAttention(nn.Module):
-    def __init__(self, mask_flag=True, factor=5, scale=None, attention_dropout=0.1, output_attention=False):
+    def __init__(self,
+                 mask_flag: bool = True,
+                 factor: int = 5,
+                 scale: Optional[float] = None,
+                 attention_dropout: float = 0.1,
+                 output_attention: bool = False):
         super(ProbAttention, self).__init__()
         self.factor = factor
         self.scale = scale
@@ -47,7 +56,11 @@ class ProbAttention(nn.Module):
         self.output_attention = output_attention
         self.dropout = nn.Dropout(attention_dropout)
 
-    def _prob_QK(self, Q, K, sample_k, n_top):  # n_top: c*ln(L_q)
+    def _prob_QK(self,
+                 Q: Tensor,
+                 K: Tensor,
+                 sample_k: int,
+                 n_top: int) -> Tuple[Tensor, Tensor]:  # n_top: c*ln(L_q)
         # Q [B, H, L, D]
         B, H, L_K, E = K.shape
         _, _, L_Q, _ = Q.shape
@@ -77,7 +90,7 @@ class ProbAttention(nn.Module):
 
         return Q_K, M_top
 
-    def _get_initial_context(self, V, L_Q):
+    def _get_initial_context(self, V: Tensor, L_Q: int) -> Tensor:
         B, H, L_V, D = V.shape
         if not self.mask_flag:
             # V_sum = V.sum(dim=-2)
@@ -90,7 +103,14 @@ class ProbAttention(nn.Module):
             contex = V.cumsum(dim=-2)
         return contex
 
-    def _update_context(self, context_in, V, scores, index, L_Q, attn_mask):
+    def _update_context(self,
+                        context_in: Tensor,
+                        V: Tensor,
+                        scores: Tensor,
+                        index: Tensor,
+                        L_Q: int,
+                        attn_mask: Optional[Any]
+                        ) -> Tuple[Tensor, None]:
         B, H, L_V, D = V.shape
 
         if self.mask_flag:
@@ -111,7 +131,11 @@ class ProbAttention(nn.Module):
         else:
             return (context_in, None)
 
-    def forward(self, queries, keys, values, attn_mask):
+    def forward(self,
+                queries: Tensor,
+                keys: Tensor,
+                values: Tensor,
+                attn_mask: Optional[Any]) -> Tuple[Tensor, None]:
         B, L_Q, H, D = queries.shape
         _, L_K, _, _ = keys.shape
 
@@ -144,8 +168,13 @@ class ProbAttention(nn.Module):
 
 
 class AttentionLayer(nn.Module):
-    def __init__(self, attention, d_model, n_heads,
-                 d_keys=None, d_values=None, mix=False):
+    def __init__(self,
+                 attention: ProbAttention,
+                 d_model: int,
+                 n_heads: int,
+                 d_keys: Optional[Any] = None,
+                 d_values: Optional[Any] = None,
+                 mix: bool = False):
         super(AttentionLayer, self).__init__()
 
         d_keys = d_keys or (d_model // n_heads)
@@ -159,7 +188,10 @@ class AttentionLayer(nn.Module):
         self.n_heads = n_heads
         self.mix = mix
 
-    def forward(self, queries, keys, values, attn_mask):
+    def forward(self, queries: Tensor,
+                keys: Tensor,
+                values: Tensor,
+                attn_mask: Optional[Any]) -> Tuple[Tensor, None]:
         B, L, _ = queries.shape
         _, S, _ = keys.shape
         H = self.n_heads

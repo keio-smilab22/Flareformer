@@ -3,6 +3,9 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import numpy as np
 import torch
+from datasets.flare import FlareDataset
+from numpy import int64
+from typing import Iterator, List
 
 
 class TrainBalancedBatchSampler(BatchSampler):
@@ -11,7 +14,7 @@ class TrainBalancedBatchSampler(BatchSampler):
     Returns batches of size n_classes * n_samples
     """
 
-    def __init__(self, dataset, n_classes, n_samples):
+    def __init__(self, dataset: FlareDataset, n_classes: int, n_samples: int):
         loader = DataLoader(dataset)
         self.labels_list = []
         for x, y, idx in tqdm(loader):
@@ -32,7 +35,7 @@ class TrainBalancedBatchSampler(BatchSampler):
         self.dataset = dataset
         self.batch_size = self.n_samples * self.n_classes
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[List[int64]]:
         self.count = 0
         while self.count + self.batch_size < len(self.dataset):
             classes = np.random.choice(
@@ -56,5 +59,5 @@ class TrainBalancedBatchSampler(BatchSampler):
             yield indices
             self.count += self.n_classes * self.n_samples
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.dataset) // self.batch_size
