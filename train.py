@@ -96,7 +96,7 @@ def main() -> None:
                              Log("valid", np.mean(valid_loss), valid_score),
                              Log("test", np.mean(test_loss), test_score)])
 
-        print("Epoch {}: Train loss:{:.4f}  Valid loss:{:.4f}".format(e, train_loss, valid_loss), test_score)
+        print("Epoch {}: Train loss:{:.4f}  Valid loss:{:.4f}".format(epoch, train_loss, valid_loss), test_score)
 
     # Evaluate
     print("\n========== eval ===========")
@@ -112,6 +112,7 @@ def main() -> None:
         model.freeze_feature_extractor()
         summary(model)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_for_stage2)
+
         for epoch in range(args.epoch_for_2stage):
             print(f"====== Epoch {epoch} ======")
             train_score, train_loss = train_epoch(model, optimizer, train_dl, epoch, args.lr_for_stage2, args, losser)
@@ -122,7 +123,7 @@ def main() -> None:
                                  Log("valid", np.mean(valid_loss), valid_score),
                                  Log("test", np.mean(test_loss), test_score)])
 
-            print("Epoch {}: Train loss:{:.4f}  Valid loss:{:.4f}".format(e, train_loss, valid_loss), test_score)
+            print("Epoch {}: Train loss:{:.4f}  Valid loss:{:.4f}".format(epoch, train_loss, valid_loss), test_score)
 
 
 if __name__ == "__main__":
