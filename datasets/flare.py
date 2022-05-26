@@ -6,11 +6,9 @@ import os
 from torch.utils.data import Dataset
 from skimage.transform import resize
 from tqdm import tqdm
-from typing import Any
-from typing import Dict
+from typing import Dict, Tuple, Any
 from numpy import ndarray
 from torch import Tensor
-from typing import Tuple
 from numpy import float32
 
 
