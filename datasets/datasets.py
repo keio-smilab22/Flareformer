@@ -1,9 +1,10 @@
+from argparse import Namespace
 from torch.utils.data import DataLoader
 from datasets.flare import FlareDataset
 from datasets.sampler import TrainBalancedBatchSampler
 
 
-def load_datasets(args):
+def load_datasets(args: Namespace):
     train_dataset = FlareDataset("train", args.dataset)
     val_dataset = FlareDataset("valid", args.dataset)
     test_dataset = FlareDataset("test", args.dataset)
@@ -18,7 +19,7 @@ def load_datasets(args):
     return train_dataset, val_dataset, test_dataset
 
 
-def prepare_dataloaders(args, imbalance):
+def prepare_dataloaders(args: Namespace, imbalance: bool):
     train_dataset, val_dataset, test_dataset = load_datasets(args)
 
     if imbalance:

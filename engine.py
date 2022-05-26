@@ -4,13 +4,26 @@ Train and eval functions used in main.py
 
 import numpy as np
 import torch
+from models.model import FlareFormer
+from utils.losses import Losser
 from utils.eval_utils import calc_score
-from utils.utils import *
+from utils.utils import adjust_learning_rate
+
 from tqdm import tqdm
+from argparse import Namespace
+from typing import Dict, Tuple, Any
+from torch.optim.adam import Adam
+from torch.utils.data.dataloader import DataLoader
 
 
-def train_epoch(model, optimizer, train_dl, epoch, lr, args, losser):
-    """Return train loss and score for train set"""
+def train_epoch(model: FlareFormer,
+                optimizer: Adam,
+                train_dl: DataLoader,
+                epoch: int,
+                lr: float,
+                args: Namespace,
+                losser: Losser) -> Tuple[Dict[str, Any], float]:
+    """train one epoch"""
     model.train()
     predictions = []
     observations = []
@@ -44,8 +57,11 @@ def train_epoch(model, optimizer, train_dl, epoch, lr, args, losser):
     return score, train_loss / n
 
 
-def eval_epoch(model, val_dl, losser, args):
-    """Return val loss and score for val set"""
+def eval_epoch(model: FlareFormer,
+               val_dl: DataLoader,
+               losser: Losser,
+               args: Namespace) -> Tuple[Dict[str, Any], float]:
+    """evaluate the given model"""
     model.eval()
     predictions = []
     observations = []
@@ -70,7 +86,7 @@ def eval_epoch(model, val_dl, losser, args):
     return score, valid_loss / n
 
 
-def calc_test_score(score, label):
+def calc_test_score(score: Dict[str, Any], label: str) -> Dict[str, Any]:
     """Return dict with key of label"""
     test_score = {}
     for k, v in score.items():

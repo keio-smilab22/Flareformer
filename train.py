@@ -2,24 +2,25 @@
 
 import json
 import argparse
+import torch
+import torch.nn as nn
+import numpy as np
+import colored_traceback.always
 
+from argparse import Namespace
+from typing import Dict, Tuple, Any
 from torchinfo import summary
 
-import numpy as np
-import torch
-from torch import nn
-from utils.utils import *
+from utils.utils import fix_seed, inject_args
 from utils.losses import LossConfig, Losser
-from engine import calc_test_score, train_epoch, eval_epoch
-import wandb
+from engine import train_epoch, eval_epoch
+from utils.logs import Log, Logger
 
 from models.model import FlareFormer
 from datasets.datasets import prepare_dataloaders
 
-import colored_traceback.always
 
-
-def parse_params():
+def parse_params(dump: bool = False) -> Tuple[Namespace, Dict[str, Any]]:
     parser = argparse.ArgumentParser()
     parser.add_argument('--wandb', action='store_true')
     parser.add_argument('--params', default='params/params2017.json')
@@ -35,33 +36,17 @@ def parse_params():
     args = parser.parse_args()
     params = json.loads(open(args.params).read())
     args = inject_args(args, params)
+
+    if dump:
+        print("==========================================")
+        print(json.dumps(params, indent=2))
+        print("==========================================")
+
     return args, params
 
 
-if __name__ == "__main__":
-    fix_seed(seed=42)
-    args, params = parse_params()
-
-    # Initialize W&B
-    if args.wandb:
-        wandb.init(project=args.project_name, name=args.wandb_name)
-
-    print("==========================================")
-    print(json.dumps(params, indent=2))
-    print("==========================================")
-
-    # Initialize Dataset
-
-    print("Prepare Dataloaders")
-    (train_dl, val_dl, test_dl), sample = prepare_dataloaders(args, args.imbalance)
-
-    # Initialize Loss Function
-    loss_config = LossConfig(lambda_bss=args.factor["BS"],
-                             lambda_gmgs=args.factor["GMGS"],
-                             score_mtx=args.dataset["GMGS_score_matrix"])
-
-    losser = Losser(loss_config)
-
+def build(args: Namespace, sample: Any) -> Tuple[nn.Module, Losser, torch.optim.Adam]:
+    # Model
     model = FlareFormer(input_channel=args.input_channel,
                         output_channel=args.output_channel,
                         sfm_params=args.SFM,
@@ -73,67 +58,72 @@ if __name__ == "__main__":
     else:
         summary(model)
 
+    # Loss Function
+    loss_config = LossConfig(lambda_bss=args.factor["BS"],
+                             lambda_gmgs=args.factor["GMGS"],
+                             score_mtx=args.dataset["GMGS_score_matrix"])
+    losser = Losser(loss_config)
+
+    # Optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
-    # Start Training
-    best_score = {}
-    best_score["valid_" + params["main_metric"]] = -10
-    best_epoch = 0
-    model_update_dict = {}
-    for e, epoch in enumerate(range(params["epochs"])):
-        print("====== Epoch ", e, " ======")
+    return model, losser, optimizer
+
+
+def main() -> None:
+    # init
+    fix_seed(seed=42)
+    args, params = parse_params(dump=True)
+    logger = Logger(args, wandb=args.wandb)
+
+    # Initialize Dataset
+    print("Prepare Dataloaders")
+    (train_dl, val_dl, test_dl), sample = prepare_dataloaders(args, args.imbalance)
+
+    print("Prepare model and optimizer")
+    model, losser, optimizer = build(args, sample)
+
+    # Training
+    print("Start training\n")
+    for epoch in range(args.epochs):
+        print(f"====== Epoch {epoch} ======")
         train_score, train_loss = train_epoch(model, optimizer, train_dl, epoch, args.lr, args, losser)
         valid_score, valid_loss = eval_epoch(model, val_dl, losser, args)
         test_score, test_loss = valid_score, valid_loss
 
         torch.save(model.state_dict(), params["save_model_path"])
-        best_score = valid_score
-        best_epoch = e
-
-        log = {'epoch': epoch, 'train_loss': np.mean(train_loss),
-               'valid_loss': np.mean(valid_loss),
-               'test_loss': np.mean(test_loss)}
-        log.update(train_score)
-        log.update(valid_score)
-        log.update(test_score)
-
-        if args.wandb is True:
-            wandb.log(log)
+        logger.write(epoch, [Log("train", np.mean(train_loss), train_score),
+                             Log("valid", np.mean(valid_loss), valid_score),
+                             Log("test", np.mean(test_loss), test_score)])
 
         print("Epoch {}: Train loss:{:.4f}  Valid loss:{:.4f}".format(e, train_loss, valid_loss), test_score)
 
-    # Output Test Score
-    print("========== TEST ===========")
+    # Evaluate
+    print("\n========== eval ===========")
     model.load_state_dict(torch.load(params["save_model_path"]))
     test_score, _ = eval_epoch(model, test_dl, losser, args)
-    print("epoch : ", best_epoch, test_score)
-    if args.wandb is True:
-        wandb.log(calc_test_score(test_score, "final"))
+    print(test_score)
 
-    # ここからCRT
+    # cRT
+    print("Start cRT(Classifier Re-training)")
     if args.imbalance:
-        print("Start CRT")
         (train_dl, val_dl, test_dl), sample = prepare_dataloaders(args, not args.imbalance)
 
         model.freeze_feature_extractor()
         summary(model)
-
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_for_stage2)
-        for e, epoch in enumerate(range(args.epoch_for_2stage)):
-            print("====== Epoch ", e, " ======")
+        for epoch in range(args.epoch_for_2stage):
+            print(f"====== Epoch {epoch} ======")
             train_score, train_loss = train_epoch(model, optimizer, train_dl, epoch, args.lr_for_stage2, args, losser)
             valid_score, valid_loss = eval_epoch(model, val_dl, losser, args)
             test_score, test_loss = valid_score, valid_loss
 
-            log = {'epoch': epoch, 'train_loss': np.mean(train_loss),
-                   'valid_loss': np.mean(valid_loss),
-                   'test_loss': np.mean(test_loss)}
-            log.update(train_score)
-            log.update(valid_score)
-            log.update(test_score)
+            logger.write(epoch, [Log("train", np.mean(train_loss), train_score),
+                                 Log("valid", np.mean(valid_loss), valid_score),
+                                 Log("test", np.mean(test_loss), test_score)])
 
-            if args.wandb is True:
-                wandb.log(log)
+            print("Epoch {}: Train loss:{:.4f}  Valid loss:{:.4f}".format(e, train_loss, valid_loss), test_score)
 
-            print("Epoch {}: Train loss:{:.4f}  Valid loss:{:.4f}".format(
-                e, train_loss, valid_loss), test_score)
+
+if __name__ == "__main__":
+    main()

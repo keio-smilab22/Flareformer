@@ -2,14 +2,31 @@ import numpy as np
 import torch
 import math
 
+from argparse import Namespace
+from typing import Any, Dict
 
-def fix_seed(seed):
+
+def fix_seed(seed: int) -> None:
+    """ fix seed
+
+    Args:
+        seed (int): seed value
+    """
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
 
 
-def inject_args(args, target):
+def inject_args(args: Namespace, target: Dict[str, Any]) -> Namespace:
+    """inject args
+
+    Args:
+        args (Namespace): argparser.args
+        target (Dict[str, Any]): target dict
+
+    Returns:
+        Namespace: args
+    """
     for key, value in target.items():
         args.__setattr__(key, value)
     return args

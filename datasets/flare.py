@@ -1,7 +1,6 @@
 """Dataloader for Flare Transformer"""
 
 import torch
-import torchvision.transforms as T
 import numpy as np
 import os
 from torch.utils.data import Dataset

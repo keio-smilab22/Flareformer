@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from torch import nn
 
 import torch
+from torch import Tensor
 
 
 @dataclass
@@ -16,7 +17,7 @@ class Losser:
         self.ce_loss = nn.CrossEntropyLoss().to(device)
         self.config = config
 
-    def __call__(self, y_pred, y_true):
+    def __call__(self, y_pred: Tensor, y_true: Tensor) -> Tensor:
         loss = self.ce_loss(y_pred, torch.argmax(y_true, dim=1))
         gmgs_loss = self.calc_gmgs_loss(y_pred, y_true)
         bss_loss = self.calc_bss_loss(y_pred, y_true)
@@ -24,7 +25,7 @@ class Losser:
             self.config.lambda_bss * bss_loss + \
             self.config.lambda_gmgs * gmgs_loss
 
-    def calc_gmgs_loss(self, y_pred, y_true):
+    def calc_gmgs_loss(self: Tensor, y_pred: Tensor, y_true) -> Tensor:
         """Compute GMGS loss"""
         score_mtx = torch.tensor(self.config.score_mtx).cuda()
         y_truel = torch.argmax(y_true, dim=1)
@@ -35,7 +36,7 @@ class Losser:
         output = torch.mean(output)
         return -output
 
-    def calc_bss_loss(self, y_pred, y_true):
+    def calc_bss_loss(self, y_pred: Tensor, y_true: Tensor) -> Tensor:
         """Compute BSS loss"""
         tmp = y_pred - y_true
         tmp = torch.mul(tmp, tmp)

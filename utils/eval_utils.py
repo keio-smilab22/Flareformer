@@ -3,9 +3,12 @@
 import math
 from sklearn import metrics
 import numpy as np
+from torch import Tensor
+from typing import Dict, List, Any, Tuple
+from numpy import ndarray
 
 
-def calc_score(y_pred, y_true, climatology):
+def calc_score(y_pred: Tensor, y_true: Tensor, climatology: List[float]) -> Dict[str, Any]:
     """
     Compute ACC, TSS, BSS, and GMGS
     """
@@ -32,7 +35,7 @@ def calc_mattheus(y_predl, y_true, flare_class):
     return mcc
 
 
-def calc_tss(y_predl, y_true, flare_class):
+def calc_tss(y_predl: Tensor, y_true: Tensor, flare_class: int) -> float:
     """
     Compute TSS
     """
@@ -45,7 +48,7 @@ def calc_tss(y_predl, y_true, flare_class):
     return float(tss)
 
 
-def calc_gmgs(y_predl, y_true):
+def calc_gmgs(y_predl: Tensor, y_true: Tensor) -> float:
     """
     Compute GMGS (simplified version)
     """
@@ -58,7 +61,7 @@ def calc_gmgs(y_predl, y_true):
     return (tss_x + tss_m + tss_c) / 3
 
 
-def calc_bss(y_pred, y_true, climatology):
+def calc_bss(y_pred: List[List[float]], y_true: Tensor, climatology: List[float]) -> float:
     """
     Compute BSS >= M
     """
@@ -81,6 +84,7 @@ def calc_bss(y_pred, y_true, climatology):
 
 
 def convert_2_one_hot_2class(binary_value):
+    # type: (int64) -> List[int]
     """
     return 2-dimentional 1-of-K vector
     """
@@ -90,6 +94,7 @@ def convert_2_one_hot_2class(binary_value):
 
 
 def calc_cm4(y_pred, y_true):
+    # type: (Tensor, Tensor) -> ndarray
     """
     return confusion matrix for 4 class
     """
@@ -97,6 +102,7 @@ def calc_cm4(y_pred, y_true):
 
 
 def calc_acc4(y_pred, y_true):
+    # type: (Tensor, Tensor) -> float64
     """
     Compute classification accuracy for 4 class
     """
@@ -107,6 +113,7 @@ def calc_acc4(y_pred, y_true):
 
 
 def calc_tp_4(four_class_matrix, flare_class):
+    # type: (ndarray, int) -> Tuple[int64, int64, int64, int64]
     """
     Convert 4 class output to 2 class
     """
