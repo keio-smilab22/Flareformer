@@ -18,24 +18,24 @@ class FlareFormer(nn.Module):
                  window: int = 24):
         super(FlareFormer, self).__init__()
 
-        # Informer``
-        self.mag_encoder = InformerEncoderLayer(
+        # Informer
+        self.mag_encoder = nn.Sequential(*[InformerEncoderLayer(
             AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
                            d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
             mm_params["d_model"],
             mm_params["d_ff"],
             dropout=mm_params["dropout"],
             activation="relu"
-        )
+        ) for _ in range(mm_params["N"])])
 
-        self.phys_encoder = InformerEncoderLayer(
+        self.phys_encoder = nn.Sequential(*[InformerEncoderLayer(
             AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
                            d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
             sfm_params["d_model"],
             sfm_params["d_ff"],
             dropout=sfm_params["dropout"],
             activation="relu"
-        )
+        ) for _ in range(sfm_params["N"])])
 
         # Image Feature Extractor
         self.img_embedder = ConvNeXt(in_chans=1, out_chans=mm_params["d_model"], depths=[2, 2, 2, 2], dims=[64, 128, 256, 512])
@@ -66,20 +66,19 @@ class FlareFormer(nn.Module):
         phys_feat = self.bn1(phys_feat)
         phys_feat = self.relu(phys_feat)
 
-        # concat
-        merged_feat = torch.cat([phys_feat, img_feat], dim=1)
-
-        # SFM
-        phys_feat = self.phys_encoder(phys_feat, merged_feat)
-        phys_feat = torch.flatten(phys_feat, 1, 2)
-        phys_feat = self.phys_linear(phys_feat)
-
-        # MM
-        img_feat = self.mag_encoder(img_feat, merged_feat)
-        img_feat = torch.flatten(img_feat, 1, 2)
-        img_feat = self.img_linear(img_feat)
+        # cross-attention
+        Np, Nm = len(self.phys_encoder), len(self.mag_encoder)
+        for i in range(max(Np, Nm)):
+            merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+            if i < Np:
+                phys_feat = self.phys_encoder[i](phys_feat, merged_feat)
+            if i < Nm:
+                img_feat = self.mag_encoder[i](img_feat, merged_feat)
 
         # Late fusion
+        phys_feat = self.phys_linear(phys_feat.flatten(1))
+        img_feat = self.img_linear(img_feat.flatten(1))
+
         x = torch.cat((phys_feat, img_feat), 1)
         output = self.linear(x)
         output = self.softmax(output)
