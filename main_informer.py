@@ -2,6 +2,7 @@ import argparse
 import os
 import torch
 import wandb
+import numpy as np
 
 from exp.exp_informer import Exp_Informer
 
@@ -64,6 +65,14 @@ args = parser.parse_args()
 
 args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False
 
+# fix seed
+SEED = 42
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+# torch.backends.cudnn.deterministic = True
+# torch.use_deterministic_algorithms = True
+
 if args.use_gpu and args.use_multi_gpu:
     args.devices = args.devices.replace(' ','')
     device_ids = args.devices.split(',')
@@ -80,7 +89,7 @@ if args.use_gpu and args.use_multi_gpu:
 #     'Solar':{'data':'solar_AL.csv','T':'POWER_136','M':[137,137,137],'S':[1,1,1],'MS':[137,137,1]},
 # }
 data_parser = {
-    'Flare':{'data':'data_feat_v2.csv','T':'logXmax1h','M':[96,96,96],'S':[1,1,1],'MS':[96,96,1]},
+    'Flare':{'data':'data_feat_v2.csv','T':'logXmax1h','M':[96,96,96],'S':[1,1,1],'MS':[95,95,1]},
 }
 if args.data in data_parser.keys():
     data_info = data_parser[args.data]

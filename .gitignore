@@ -11,3 +11,4 @@ output_dir/
 *.log
 .tmp0.txt
 results/
+result_images/

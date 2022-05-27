@@ -925,6 +925,7 @@ class Dataset_Custom(Dataset):
         num_train = 31439 # 2013-12-31 23:00
         # num_train = 22679
         num_test = 8760
+        num_test_2 = len(df_raw) - num_train
         
         num_vali = len(df_raw) - num_train - num_test
         # num_vali = 31440 - 22680
@@ -933,12 +934,14 @@ class Dataset_Custom(Dataset):
         print(f'val\n{df_raw[num_train-self.seq_len:num_train+num_vali]}')
         print(f'test\n{df_raw[len(df_raw)-num_test-self.seq_len:len(df_raw)]}')
 
-        # border1s = [0, num_train-self.seq_len, len(df_raw)-num_test-self.seq_len] #[train, val, test]
-        # border2s = [num_train, num_train+num_vali, len(df_raw)] #[train, val, test]
-        # border1s = [0, num_train-self.seq_len, len(df_raw)-num_test-self.seq_len]
+        border1s = [0, num_train-self.seq_len, len(df_raw)-num_test-self.seq_len] #[train, val, test]
+        border2s = [num_train, num_train+num_vali, len(df_raw)] #[train, val, test]
+        # border1s = [0, len(df_raw)-num_test-self.seq_len, num_train-self.seq_len] #[train, val, test]
+        # border2s = [num_train, len(df_raw), num_train+num_vali]
+        # border1s = [0, num_train-self.seq_len, len(df_raw)-num_test_2-self.seq_len]
         # border2s = [num_train, num_train+num_vali, len(df_raw)]
-        border1s = [0, num_train-self.seq_len, 0]
-        border2s = [num_train, num_train+num_vali, num_test]
+        # border1s = [0, num_train-self.seq_len, 0]
+        # border2s = [num_train, num_train+num_vali, num_test]
         border1 = border1s[self.set_type]
         border2 = border2s[self.set_type]
         
