@@ -16,13 +16,15 @@ from utils.losses import LossConfig, Losser
 from engine import train_epoch, eval_epoch
 from utils.logs import Log, Logger
 
-from models.model import FlareFormer
+# from models.model import FlareFormer
+import models
 from datasets.datasets import prepare_dataloaders
 
 
 def parse_params(dump: bool = False) -> Tuple[Namespace, Dict[str, Any]]:
     parser = argparse.ArgumentParser()
     parser.add_argument('--wandb', action='store_true')
+    parser.add_argument('--model', default='FlareFormer')
     parser.add_argument('--params', default='params/params_2017.json')
     parser.add_argument('--project_name', default='flare_transformer_test')
     parser.add_argument('--model_name', default='id1_2017')
@@ -46,13 +48,19 @@ def parse_params(dump: bool = False) -> Tuple[Namespace, Dict[str, Any]]:
     return args, params
 
 
+def get_model_class(name: str) -> nn.Module:
+    mclass = models.model.__dict__[name]
+    return mclass
+
+
 def build(args: Namespace, sample: Any) -> Tuple[nn.Module, Losser, torch.optim.Adam]:
     # Model
-    model = FlareFormer(input_channel=args.input_channel,
-                        output_channel=args.output_channel,
-                        sfm_params=args.SFM,
-                        mm_params=args.MM,
-                        window=args.dataset["window"]).to("cuda")
+    Model = get_model_class(args.model)
+    model = Model(input_channel=args.input_channel,
+                  output_channel=args.output_channel,
+                  sfm_params=args.SFM,
+                  mm_params=args.MM,
+                  window=args.dataset["window"]).to("cuda")
 
     if args.detail_summary:
         summary(model, [(args.bs, *feature.shape) for feature in sample[0::2]])
