@@ -8,6 +8,7 @@ from torch import Tensor
 from typing import Tuple, List, Dict, Union
 from torch.nn.modules.container import Sequential
 from torch.nn.modules.conv import Conv2d
+from models.cnn import CNNModel
 
 
 class FlareFormer(nn.Module):
@@ -74,6 +75,162 @@ class FlareFormer(nn.Module):
                 phys_feat = self.phys_encoder[i](phys_feat, merged_feat)
             if i < Nm:
                 img_feat = self.mag_encoder[i](img_feat, merged_feat)
+
+        # Late fusion
+        phys_feat = self.phys_linear(phys_feat.flatten(1))
+        img_feat = self.img_linear(img_feat.flatten(1))
+
+        x = torch.cat((phys_feat, img_feat), 1)
+        output = self.linear(x)
+        output = self.softmax(output)
+
+        return output, x
+
+    def freeze_feature_extractor(self):
+        for param in self.parameters():
+            param.requires_grad = False  # 重み固定
+
+        for param in self.linear.parameters():
+            param.requires_grad = True
+
+
+class FlareFormerWithCNN(nn.Module):
+    def __init__(self, input_channel: int,
+                 output_channel: int,
+                 sfm_params: Dict[str, float],
+                 mm_params: Dict[str, float],
+                 window: int = 24):
+        super(FlareFormerWithCNN, self).__init__()
+
+        # Informer
+        self.mag_encoder = nn.Sequential(*[InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
+                           d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
+            mm_params["d_model"],
+            mm_params["d_ff"],
+            dropout=mm_params["dropout"],
+            activation="relu"
+        ) for _ in range(mm_params["N"])])
+
+        self.phys_encoder = nn.Sequential(*[InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
+                           d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
+            sfm_params["d_model"],
+            sfm_params["d_ff"],
+            dropout=sfm_params["dropout"],
+            activation="relu"
+        ) for _ in range(sfm_params["N"])])
+
+        # Image Feature Extractor
+        self.img_embedder = CNNModel(output_channel=output_channel, pretrain=False)
+
+        self.linear = nn.Linear(sfm_params["d_model"] + mm_params["d_model"],
+                                output_channel)
+
+        self._linear = nn.Linear(
+            window * mm_params["d_model"] * 2, sfm_params["d_model"])
+        self.softmax = nn.Softmax(dim=1)
+
+        self.img_linear = nn.Linear(
+            mm_params["d_model"] * window, mm_params["d_model"])
+
+        self.phys_linear = nn.Linear(
+            sfm_params["d_model"] * window, sfm_params["d_model"])
+        self.relu = torch.nn.ReLU()
+        self.linear1 = torch.nn.Linear(
+            input_channel, sfm_params["d_model"])  # 79 -> 128
+        self.bn1 = torch.nn.BatchNorm1d(window)  # 128
+
+    def forward(self, img_list: Tensor, feat: Tensor) -> Tuple[Tensor, Tensor]:
+        # image feat
+        img_feat = torch.cat([self.img_embedder(img).unsqueeze(0) for img in img_list])
+
+        # physical feat
+        phys_feat = self.linear1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+
+        # cross-attention
+        Np, Nm = len(self.phys_encoder), len(self.mag_encoder)
+        for i in range(max(Np, Nm)):
+            merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+            if i < Np:
+                phys_feat = self.phys_encoder[i](phys_feat, merged_feat)
+            if i < Nm:
+                img_feat = self.mag_encoder[i](img_feat, merged_feat)
+
+        # Late fusion
+        phys_feat = self.phys_linear(phys_feat.flatten(1))
+        img_feat = self.img_linear(img_feat.flatten(1))
+
+        x = torch.cat((phys_feat, img_feat), 1)
+        output = self.linear(x)
+        output = self.softmax(output)
+
+        return output, x
+
+    def freeze_feature_extractor(self):
+        for param in self.parameters():
+            param.requires_grad = False  # 重み固定
+
+        for param in self.linear.parameters():
+            param.requires_grad = True
+
+
+class FlareFormerWithVanillaTransformer(nn.Module):
+    def __init__(self, input_channel: int,
+                 output_channel: int,
+                 sfm_params: Dict[str, float],
+                 mm_params: Dict[str, float],
+                 window: int = 24):
+        super(FlareFormerWithVanillaTransformer, self).__init__()
+
+        # Informer
+        self.mag_encoder = nn.Sequential(*[
+            nn.MultiheadAttention(mm_params["d_model"], mm_params["h"], dropout=mm_params["dropout"])
+            for _ in range(mm_params["N"])])
+
+        self.phys_encoder = nn.Sequential(*[
+            nn.MultiheadAttention(sfm_params["d_model"], sfm_params["h"], dropout=sfm_params["dropout"])
+            for _ in range(mm_params["N"])])
+
+        # Image Feature Extractor
+        self.img_embedder = ConvNeXt(in_chans=1, out_chans=mm_params["d_model"], depths=[2, 2, 2, 2], dims=[64, 128, 256, 512])
+
+        self.linear = nn.Linear(sfm_params["d_model"] + mm_params["d_model"],
+                                output_channel)
+
+        self._linear = nn.Linear(
+            window * mm_params["d_model"] * 2, sfm_params["d_model"])
+        self.softmax = nn.Softmax(dim=1)
+
+        self.img_linear = nn.Linear(
+            mm_params["d_model"] * window, mm_params["d_model"])
+
+        self.phys_linear = nn.Linear(
+            sfm_params["d_model"] * window, sfm_params["d_model"])
+        self.relu = torch.nn.ReLU()
+        self.linear1 = torch.nn.Linear(
+            input_channel, sfm_params["d_model"])  # 79 -> 128
+        self.bn1 = torch.nn.BatchNorm1d(window)  # 128
+
+    def forward(self, img_list: Tensor, feat: Tensor) -> Tuple[Tensor, Tensor]:
+        # image feat
+        img_feat = torch.cat([self.img_embedder(img).unsqueeze(0) for img in img_list])
+
+        # physical feat
+        phys_feat = self.linear1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+
+        # cross-attention
+        Np, Nm = len(self.phys_encoder), len(self.mag_encoder)
+        for i in range(max(Np, Nm)):
+            merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+            if i < Np:
+                phys_feat, _ = self.phys_encoder[i](phys_feat, merged_feat, merged_feat)
+            if i < Nm:
+                img_feat, _ = self.mag_encoder[i](img_feat, merged_feat, merged_feat)
 
         # Late fusion
         phys_feat = self.phys_linear(phys_feat.flatten(1))
