@@ -332,8 +332,8 @@ class Exp_Informer(Exp_Basic):
         if self.args.inverse:
             outputs = dataset_object.inverse_transform(outputs)
         f_dim = -1 if self.args.features=='MS' else 0
-        # batch_y = batch_y[:,-self.args.pred_len:,f_dim:].to(self.device)
-        batch_y = batch_y[:,-1:,f_dim:].to(self.device)
+        batch_y = batch_y[:,-self.args.pred_len:,f_dim:].to(self.device)
+        # batch_y = batch_y[:,-1:,f_dim:].to(self.device)
 
 
         return outputs, batch_y
