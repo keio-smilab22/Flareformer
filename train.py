@@ -23,8 +23,9 @@ from datasets.datasets import prepare_dataloaders
 def parse_params(dump: bool = False) -> Tuple[Namespace, Dict[str, Any]]:
     parser = argparse.ArgumentParser()
     parser.add_argument('--wandb', action='store_true')
-    parser.add_argument('--params', default='params/params2017.json')
+    parser.add_argument('--params', default='params/params_2017.json')
     parser.add_argument('--project_name', default='flare_transformer_test')
+    parser.add_argument('--model_name', default='id1_2017')
     parser.add_argument('--warmup_epochs', default=5, type=int)
     parser.add_argument('--without_schedule', action='store_false')
     parser.add_argument('--lr_for_stage2', default=0.000008, type=float)
