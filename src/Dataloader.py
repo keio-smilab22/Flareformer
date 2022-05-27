@@ -922,18 +922,28 @@ class Dataset_Custom(Dataset):
 
         # num_train = int(len(df_raw)*0.7)
         # num_test = int(len(df_raw)*0.2)
-        num_train = 31439
-        num_test = 8761
+        num_train = 31439 # 2013-12-31 23:00
+        # num_train = 22679
+        num_test = 8760
         
-
         num_vali = len(df_raw) - num_train - num_test
-        border1s = [0, num_train-self.seq_len, len(df_raw)-num_test-self.seq_len] #[train, val, test]
-        border2s = [num_train, num_train+num_vali, len(df_raw)] #[train, val, test]
-        # border1s = [0, 0, 0]
-        # border2s = [num_train, num_train, num_train]
+        # num_vali = 31440 - 22680
+        
+        print(f'train\n{df_raw[0:num_train]}')
+        print(f'val\n{df_raw[num_train-self.seq_len:num_train+num_vali]}')
+        print(f'test\n{df_raw[len(df_raw)-num_test-self.seq_len:len(df_raw)]}')
+
+        # border1s = [0, num_train-self.seq_len, len(df_raw)-num_test-self.seq_len] #[train, val, test]
+        # border2s = [num_train, num_train+num_vali, len(df_raw)] #[train, val, test]
+        # border1s = [0, num_train-self.seq_len, len(df_raw)-num_test-self.seq_len]
+        # border2s = [num_train, num_train+num_vali, len(df_raw)]
+        border1s = [0, num_train-self.seq_len, 0]
+        border2s = [num_train, num_train+num_vali, num_test]
         border1 = border1s[self.set_type]
         border2 = border2s[self.set_type]
         
+        # TODO testをtrainを入れる
+
         if self.features=='M' or self.features=='MS':
             cols_data = df_raw.columns[1:]
             df_data = df_raw[cols_data]
@@ -945,9 +955,9 @@ class Dataset_Custom(Dataset):
 
         if self.scale:
             train_data = df_data[border1s[0]:border2s[0]] # NOTE Only train dataset to be normalized
-            self.scaler.fit(train_data.values)
-            data = self.scaler.transform(df_data.values)
-            print(f"data: {data.shape}")
+            self.scaler.fit(train_data.values) # trainのmean, stdを計算
+            data = self.scaler.transform(df_data.values) # 全データをtrainのmean, stdで標準化
+            # print(f"data: {data.shape}")
             
         else:
             data = df_data.values
