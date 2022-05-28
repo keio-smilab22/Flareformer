@@ -15,5 +15,5 @@ do
     python train.py --model FlareFormerWithCNN --model_name id17a_${year}_ablation --params params/params_${year}.json --warmup_epochs=5 --epoch_for_2stage=10 --imbalance --wandb
     
     # Vanilla Transformer
-    python train.py --model FlareFormerWithVanillaTransformer --model_name resnet_${year}_ablation --params params/params_${year}.json --warmup_epochs=5 --epoch_for_2stage=10 --imbalance --wandb
+    python train.py --model FlareFormerWithVanillaTransformer --model_name vanilla_trm_${year}_ablation --params params/params_${year}.json --warmup_epochs=5 --epoch_for_2stage=10 --imbalance --wandb
 done
