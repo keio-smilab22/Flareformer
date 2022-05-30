@@ -61,6 +61,8 @@ parser.add_argument('--gpu', type=int, default=0, help='gpu')
 parser.add_argument('--use_multi_gpu', action='store_true', help='use multiple gpus', default=False)
 parser.add_argument('--devices', type=str, default='0,1,2,3',help='device ids of multile gpus')
 
+parser.add_argument('--year', type=int, default=2015, help='year of test data')
+
 args = parser.parse_args()
 
 args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False
@@ -89,7 +91,8 @@ if args.use_gpu and args.use_multi_gpu:
 #     'Solar':{'data':'solar_AL.csv','T':'POWER_136','M':[137,137,137],'S':[1,1,1],'MS':[137,137,1]},
 # }
 data_parser = {
-    'Flare':{'data':'data_feat_v2.csv','T':'logXmax1h','M':[96,96,96],'S':[1,1,1],'MS':[95,95,1]},
+    'Flare':{'data':'data_feat_v2.csv','T':'logXmax1h','M':[95,95,95],'S':[1,1,1],'MS':[95,95,1]},
+    'Flare_stddev':{'data':'data_feat_v2.csv','T':'logXmax1h','M':[91,91,91],'S':[1,1,1],'MS':[91,91,1]},
 }
 if args.data in data_parser.keys():
     data_info = data_parser[args.data]

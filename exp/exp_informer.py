@@ -1,4 +1,4 @@
-from src.Dataloader import Dataset_Custom, Dataset_Pred
+from src.Dataloader import Dataset_Custom, Dataset_Custom_Stddev, Dataset_Pred
 from exp.exp_basic import Exp_Basic
 from src.model_informer import *
 
@@ -89,7 +89,7 @@ class Exp_Informer(Exp_Basic):
 
         data_dict = {
             'Flare':Dataset_Custom,
-
+            'Flare_stddev':Dataset_Custom_Stddev,
         }
         Data = data_dict[self.args.data]
         timeenc = 0 if args.embed!='timeF' else 1
@@ -112,7 +112,8 @@ class Exp_Informer(Exp_Basic):
             inverse=args.inverse,
             timeenc=timeenc,
             freq=freq,
-            cols=args.cols
+            cols=args.cols,
+            year=args.year,
         )
         print(flag, len(data_set))
         data_loader = DataLoader(

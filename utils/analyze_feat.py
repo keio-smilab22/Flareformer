@@ -92,8 +92,8 @@ def analyze_feat(feat_path, target='logXmax1h', seq_len=1, set_type=0, scale=Fal
 
 
 if __name__ == '__main__':
-    feat_path = 'data/data_all_v2.csv'
+    feat_path = 'data/data_all_stddev_fillna0.csv'
 
-    for i in range(0, 24 * 30 * 12 * 6, 24 * 30 * 3):
+    for i in range(0, 24 * 30 * 12 * 8, 24 * 30 * 3):
         analyze_feat(feat_path, set_type=0, index=i)
         

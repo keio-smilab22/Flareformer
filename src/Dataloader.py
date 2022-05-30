@@ -869,7 +869,7 @@ class TrainDatasetForPyramid(Dataset):
 class Dataset_Custom(Dataset):
     def __init__(self, root_path, flag='train', size=None, 
                  features='S', feat_path='data_all_v2.csv', magnetogram_path='data_magnetogram_256.npy',
-                 target='logXmax1h', scale=True, inverse=False, timeenc=0, freq='h', cols=None):
+                 target='logXmax1h', scale=True, inverse=False, timeenc=0, freq='h', cols=None, year=2014):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
@@ -895,6 +895,7 @@ class Dataset_Custom(Dataset):
         self.root_path = root_path
         self.feat_path = feat_path
         self.magnetogram_path = magnetogram_path
+        self.year = year
 
         self.__read_data__()
 
@@ -920,22 +921,194 @@ class Dataset_Custom(Dataset):
             cols.remove('Time')
         df_raw = df_raw[['Time']+cols+[self.target]]
 
+        year_dict = {
+            2015:{'num_train':31439, 'num_test':8760, 'end_index':48960},
+        }
         # num_train = int(len(df_raw)*0.7)
         # num_test = int(len(df_raw)*0.2)
         num_train = 31439 # 2013-12-31 23:00
         # num_train = 22679
         num_test = 8760
         num_test_2 = len(df_raw) - num_train
+
+        end_index = 48961 # 2016-01-01 00:00
         
-        num_vali = len(df_raw) - num_train - num_test
+        # num_vali = len(df_raw) - num_train - num_test
+        num_vali = end_index - num_train - num_test
         # num_vali = 31440 - 22680
         
         print(f'train\n{df_raw[0:num_train]}')
         print(f'val\n{df_raw[num_train-self.seq_len:num_train+num_vali]}')
         print(f'test\n{df_raw[len(df_raw)-num_test-self.seq_len:len(df_raw)]}')
 
-        border1s = [0, num_train-self.seq_len, len(df_raw)-num_test-self.seq_len] #[train, val, test]
-        border2s = [num_train, num_train+num_vali, len(df_raw)] #[train, val, test]
+        # border1s = [0, num_train-self.seq_len, len(df_raw)-num_test-self.seq_len] #[train, val, test]
+        # border2s = [num_train, num_train+num_vali, len(df_raw)] #[train, val, test]
+        border1s = [0, num_train-self.seq_len, end_index-num_test-self.seq_len] #[train, val, test]
+        border2s = [num_train, num_train+num_vali, end_index] #[train, val, test]
+        
+        # border1s = [0, len(df_raw)-num_test-self.seq_len, num_train-self.seq_len] #[train, val, test]
+        # border2s = [num_train, len(df_raw), num_train+num_vali]
+        # border1s = [0, num_train-self.seq_len, len(df_raw)-num_test_2-self.seq_len]
+        # border2s = [num_train, num_train+num_vali, len(df_raw)]
+        # border1s = [0, num_train-self.seq_len, 0]
+        # border2s = [num_train, num_train+num_vali, num_test]
+        border1 = border1s[self.set_type]
+        border2 = border2s[self.set_type]
+        
+        # TODO testをtrainを入れる
+
+        if self.features=='M' or self.features=='MS':
+            cols_data = df_raw.columns[1:]
+            df_data = df_raw[cols_data]
+        elif self.features=='S':
+            df_data = df_raw[[self.target]]
+
+        # print(f"df_raw: {df_raw}")
+        # print(f"df_data {df_data}")
+
+        if self.scale:
+            train_data = df_data[border1s[0]:border2s[0]] # NOTE Only train dataset to be normalized
+            self.scaler.fit(train_data.values) # trainのmean, stdを計算
+            data = self.scaler.transform(df_data.values) # 全データをtrainのmean, stdで標準化
+            # print(f"data: {data.shape}")
+            
+        else:
+            data = df_data.values
+            # print(f"data: {data}")
+            
+        df_stamp = df_raw[['Time']][border1:border2]
+        df_stamp['Time'] = pd.to_datetime(df_stamp["Time"], format='%Y-%m-%d %H:%M:%S')
+        data_stamp = time_features(df_stamp, timeenc=self.timeenc, freq=self.freq)
+        
+        self.data_x = data[border1:border2]
+        self.data_magnetogram = data_magnetogram[border1:border2]
+
+        if self.inverse:
+            self.data_y = df_data.values[border1:border2]
+        else:
+            self.data_y = data[border1:border2]
+        self.data_stamp = data_stamp
+        # print(self.data_x)
+        # print(self.data_y)
+    
+    def __getitem__(self, index):
+        s_begin = index # start index
+        s_end = s_begin + self.seq_len # end index
+        r_begin = s_end - self.label_len # decoder start index, label_lenだけ前のデータを使う
+        r_end = r_begin + self.label_len + self.pred_len
+        # Informer decoder input: concat[start token series(label_len), zero padding series(pred_len)]
+
+        # print(f"s_begin: {s_begin}")
+        # print(f"s_end: {s_end}")
+        # print(f"r_begin: {r_begin}")
+        # print(f"r_end: {r_end}")
+
+        seq_x = self.data_x[s_begin:s_end]
+        # print(f"self.data_x.shape: {self.data_x.shape}")
+        # print(f"self.data_magnetogram.shape: {self.data_magnetogram.shape}")
+
+        seq_magnetogram = self.data_magnetogram[s_begin:s_end]
+        # print(f"index: {index}, seq_x: {seq_x.shape}, seq_magnetogram: {seq_magnetogram.shape}")
+
+        if self.inverse:
+            seq_y = np.concatenate([self.data_x[r_begin:r_begin+self.label_len], self.data_y[r_begin+self.label_len:r_end]], 0)
+        else:
+            seq_y = self.data_y[r_begin:r_end] #2:28
+        seq_x_mark = self.data_stamp[s_begin:s_end]
+        seq_y_mark = self.data_stamp[r_begin:r_end]
+        # seq_y_mark = seq_y_mark[-1]
+
+        
+        return seq_x, seq_magnetogram, seq_y, seq_x_mark, seq_y_mark
+    
+    def __len__(self):
+        return len(self.data_x) - self.seq_len- self.pred_len + 1
+
+    def inverse_transform(self, data):
+        return self.scaler.inverse_transform(data)
+
+
+class Dataset_Custom_Stddev(Dataset):
+    def __init__(self, root_path, flag='train', size=None, 
+                 features='S', feat_path='data_all_v2.csv', magnetogram_path='data_magnetogram_256.npy',
+                 target='logXmax1h', scale=True, inverse=False, timeenc=0, freq='h', cols=None, year=2014):
+        # size [seq_len, label_len, pred_len]
+        # info
+        if size == None:
+            self.seq_len = 24*4*4
+            self.label_len = 24*4
+            self.pred_len = 24*4
+        else:
+            self.seq_len = size[0]
+            self.label_len = size[1]
+            self.pred_len = size[2]
+        # init
+        assert flag in ['train', 'test', 'val']
+        type_map = {'train':0, 'val':1, 'test':2}
+        self.set_type = type_map[flag]
+        
+        self.features = features
+        self.target = target
+        self.scale = scale
+        self.inverse = inverse
+        self.timeenc = timeenc
+        self.freq = freq
+        self.cols=cols
+        self.root_path = root_path
+        self.feat_path = feat_path
+        self.magnetogram_path = magnetogram_path
+        self.year = year
+
+        self.__read_data__()
+
+    def __read_data__(self):
+        self.scaler = StandardScaler()
+        df_raw = pd.read_csv(os.path.join(self.root_path,
+                                          self.feat_path))
+        # TODO check if name is correct
+        data_magnetogram = np.load(os.path.join(self.root_path,self.magnetogram_path))
+
+        '''
+        df_raw.columns: ['Time', ...(other features), target feature]
+        '''
+        # cols = list(df_raw.columns); 
+        # print(df_raw.columns)
+
+        if self.cols:
+            cols=self.cols.copy()
+            cols.remove(self.target)
+        else:
+            cols = list(df_raw.columns)
+            cols.remove(self.target)
+            cols.remove('Time')
+        df_raw = df_raw[['Time']+cols+[self.target]]
+
+        year_dict = {
+            2015:{'num_train':31440, 'num_test':8760, 'end_index':48960},
+            2016:{'num_train':40200, 'num_test':8784, 'end_index':57744},
+            2017:{'num_train':48960, 'num_test':8692, 'end_index':66437},
+        }
+        # num_train = int(len(df_raw)*0.7)
+        # num_test = int(len(df_raw)*0.2)
+        num_train = year_dict[self.year]['num_train']
+        # num_train = 22679
+        num_test = year_dict[self.year]['num_test']
+        num_test_2 = len(df_raw) - num_train
+
+        end_index = year_dict[self.year]['end_index']
+        # num_vali = len(df_raw) - num_train - num_test
+        num_vali = end_index - num_train - num_test
+        # num_vali = 31440 - 22680
+        
+        print(f'train\n{df_raw[0:num_train]}')
+        print(f'val\n{df_raw[num_train-self.seq_len:num_train+num_vali]}')
+        print(f'test\n{df_raw[end_index-num_test-self.seq_len:end_index]}')
+
+        # border1s = [0, num_train-self.seq_len, len(df_raw)-num_test-self.seq_len] #[train, val, test]
+        # border2s = [num_train, num_train+num_vali, len(df_raw)] #[train, val, test]
+        border1s = [0, num_train-self.seq_len, end_index-num_test-self.seq_len] #[train, val, test]
+        border2s = [num_train, num_train+num_vali, end_index] #[train, val, test]
+        
         # border1s = [0, len(df_raw)-num_test-self.seq_len, num_train-self.seq_len] #[train, val, test]
         # border2s = [num_train, len(df_raw), num_train+num_vali]
         # border1s = [0, num_train-self.seq_len, len(df_raw)-num_test_2-self.seq_len]
