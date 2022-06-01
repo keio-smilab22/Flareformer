@@ -1,5 +1,6 @@
 """Dataloader for Flare Transformer"""
 
+from distutils.log import debug
 import torch
 import numpy as np
 import os
@@ -14,11 +15,14 @@ from numpy import float32
 
 class FlareDataset(Dataset):
     def __init__(self,
-                 dataset_type: Dict[str, Any],
-                 params: str,
+                 dataset_type: str,
+                 params: Dict[str, Any],
                  image_type: str = "magnetogram",
                  path: str = "data/data_",
+                 debug: bool = False,
                  has_window: bool = True):
+
+        print(f"====== {dataset_type} ======")
         self.path = path
         self.window_size = params["window"]
         self.has_window = has_window
@@ -44,10 +48,16 @@ class FlareDataset(Dataset):
         self.window = self.get_multiple_year_window(start_year, end_year, "window_48")[:, :self.window_size]
         self.window = np.asarray(self.window, dtype=int)
 
-        print(f"img: {self.img.shape}\n",
-              f"feat: {self.feat.shape}\n",
-              f"label: {self.label.shape}\n",
-              f"window: {self.window.shape}\n")
+        if debug:
+            print(f"img: {self.img.shape}\n",
+                  f"feat: {self.feat.shape}\n",
+                  f"label: {self.label.shape}\n",
+                  f"window: {self.window.shape}\n")
+        else:
+            shapes = [self.img.shape, self.feat.shape, self.label.shape, self.window.shape]
+            samples = shapes[0][0]
+            print(f"Samples: {samples}")
+            assert all([samples == shape[0] for shape in shapes]), "The number of all samples must be equal."
 
     def __len__(self) -> int:
         """
@@ -137,6 +147,7 @@ class FlareDataset(Dataset):
         """
             calculate mean and std of images
         """
+        print("Calculate mean and std ...")
         bs = 1000000000
         ndata = np.ravel(self.img)
         mean = np.mean(ndata)
@@ -146,6 +157,8 @@ class FlareDataset(Dataset):
             tmp = np.power(tmp, 2)
             std += np.sum(tmp)
         std = np.sqrt(std / len(ndata))
+        print(f"(mean,std) = ({mean},{std})\n")
+
         return mean, std
 
     def set_mean(self, mean: float32, std: float32):

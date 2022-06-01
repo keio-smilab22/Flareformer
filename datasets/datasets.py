@@ -4,13 +4,12 @@ from datasets.flare import FlareDataset
 from datasets.sampler import TrainBalancedBatchSampler
 
 
-def load_datasets(args: Namespace):
-    train_dataset = FlareDataset("train", args.dataset)
-    val_dataset = FlareDataset("valid", args.dataset)
-    test_dataset = FlareDataset("test", args.dataset)
+def load_datasets(args: Namespace, debug: bool):
+    train_dataset = FlareDataset("train", args.dataset, debug=debug)
+    val_dataset = FlareDataset("valid", args.dataset, debug=debug)
+    test_dataset = FlareDataset("test", args.dataset, debug=debug)
 
     mean, std = train_dataset.calc_mean()
-    print(f"(mean,std) = ({mean},{std})")
 
     train_dataset.set_mean(mean, std)
     val_dataset.set_mean(mean, std)
@@ -19,8 +18,9 @@ def load_datasets(args: Namespace):
     return train_dataset, val_dataset, test_dataset
 
 
-def prepare_dataloaders(args: Namespace, imbalance: bool):
-    train_dataset, val_dataset, test_dataset = load_datasets(args)
+def prepare_dataloaders(args: Namespace, debug: bool, imbalance: bool):
+    print("Prepare Dataloaders")
+    train_dataset, val_dataset, test_dataset = load_datasets(args, debug)
 
     if imbalance:
         train_dl = DataLoader(train_dataset, batch_size=args.bs, shuffle=True, num_workers=2)

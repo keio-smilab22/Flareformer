@@ -15,6 +15,7 @@ class TrainBalancedBatchSampler(BatchSampler):
     """
 
     def __init__(self, dataset: FlareDataset, n_classes: int, n_samples: int):
+        print("Prepare Batch Sampler ...")
         loader = DataLoader(dataset)
         self.labels_list = []
         for x, y, idx in tqdm(loader):

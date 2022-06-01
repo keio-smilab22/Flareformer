@@ -34,6 +34,7 @@ def parse_params(dump: bool = False) -> Tuple[Namespace, Dict[str, Any]]:
     parser.add_argument('--epoch_for_2stage', default=25, type=int)
     parser.add_argument('--detail_summary', action='store_true')
     parser.add_argument('--imbalance', action='store_true')
+    parser.add_argument('--debug', action='store_true')
 
     # read params/params.json
     args = parser.parse_args()
@@ -54,6 +55,7 @@ def get_model_class(name: str) -> nn.Module:
 
 
 def build(args: Namespace, sample: Any) -> Tuple[nn.Module, Losser, torch.optim.Adam]:
+    print("Prepare model and optimizer", end="")
     # Model
     Model = get_model_class(args.model)
     model = Model(input_channel=args.input_channel,
@@ -61,11 +63,6 @@ def build(args: Namespace, sample: Any) -> Tuple[nn.Module, Losser, torch.optim.
                   sfm_params=args.SFM,
                   mm_params=args.MM,
                   window=args.dataset["window"]).to("cuda")
-
-    if args.detail_summary:
-        summary(model, [(args.bs, *feature.shape) for feature in sample[0::2]])
-    else:
-        summary(model)
 
     # Loss Function
     loss_config = LossConfig(lambda_bss=args.factor["BS"],
@@ -76,6 +73,12 @@ def build(args: Namespace, sample: Any) -> Tuple[nn.Module, Losser, torch.optim.
     # Optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
+    print(" ... ok")
+    if args.detail_summary:
+        summary(model, [(args.bs, *feature.shape) for feature in sample[0::2]])
+    else:
+        summary(model)
+
     return model, losser, optimizer
 
 
@@ -85,11 +88,10 @@ def main() -> None:
     args, params = parse_params(dump=True)
     logger = Logger(args, wandb=args.wandb)
 
-    # Initialize Dataset
-    print("Prepare Dataloaders")
-    (train_dl, val_dl, test_dl), sample = prepare_dataloaders(args, args.imbalance)
+    # Prepare dataloaders
+    (train_dl, val_dl, test_dl), sample = prepare_dataloaders(args, args.debug, args.imbalance)
 
-    print("Prepare model and optimizer")
+    # Prepare model and optimizer
     model, losser, optimizer = build(args, sample)
 
     # Training
@@ -114,7 +116,7 @@ def main() -> None:
     print(test_score)
 
     # cRT
-    print("Start cRT(Classifier Re-training)")
+    print("Start cRT (Classifier Re-training)")
     if args.imbalance:
         (train_dl, val_dl, test_dl), sample = prepare_dataloaders(args, not args.imbalance)
 
