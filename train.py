@@ -118,7 +118,7 @@ def main() -> None:
     # cRT
     print("Start cRT (Classifier Re-training)")
     if args.imbalance:
-        (train_dl, val_dl, test_dl), sample = prepare_dataloaders(args, not args.imbalance)
+        (train_dl, val_dl, test_dl), sample = prepare_dataloaders(args, args.debug, not args.imbalance)
 
         model.freeze_feature_extractor()
         summary(model)
