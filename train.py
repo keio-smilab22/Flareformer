@@ -10,6 +10,7 @@ import colored_traceback.always
 from argparse import Namespace
 from typing import Dict, Tuple, Any
 from torchinfo import summary
+from utils.statistics import Stat
 
 from utils.utils import fix_seed, inject_args
 from utils.losses import LossConfig, Losser
@@ -54,7 +55,7 @@ def get_model_class(name: str) -> nn.Module:
     return mclass
 
 
-def build(args: Namespace, sample: Any) -> Tuple[nn.Module, Losser, torch.optim.Adam]:
+def build(args: Namespace, sample: Any) -> Tuple[nn.Module, Losser, torch.optim.Adam, Stat]:
     print("Prepare model and optimizer", end="")
     # Model
     Model = get_model_class(args.model)
@@ -73,13 +74,16 @@ def build(args: Namespace, sample: Any) -> Tuple[nn.Module, Losser, torch.optim.
     # Optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
+    # Stat
+    stat = Stat(args.dataset["climatology"])
+
     print(" ... ok")
     if args.detail_summary:
         summary(model, [(args.bs, *feature.shape) for feature in sample[0::2]])
     else:
         summary(model)
 
-    return model, losser, optimizer
+    return model, losser, optimizer, stat
 
 
 def main() -> None:
@@ -92,14 +96,14 @@ def main() -> None:
     (train_dl, val_dl, test_dl), sample = prepare_dataloaders(args, args.debug, args.imbalance)
 
     # Prepare model and optimizer
-    model, losser, optimizer = build(args, sample)
+    model, losser, optimizer, stat = build(args, sample)
 
     # Training
     print("Start training\n")
     for epoch in range(args.epochs):
         print(f"====== Epoch {epoch} ======")
-        train_score, train_loss = train_epoch(model, optimizer, train_dl, epoch, args.lr, args, losser)
-        valid_score, valid_loss = eval_epoch(model, val_dl, losser, args)
+        train_score, train_loss = train_epoch(model, optimizer, train_dl, epoch, args.lr, args, losser, stat)
+        valid_score, valid_loss = eval_epoch(model, val_dl, losser, args, stat)
         test_score, test_loss = valid_score, valid_loss
 
         torch.save(model.state_dict(), params["save_model_path"])
@@ -126,8 +130,8 @@ def main() -> None:
 
         for epoch in range(args.epoch_for_2stage):
             print(f"====== Epoch {epoch} ======")
-            train_score, train_loss = train_epoch(model, optimizer, train_dl, epoch, args.lr_for_stage2, args, losser)
-            valid_score, valid_loss = eval_epoch(model, val_dl, losser, args)
+            train_score, train_loss = train_epoch(model, optimizer, train_dl, epoch, args.lr_for_stage2, args, losser, stat)
+            valid_score, valid_loss = eval_epoch(model, val_dl, losser, args, stat)
             test_score, test_loss = valid_score, valid_loss
 
             logger.write(epoch, [Log("train", np.mean(train_loss), train_score),
