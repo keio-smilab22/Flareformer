@@ -1192,11 +1192,12 @@ class Dataset_Custom_Stddev(Dataset):
 
 
 class Dataset_Pred(Dataset):
-    def __init__(self, root_path, flag='pred', size=None, 
-                 features='S', data_path='ETTh1.csv', 
-                 target='OT', scale=True, inverse=False, timeenc=0, freq='15min', cols=None):
+    def __init__(self, root_path, flag='train', size=None, 
+                 features='S', feat_path='data_all_v2.csv', magnetogram_path='data_magnetogram_256.npy',
+                 target='logXmax1h', scale=True, inverse=False, timeenc=0, freq='h', cols=None, year=2014):
         # size [seq_len, label_len, pred_len]
         # info
+
         if size == None:
             self.seq_len = 24*4*4
             self.label_len = 24*4
@@ -1216,68 +1217,98 @@ class Dataset_Pred(Dataset):
         self.freq = freq
         self.cols=cols
         self.root_path = root_path
-        self.data_path = data_path
+        self.feat_path = feat_path
+        self.magnetogram_path = magnetogram_path
+        self.year = year
+
         self.__read_data__()
 
     def __read_data__(self):
         self.scaler = StandardScaler()
         df_raw = pd.read_csv(os.path.join(self.root_path,
-                                          self.data_path))
+                                          self.feat_path))
+        # TODO check if name is correct
+        data_magnetogram = np.load(os.path.join(self.root_path,self.magnetogram_path))
+
         '''
-        df_raw.columns: ['date', ...(other features), target feature]
+        df_raw.columns: ['Time', ...(other features), target feature]
         '''
+
         if self.cols:
             cols=self.cols.copy()
             cols.remove(self.target)
         else:
-            cols = list(df_raw.columns); cols.remove(self.target); cols.remove('Time')
+            cols = list(df_raw.columns)
+            cols.remove(self.target)
+            cols.remove('Time')
         df_raw = df_raw[['Time']+cols+[self.target]]
-        
-        border1 = len(df_raw)-self.seq_len
-        border2 = len(df_raw)
-        
+
+        year_dict = {
+            2015:{'num_train':31440, 'num_test':8760, 'end_index':48960},
+            2016:{'num_train':40200, 'num_test':8784, 'end_index':57744},
+            2017:{'num_train':48960, 'num_test':8692, 'end_index':66437},
+        }
+
+        end_index = year_dict[self.year]['end_index']
+
+        border1 = end_index-self.seq_len
+        border2 = end_index
+
         if self.features=='M' or self.features=='MS':
             cols_data = df_raw.columns[1:]
             df_data = df_raw[cols_data]
         elif self.features=='S':
             df_data = df_raw[[self.target]]
 
+        # print(f"df_raw: {df_raw}")
+        # print(f"df_data {df_data}")
+
         if self.scale:
             self.scaler.fit(df_data.values)
-            data = self.scaler.transform(df_data.values)
+            data = self.scaler.transform(df_data.values) # 全データをtrainのmean, stdで標準化
+            # print(f"data: {data.shape}")
+            
         else:
             data = df_data.values
+            # print(f"data: {data}")
             
         tmp_stamp = df_raw[['Time']][border1:border2]
         tmp_stamp['Time'] = pd.to_datetime(tmp_stamp["Time"], format='%Y-%m-%d %H:%M:%S')
         pred_dates = pd.date_range(tmp_stamp["Time"].values[-1], periods=self.pred_len+1, freq=self.freq)
         
+        
         df_stamp = pd.DataFrame(columns = ['Time'])
         df_stamp['Time'] = list(tmp_stamp["Time"].values) + list(pred_dates[1:])
         data_stamp = time_features(df_stamp, timeenc=self.timeenc, freq=self.freq[-1:])
-
+        
         self.data_x = data[border1:border2]
+        self.data_magnetogram = data_magnetogram[border1:border2]
+
         if self.inverse:
             self.data_y = df_data.values[border1:border2]
         else:
             self.data_y = data[border1:border2]
         self.data_stamp = data_stamp
-    
-    def __getitem__(self, index):
-        s_begin = index #0
-        s_end = s_begin + self.seq_len #4
-        r_begin = s_end - self.label_len #2
-        r_end = r_begin + self.label_len + self.pred_len #28
 
+    def __getitem__(self, index):
+        s_begin = index # start index
+        s_end = s_begin + self.seq_len # end index
+        r_begin = s_end - self.label_len # decoder start index, label_lenだけ前のデータを使う
+        r_end = r_begin + self.label_len + self.pred_len
+        
         seq_x = self.data_x[s_begin:s_end]
+        seq_magnetogram = self.data_magnetogram[s_begin:s_end]
+
         if self.inverse:
             seq_y = self.data_x[r_begin:r_begin+self.label_len]
         else:
             seq_y = self.data_y[r_begin:r_begin+self.label_len] #2:4
         seq_x_mark = self.data_stamp[s_begin:s_end]
-        seq_y_mark = self.data_stamp[r_begin:r_end] #2:28
+        seq_y_mark = self.data_stamp[r_begin:r_end]
+        # seq_y_mark = seq_y_mark[-1]
 
-        return seq_x, seq_y, seq_x_mark, seq_y_mark
+        
+        return seq_x, seq_magnetogram, seq_y, seq_x_mark, seq_y_mark
     
     def __len__(self):
         return len(self.data_x) - self.seq_len + 1
