@@ -79,7 +79,7 @@ def build(args: Namespace, sample: Any) -> Tuple[nn.Module, Losser, torch.optim.
 
     print(" ... ok")
     if args.detail_summary:
-        summary(model, [(args.bs, *feature.shape) for feature in sample[0::2]])
+        summary(model, [(args.bs, *feature.shape) for feature in sample[0]])
     else:
         summary(model)
 
