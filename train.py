@@ -31,7 +31,7 @@ def parse_params(dump: bool = False) -> Tuple[Namespace, Dict[str, Any]]:
     parser.add_argument('--model_name', default='id1_2017')
     parser.add_argument('--warmup_epochs', default=5, type=int)
     parser.add_argument('--without_schedule', action='store_false')
-    parser.add_argument('--lr_for_stage2', default=0.000008, type=float)
+    parser.add_argument('--lr_for_2stage', default=0.000008, type=float)
     parser.add_argument('--epoch_for_2stage', default=25, type=int)
     parser.add_argument('--detail_summary', action='store_true')
     parser.add_argument('--imbalance', action='store_true')
