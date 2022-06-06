@@ -28,7 +28,7 @@ def visualize_prediction(preds, trues, base_dir):
         plt.title(f'MAE: {mae:.3f}')
         plt.ylabel('logXmax1h')
         plt.xlabel('Time [h]')
-        plt.ylim(-2.0, 2.0)
+        plt.ylim(-2.0, 6.0)
         plt.legend()
         plt.savefig(f'{base_dir}/{mae:.3f}_{i:04}.png')
         plt.close()
@@ -67,18 +67,19 @@ def visualize_predictions(preds1, trues1, preds2, trues2):
 
 if __name__ == "__main__":
 
-    base_dir = 'result_images/FT_MAE_Flare_stddev_ftMS_sl4_ll2_pl24_dm128_nh8_el1_dl1_df16_atprob_fc5_ebtimeF_dtTrue_mxTrue_ffill_2016_0'
-    preds = np.load(os.path.join(base_dir, 'preds.npy'))
-    trues = np.load(os.path.join(base_dir, 'trues.npy'))
+    base_dir = 'results/FT_MAE_Flare_stddev_ftMS_sl4_ll2_pl24_dm128_nh8_el1_dl1_df16_atprob_fc5_ebtimeF_dtTrue_mxTrue_ffill_2016_0'
+    image_dir = base_dir.replace('results', 'result_images')
+    preds = np.load(os.path.join(base_dir, 'pred.npy'))
+    trues = np.load(os.path.join(base_dir, 'true.npy'))
     metrics = np.load(os.path.join(base_dir, 'metrics.npy'))
     
-    base_dir2 = 'result_images/FT_MAE_Flare_stddev_ftMS_sl4_ll2_pl24_dm128_nh8_el1_dl1_df16_atprob_fc5_ebtimeF_dtTrue_mxTrue_ffill_2015_0'
-    preds2 = np.load(os.path.join(base_dir2, 'preds.npy'))
-    trues2 = np.load(os.path.join(base_dir2, 'trues.npy'))
-    metrics2 = np.load(os.path.join(base_dir2, 'metrics.npy'))
+    # base_dir2 = 'results/FT_MAE_Flare_stddev_ftMS_sl4_ll2_pl24_dm128_nh8_el1_dl1_df16_atprob_fc5_ebtimeF_dtTrue_mxTrue_ffill_2015_0'
+    # preds2 = np.load(os.path.join(base_dir2, 'pred.npy'))
+    # trues2 = np.load(os.path.join(base_dir2, 'true.npy'))
+    # metrics2 = np.load(os.path.join(base_dir2, 'metrics.npy'))
 
     print(trues.shape)
     print(preds.shape)
     print(metrics)
-    visualize_prediction(preds, trues, base_dir)
+    visualize_prediction(preds, trues, image_dir)
     # visualize_predictions(preds, trues, preds2, trues2)
