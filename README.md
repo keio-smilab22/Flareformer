@@ -40,14 +40,13 @@ $ tar -zxvf data/magnetogram_images.tar.gz
 
 - Preprocess the physical features and magnetogram images by the following procedure.
 
-    - `python preprocess.py`
+    - `python preprocess/main.py --magnetogram --physical --label --window`
 
 - The following data files should be created under ```data/```.
-  -  data/data_20XX_magnetogram.npy
+  -  data/data_20XX_magnetogram_256.npy
   -  data/data_20XX_feat.csv
-  -  data/data_20XX_window.csv
   -  data/data_20XX_label.csv
-
+  -  data/data_20XX_window_48.csv
 
 ## Training
 
