@@ -12,6 +12,9 @@ output_dir/
 *.log
 .*.txt
 
+pyproject.toml
+type_info.json
+pyannotate.py
 command_memo.txt
 view.sh
 data
