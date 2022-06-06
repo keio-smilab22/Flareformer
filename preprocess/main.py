@@ -24,8 +24,8 @@ def make_yearwise_dataset(year: str, data: list, data_type: str, args: Namespace
 
     if need_save:
         prefix = make_prefix(args.output_path, year, "magnetogram")
-        suffix = f"{args.size}" if args.size != 512 else ""
-        path = f"{prefix}_{suffix}.npy"
+        suffix = f"_{args.size}" if args.size != 512 else ""
+        path = f"{prefix}{suffix}.npy"
         print(f"> Saved {path}")
         np.save(path, dataset)
         dataset.clear()  # avoid memory leak
