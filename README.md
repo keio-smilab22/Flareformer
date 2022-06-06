@@ -16,7 +16,7 @@ PyTorch training code for **Flareformer**.
 
 1. `git clone git@github.com:keio-smilab22/Flareformer.git`
 2. `cd Flareformer`
-3. `pip install -r require.txt`
+3. `pip install -r requirements.txt`
 
 
 ## Data preparation
@@ -38,7 +38,7 @@ $ tar -zxvf data/magnetogram_images.tar.gz
 
 ## Preprocess
 
-- Preprocess the physical features and magnetogram images by the following procedure.
+- Preprocess the physical features and magnetogram images by the following procedure (parallel processing).
 
     - `python preprocess/main.py --magnetogram --physical --label --window`
 
