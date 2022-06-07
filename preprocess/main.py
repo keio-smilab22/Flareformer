@@ -144,7 +144,7 @@ def main():
         datasets = make_dataset("time", database, args)
         accm_times = []
         for year, times in tqdm(datasets.items()):
-            prefix = f"{output_path}/data_{year}_window_{args.horizon}__"
+            prefix = f"{output_path}/data_{year}_window_{args.horizon}"
             accm_times.extend(times)
             with open(f"{prefix}.csv", "w") as wf:
                 for time in times:
