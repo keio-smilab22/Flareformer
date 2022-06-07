@@ -42,5 +42,5 @@ def get_image(img_path: str, resize_size: int = 512) -> ndarray:
     transform = transforms.Compose([transforms.Resize(resize_size), transforms.ToTensor()])
     img = Image.open(img_path)
     img = transform(img)
-    img = img.permute(2, 0, 1)
+    img = img[0,:,:].unsqueeze(0)
     return img.cpu().numpy()
