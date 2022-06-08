@@ -116,7 +116,7 @@ def main() -> None:
     # Evaluate
     print("\n========== eval ===========")
     model.load_state_dict(torch.load(params["save_model_path"]))
-    test_score, _ = eval_epoch(model, test_dl, losser, args)
+    test_score, _ = eval_epoch(model, test_dl, losser, args, stat)
     print(test_score)
 
     # cRT
@@ -126,11 +126,11 @@ def main() -> None:
 
         model.freeze_feature_extractor()
         summary(model)
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_for_stage2)
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_for_2stage)
 
         for epoch in range(args.epoch_for_2stage):
             print(f"====== Epoch {epoch} ======")
-            train_score, train_loss = train_epoch(model, optimizer, train_dl, epoch, args.lr_for_stage2, args, losser, stat)
+            train_score, train_loss = train_epoch(model, optimizer, train_dl, epoch, args.lr_for_2stage, args, losser, stat)
             valid_score, valid_loss = eval_epoch(model, val_dl, losser, args, stat)
             test_score, test_loss = valid_score, valid_loss
 
