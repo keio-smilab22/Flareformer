@@ -1,5 +1,5 @@
 {
-    "epochs": 43,
+    "epochs": 40,
     "lr": 0.0000021,
     "bs": 48,
     "factor": {
