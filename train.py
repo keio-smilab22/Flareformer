@@ -10,11 +10,12 @@ import colored_traceback.always
 from argparse import Namespace
 from typing import Dict, Tuple, Any
 from torchinfo import summary
+from models.model import MoCo
 from utils.statistics import Stat
 
 from utils.utils import fix_seed, inject_args
-from utils.losses import LossConfig, Losser
-from engine import train_epoch, eval_epoch
+from utils.losses import LossConfig, Losser, PclLosser
+from engine import eval_pcl_epoch, train_epoch, eval_epoch, train_pcl_epoch
 from utils.logs import Log, Logger
 
 # from models.model import FlareFormer
@@ -65,6 +66,7 @@ def build(args: Namespace, sample: Any) -> Tuple[nn.Module, Losser, torch.optim.
                   mm_params=args.MM,
                   window=args.dataset["window"]).to("cuda")
 
+    moco = MoCo(model.encoder,r=(1<<14) * 3).cuda()
     # Loss Function
     loss_config = LossConfig(lambda_bss=args.factor["BS"],
                              lambda_gmgs=args.factor["GMGS"],
@@ -83,7 +85,7 @@ def build(args: Namespace, sample: Any) -> Tuple[nn.Module, Losser, torch.optim.
     else:
         summary(model)
 
-    return model, losser, optimizer, stat
+    return moco, model, losser, optimizer, stat
 
 
 def main() -> None:
@@ -93,12 +95,28 @@ def main() -> None:
     logger = Logger(args, wandb=args.wandb)
 
     # Prepare dataloaders
-    (train_dl, val_dl, test_dl), sample = prepare_dataloaders(args, args.debug, args.imbalance)
+    (train_dl, val_dl, test_dl), sample = prepare_dataloaders(args, args.debug, False)
 
     # Prepare model and optimizer
-    model, losser, optimizer, stat = build(args, sample)
+    moco, model, losser, optimizer, stat = build(args, sample)
 
     # Training
+    pcl_losser = PclLosser()
+    print("Start pretraining\n")
+    for epoch in range(100):
+        print(f"====== Epoch {epoch} ======")
+        train_loss = train_pcl_epoch(moco, optimizer, train_dl, epoch, args.lr, args, pcl_losser, stat)
+        # valid_score, valid_loss = eval_pcl_epoch(moco, val_dl, pcl_losser, args, stat)
+        # test_score, test_loss = valid_score, valid_loss
+
+        torch.save(model.state_dict(), params["save_model_path"])
+        logger.write(epoch, [Log("train", 0, dict(pretrain_loss=train_loss))])
+
+        print("Epoch {}: Train loss:{:.4f}".format(epoch, train_loss))
+
+
+    (train_dl, val_dl, test_dl), sample = prepare_dataloaders(args, args.debug, args.imbalance)
+
     print("Start training\n")
     for epoch in range(args.epochs):
         print(f"====== Epoch {epoch} ======")

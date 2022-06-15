@@ -66,3 +66,36 @@ class Losser:
         Clear accumulated loss
         """
         self.accum.clear()
+
+
+
+class PclLosser:
+    def __init__(self, device: str = "cuda"):
+        self.ce_loss = nn.CrossEntropyLoss().to(device)
+        self.accum = []
+
+    def __call__(self, h1: Tensor, h2: Tensor, h1_proto: Tensor, h2_proto: Tensor) -> Tensor:
+        """
+        Compute loss
+        """
+        loss_infonce, loss_proto = self.ce_loss(h1, h2), 0
+        for proto_out,proto_target in zip(h1_proto, h2_proto):
+            loss_proto = self.ce_loss(proto_out, proto_target)
+
+        assert len(h1_proto) == 1
+        loss_proto /= h1_proto[0].shape[-1] 
+        loss = loss_infonce + loss_proto
+        self.accum.append(loss.clone().detach().cpu().item())
+        return loss
+
+    def get_mean_loss(self) -> float:
+        """
+        Get mean loss
+        """
+        return np.mean(self.accum)
+
+    def clear(self):
+        """
+        Clear accumulated loss
+        """
+        self.accum.clear()

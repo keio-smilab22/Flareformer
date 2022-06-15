@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import copy
 
 from models.attn import ProbAttention, AttentionLayer
 from timm.models.layers import trunc_normal_, DropPath
@@ -9,6 +10,8 @@ from typing import Tuple, List, Dict, Union
 from torch.nn.modules.container import Sequential
 from torch.nn.modules.conv import Conv2d
 
+from utils.ema_module import EMAModule, EMAModuleConfig
+from random import sample
 
 class FlareFormer(nn.Module):
     def __init__(self, input_channel: int,
@@ -91,6 +94,341 @@ class FlareFormer(nn.Module):
 
         for param in self.linear.parameters():
             param.requires_grad = True
+
+class FlareformerEncoder(nn.Module):
+    def __init__(self, input_channel: int,
+                 output_channel: int,
+                 sfm_params: Dict[str, float],
+                 mm_params: Dict[str, float],
+                 window: int = 24):
+        super(FlareformerEncoder, self).__init__()
+
+        # Informer
+        self.mag_encoder = nn.Sequential(*[InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
+                           d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
+            mm_params["d_model"],
+            mm_params["d_ff"],
+            dropout=mm_params["dropout"],
+            activation="relu"
+        ) for _ in range(mm_params["N"])])
+
+        self.phys_encoder = nn.Sequential(*[InformerEncoderLayer(
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
+                           d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
+            sfm_params["d_model"],
+            sfm_params["d_ff"],
+            dropout=sfm_params["dropout"],
+            activation="relu"
+        ) for _ in range(sfm_params["N"])])
+
+        # Image Feature Extractor
+        self.img_embedder = ConvNeXt(in_chans=1, out_chans=mm_params["d_model"], depths=[2, 2, 2, 2], dims=[64, 128, 256, 512])
+
+        self._linear = nn.Linear(
+            window * mm_params["d_model"] * 2, sfm_params["d_model"])
+        self.softmax = nn.Softmax(dim=1)
+
+        self.img_linear = nn.Linear(
+            mm_params["d_model"] * window, mm_params["d_model"])
+
+        self.phys_linear = nn.Linear(
+            sfm_params["d_model"] * window, sfm_params["d_model"])
+        self.relu = torch.nn.ReLU()
+        self.linear1 = torch.nn.Linear(
+            input_channel, sfm_params["d_model"])  # 79 -> 128
+        self.bn1 = torch.nn.BatchNorm1d(window)  # 128
+
+    def forward(self, img_list: Tensor, feat: Tensor) -> Tuple[Tensor, Tensor]:
+        # image feat
+        img_feat = torch.cat([self.img_embedder(img).unsqueeze(0) for img in img_list])
+
+        # physical feat
+        phys_feat = self.linear1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+
+        # cross-attention
+        Np, Nm = len(self.phys_encoder), len(self.mag_encoder)
+        for i in range(max(Np, Nm)):
+            merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+            if i < Np:
+                phys_feat = self.phys_encoder[i](phys_feat, merged_feat)
+            if i < Nm:
+                img_feat = self.mag_encoder[i](img_feat, merged_feat)
+
+        # Late fusion
+        phys_feat = self.phys_linear(phys_feat.flatten(1))
+        img_feat = self.img_linear(img_feat.flatten(1))
+
+        x = torch.cat((phys_feat, img_feat), 1)
+        # print("encoder:", x.shape)
+        return x
+
+
+class FlareFormerWithPCL(nn.Module):
+    def __init__(self, input_channel: int,
+                 output_channel: int,
+                 sfm_params: Dict[str, float],
+                 mm_params: Dict[str, float],
+                 window: int = 24,
+                 train_type: str = "pretrain"):
+        super(FlareFormerWithPCL, self).__init__()
+
+        self.encoder = FlareformerEncoder(input_channel, output_channel, sfm_params, mm_params, window)
+        self.linear = nn.Linear(sfm_params["d_model"] + mm_params["d_model"],
+                                output_channel)
+        self.softmax = nn.Softmax(dim=1)
+
+        self.train_type = train_type
+        self.change_train_type(train_type)
+
+    def change_train_type(self,train_type):
+        if train_type == "pretrain":
+            config = EMAModuleConfig()
+            self.ema = EMAModule(self.encoder,config)
+
+        self.train_type = train_type
+        for params in self.linear.parameters():
+            params.requires_grad = train_type != "pretrain"
+
+    def forward(self, img_list: Tensor, feat: Tensor) -> Tuple[Tensor, Tensor]:
+        x = self.encoder(img_list, feat)
+
+        if self.train_type == "pretrain":
+            return x
+        else:
+            output = self.linear(x)
+            output = self.softmax(output)
+            return output, x
+
+    def freeze_feature_extractor(self):
+        for param in self.encoder.parameters():
+            param.requires_grad = False  # 重み固定
+
+        for param in self.linear.parameters():
+            param.requires_grad = True
+
+    def step_ema(self):
+        self.ema.step(self.encoder)
+
+
+
+
+class MoCo(nn.Module):
+    """
+    Build a MoCo model with: a query encoder, a key encoder, and a queue
+    https://arxiv.org/abs/1911.05722
+    """
+    def __init__(self, base_encoder, dim=256, r=16384, m=0.999, T=0.1, mlp=False):
+        """
+        dim: feature dimension (default: 128)
+        r: queue size; number of negative samples/prototypes (default: 16384)
+        m: momentum for updating key encoder (default: 0.999)
+        T: softmax temperature 
+        mlp: whether to use mlp projection
+        """
+        super(MoCo, self).__init__()
+
+        self.r = r
+        self.m = m
+        self.T = T
+
+        # create the encoders
+        # num_classes is the output fc dimension
+        self.encoder_q = copy.deepcopy(base_encoder)
+        self.encoder_k = copy.deepcopy(base_encoder)
+
+        if mlp:  # hack: brute-force replacement
+            dim_mlp = self.encoder_q.fc.weight.shape[1]
+            self.encoder_q.fc = nn.Sequential(nn.Linear(dim_mlp, dim_mlp), nn.ReLU(), self.encoder_q.fc)
+            self.encoder_k.fc = nn.Sequential(nn.Linear(dim_mlp, dim_mlp), nn.ReLU(), self.encoder_k.fc)
+
+        for param_q, param_k in zip(self.encoder_q.parameters(), self.encoder_k.parameters()):
+            param_k.data.copy_(param_q.data)  # initialize
+            param_k.requires_grad = False  # not update by gradient
+
+        # create the queue
+        self.register_buffer("queue", torch.randn(dim, r))
+        self.queue = nn.functional.normalize(self.queue, dim=0)
+
+        self.register_buffer("queue_ptr", torch.zeros(1, dtype=torch.long))
+
+    @torch.no_grad()
+    def _momentum_update_key_encoder(self):
+        """
+        Momentum update of the key encoder
+        """
+        for param_q, param_k in zip(self.encoder_q.parameters(), self.encoder_k.parameters()):
+            param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
+
+    @torch.no_grad()
+    def _dequeue_and_enqueue(self, keys):
+        # gather keys before updating queue
+        # keys = concat_all_gather(keys)
+
+        batch_size = keys.shape[0]
+        ptr = int(self.queue_ptr)
+        assert self.r % batch_size == 0  # for simplicity
+
+        # replace the keys at ptr (dequeue and enqueue)
+        self.queue[:, ptr:ptr + batch_size] = keys.T
+        ptr = (ptr + batch_size) % self.r  # move pointer
+
+        self.queue_ptr[0] = ptr
+
+    @torch.no_grad()
+    def _batch_shuffle_ddp(self, x):
+        """
+        Batch shuffle, for making use of BatchNorm.
+        *** Only support DistributedDataParallel (DDP) model. ***
+        """
+        # gather from all gpus
+        batch_size_this = x.shape[0]
+        # x_gather = concat_all_gather(x)
+        x_gather = x
+        batch_size_all = x_gather.shape[0]
+
+        num_gpus = batch_size_all // batch_size_this
+
+        # random shuffle index
+        idx_shuffle = torch.randperm(batch_size_all).cuda()
+
+        # broadcast to all gpus
+        # torch.distributed.broadcast(idx_shuffle, src=0)
+
+        # index for restoring
+        idx_unshuffle = torch.argsort(idx_shuffle)
+
+        # shuffled index for this gpu
+        idx_this = idx_shuffle
+
+        return x_gather[idx_this], idx_unshuffle
+
+    @torch.no_grad()
+    def _batch_unshuffle_ddp(self, x, idx_unshuffle):
+        """
+        Undo batch shuffle.
+        *** Only support DistributedDataParallel (DDP) model. ***
+        """
+        # gather from all gpus
+        batch_size_this = x.shape[0]
+        x_gather = concat_all_gather(x)
+        batch_size_all = x_gather.shape[0]
+
+        num_gpus = batch_size_all // batch_size_this
+
+        # restored index for this gpu
+        gpu_idx = torch.distributed.get_rank()
+        idx_this = idx_unshuffle.view(num_gpus, -1)[gpu_idx]
+
+        return x_gather[idx_this]
+
+    def forward(self, im_q, feat_q, im_k=None, feat_k=None, is_eval=False, cluster_result=None, index=None):
+        """
+        Input:
+            im_q: a batch of query images
+            im_k: a batch of key images
+            is_eval: return momentum embeddings (used for clustering)
+            cluster_result: cluster assignments, centroids, and density
+            index: indices for training samples
+        Output:
+            logits, targets, proto_logits, proto_targets
+        """
+        
+        if is_eval:
+            k = self.encoder_k(im_q,feat_q)  
+            k = nn.functional.normalize(k, dim=1)            
+            return k
+        
+        # compute key features
+        with torch.no_grad():  # no gradient to keys
+            self._momentum_update_key_encoder()  # update the key encoder
+
+            # shuffle for making use of BN
+            # im_k, idx_unshuffle = self._batch_shuffle_ddp(im_k)
+
+            k = self.encoder_k(im_k,feat_k)  # keys: NxC
+            k = nn.functional.normalize(k, dim=1)
+
+            # # undo shuffle
+            # k = self._batch_unshuffle_ddp(k, idx_unshuffle)
+
+        # compute query features
+        q = self.encoder_q(im_q,feat_q)  # queries: NxC
+        q = nn.functional.normalize(q, dim=1)
+        
+        # compute logits
+        # Einstein sum is more intuitive
+        # positive logits: Nx1
+        l_pos = torch.einsum('nc,nc->n', [q, k]).unsqueeze(-1)
+        # negative logits: Nxr
+        l_neg = torch.einsum('nc,ck->nk', [q, self.queue.clone().detach()])
+
+        # logits: Nx(1+r)
+        logits = torch.cat([l_pos, l_neg], dim=1)
+
+        # apply temperature
+        logits /= self.T
+
+        # labels: positive key indicators
+        labels = torch.zeros(logits.shape[0], dtype=torch.long).cuda()
+
+        # dequeue and enqueue
+        self._dequeue_and_enqueue(k)
+        
+        # prototypical contrast
+        if cluster_result is not None:  
+            proto_labels = []
+            proto_logits = []
+            for n, (im2cluster,prototypes,density) in enumerate(zip(cluster_result['im2cluster'],cluster_result['centroids'],cluster_result['density'])):
+                # get positive prototypes
+                # print(im2cluster.shape,index.max())
+                pos_proto_id = im2cluster[index]
+                pos_prototypes = prototypes[pos_proto_id]    
+                
+                # sample negative prototypes
+                all_proto_id = [i for i in range(im2cluster.max()+1)]       
+                neg_proto_id = set(all_proto_id)-set(pos_proto_id.tolist())
+                if len(neg_proto_id) > self.r:
+                    neg_proto_id = sample(neg_proto_id,self.r) #sample r negative prototypes
+                else:
+                    neg_proto_id = list(neg_proto_id) 
+                neg_prototypes = prototypes[neg_proto_id]
+
+                proto_selected = torch.cat([pos_prototypes,neg_prototypes],dim=0)
+                
+                # compute prototypical logits
+                logits_proto = torch.mm(q,proto_selected.t())
+                
+                # targets for prototype assignment
+                labels_proto = torch.linspace(0, q.size(0)-1, steps=q.size(0)).long().cuda()
+                
+                # scaling temperatures for the selected prototypes
+                temp_proto = density[torch.cat([pos_proto_id,torch.LongTensor(neg_proto_id).cuda()],dim=0)]  
+                logits_proto /= temp_proto
+                
+                proto_labels.append(labels_proto)
+                proto_logits.append(logits_proto)
+            return logits, labels, proto_logits, proto_labels
+        else:
+            return logits, labels, None, None
+
+
+@torch.no_grad()
+def concat_all_gather(tensor):
+    """
+    Performs all_gather operation on the provided tensors.
+    *** Warning ***: torch.distributed.all_gather has no gradient.
+    """
+    tensors_gather = [torch.ones_like(tensor)
+        for _ in range(torch.distributed.get_world_size())]
+    torch.distributed.all_gather(tensors_gather, tensor, async_op=False)
+
+    output = torch.cat(tensors_gather, dim=0)
+    return output
+
+
 
 
 class Block(nn.Module):
