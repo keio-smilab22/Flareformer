@@ -103,7 +103,7 @@ def main() -> None:
     # Training
     pcl_losser = PclLosser()
     print("Start pretraining\n")
-    for epoch in range(100):
+    for epoch in range(50):
         print(f"====== Epoch {epoch} ======")
         train_loss = train_pcl_epoch(moco, optimizer, train_dl, epoch, args.lr, args, pcl_losser, stat)
         # valid_score, valid_loss = eval_pcl_epoch(moco, val_dl, pcl_losser, args, stat)
@@ -114,10 +114,11 @@ def main() -> None:
 
         print("Epoch {}: Train loss:{:.4f}".format(epoch, train_loss))
 
-
+    
     (train_dl, val_dl, test_dl), sample = prepare_dataloaders(args, args.debug, args.imbalance)
 
     print("Start training\n")
+    model.change_train_type("finetune")
     for epoch in range(args.epochs):
         print(f"====== Epoch {epoch} ======")
         train_score, train_loss = train_epoch(model, optimizer, train_dl, epoch, args.lr, args, losser, stat)

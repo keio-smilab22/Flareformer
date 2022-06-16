@@ -184,10 +184,6 @@ class FlareFormerWithPCL(nn.Module):
         self.change_train_type(train_type)
 
     def change_train_type(self,train_type):
-        if train_type == "pretrain":
-            config = EMAModuleConfig()
-            self.ema = EMAModule(self.encoder,config)
-
         self.train_type = train_type
         for params in self.linear.parameters():
             params.requires_grad = train_type != "pretrain"
