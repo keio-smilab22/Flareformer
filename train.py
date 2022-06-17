@@ -11,18 +11,22 @@ import colored_traceback.always
 from argparse import Namespace
 from typing import Dict, Tuple, Any
 from torchinfo import summary
+from torch.utils.data import DataLoader
 from utils.statistics import Stat
+from datasets.flare import OneshotDataset
 
 from utils.utils import adjust_learning_rate, fix_seed, inject_args
 from utils.losses import LossConfig, Losser
 from engine import train_epoch, eval_epoch
 from utils.logs import Log, Logger
+from utils.server import CallbackServer
 
 from datasets.datasets import prepare_dataloaders
 
 
 def parse_params(dump: bool = False) -> Tuple[Namespace, Dict[str, Any]]:
     parser = argparse.ArgumentParser()
+    parser.add_argument('--mode', default="train")
     parser.add_argument('--wandb', action='store_true')
     parser.add_argument('--model', default='Flareformer')
     parser.add_argument('--params', default='params/params_2017.json')
@@ -60,12 +64,16 @@ class FlareformerManager():
         logger = Logger(args, wandb=args.wandb)
 
         # Prepare dataloaders
-        dataloaders, sample = prepare_dataloaders(args, args.debug, args.imbalance)
+        if args.mode == "train":
+            dataloaders, sample = prepare_dataloaders(args, args.debug, args.imbalance)
+            self.dataloaders = dataloaders  # (train, valid, test)
+        else:
+            args.detail_summary = False
+            sample = None
 
         # Prepare model and optimizer
         model, losser, optimizer, stat = self._build(args, sample)
 
-        self.dataloaders = dataloaders  # (train, valid, test)
         self.model = model
         self.logger = logger
         self.losser = losser
@@ -85,11 +93,8 @@ class FlareformerManager():
 
             # learning rate scheduler
             if not self.args.without_schedule:
-                adjust_learning_rate(self.optimizer,
-                                     epoch,
-                                     self.args.dataset["epochs"],
-                                     lr,
-                                     self.args)
+                epochs = self.args.dataset["epochs"]
+                adjust_learning_rate(self.optimizer, epoch, epochs, lr, self.args)
 
             # train
             train_score, train_loss = train_epoch(self.model,
@@ -131,6 +136,18 @@ class FlareformerManager():
                                    losser=self.losser,
                                    stat=self.stat)
         print(test_score)
+
+    def predict_one_shot(self, imgs, feats):
+        conf = self.args.dataset
+        mean, std = conf["mean"], conf["std"]
+        dataset = OneshotDataset(imgs, feats, mean, std)
+        dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+        _ = eval_epoch(self.model,
+                       dataloader,
+                       losser=self.losser,
+                       stat=self.stat)
+
+        return self.stat.predictions[0]
 
     def print_summary(self):
         """
@@ -192,20 +209,25 @@ def main():
     args, _ = parse_params(dump=True)
     flareformer = FlareformerManager(args)
 
-    print("Start training\n")
-    flareformer.train()
+    if args.mode == "train":
+        print("Start training\n")
+        flareformer.train()
 
-    print("\n========== eval ===========")
-    flareformer.load(args.save_model_path)
-    flareformer.test()
+        print("\n========== eval ===========")
+        flareformer.load(args.save_model_path)
+        flareformer.test()
 
-    if args.imbalance:
-        print("Start cRT (Classifier Re-training)")
-        flareformer.freeze_feature_extractor()
-        flareformer.reset_optimizer(lr=args.lr_for_2stage)
-        flareformer.print_summary()
-        flareformer.train(lr=args.lr_for_2stage,
-                          epochs=args.epoch_for_2stage)
+        if args.imbalance:
+            flareformer.freeze_feature_extractor()
+            flareformer.reset_optimizer(lr=args.lr_for_2stage)
+            flareformer.print_summary()
+            print("Start cRT (Classifier Re-training)\n")
+            flareformer.train(lr=args.lr_for_2stage, epochs=args.epoch_for_2stage)
+    elif args.mode == "server":
+        flareformer.load(args.save_model_path)
+        CallbackServer.start(callback=flareformer.predict_one_shot)
+    else:
+        assert False, "Unknown mode"
 
 
 if __name__ == "__main__":

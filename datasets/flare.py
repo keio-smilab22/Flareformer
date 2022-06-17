@@ -167,3 +167,24 @@ class FlareDataset(Dataset):
         """
         self.mean = mean
         self.std = std
+
+
+class OneshotDataset(Dataset):
+    def __init__(self, imgs, feats, mean, std):
+        self.imgs = [imgs]
+        self.feats = [feats]
+        self.mean = mean
+        self.std = std
+
+    def __len__(self) -> int:
+        return 1
+
+    def __getitem__(self, idx: int) -> Tuple[Tuple[Tensor, ndarray], ndarray, int]:
+        """
+            get sample
+        """
+
+        imgs = (self.imgs[idx] - self.mean) / self.std
+        x = (imgs, self.feats[idx])
+        y_mock = np.array([1, 0, 0, 0])
+        return x, y_mock, idx

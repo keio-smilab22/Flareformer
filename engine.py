@@ -24,6 +24,7 @@ def train_epoch(model: torch.nn.Module,
     """train one epoch"""
     model.train()
     losser.clear()
+    stat.clear_all()
     for _, (x, y, _) in enumerate(tqdm(train_dl)):
         optimizer.zero_grad()
         imgs, feats = x
@@ -46,6 +47,7 @@ def eval_epoch(model: torch.nn.Module,
     """evaluate the given model"""
     model.eval()
     losser.clear()
+    stat.clear_all()
     with torch.no_grad():
         for _, (x, y, _) in enumerate(tqdm(val_dl)):
             imgs, feats = x

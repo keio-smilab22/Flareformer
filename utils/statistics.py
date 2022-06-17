@@ -40,7 +40,6 @@ class Stat:
         score["GMGS"] = self.calc_gmgs(y_predl, y_true)
 
         results = {dataset_type + "_" + k: v for k, v in score.items()}
-        self.clear_all()
 
         return results
 
