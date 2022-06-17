@@ -2,9 +2,9 @@
 Train and eval functions used in main.py
 """
 
+from dataclasses import dataclass
 import numpy as np
 import torch
-from models.model import FlareFormer
 from utils.losses import Losser
 from utils.statistics import Stat
 from utils.utils import adjust_learning_rate
@@ -16,22 +16,16 @@ from torch.optim.adam import Adam
 from torch.utils.data.dataloader import DataLoader
 
 
-def train_epoch(model: FlareFormer,
+def train_epoch(model: torch.nn.Module,
                 optimizer: Adam,
                 train_dl: DataLoader,
-                epoch: int,
-                lr: float,
-                args: Namespace,
                 losser: Losser,
                 stat: Stat) -> Tuple[Dict[str, Any], float]:
     """train one epoch"""
     model.train()
     losser.clear()
     for _, (x, y, _) in enumerate(tqdm(train_dl)):
-        if not args.without_schedule:
-            adjust_learning_rate(optimizer, epoch, args.dataset["epochs"], lr, args)
         optimizer.zero_grad()
-
         imgs, feats = x
         imgs, feats = imgs.cuda().float(), feats.cuda().float()
         output, _ = model(imgs, feats)
@@ -45,10 +39,9 @@ def train_epoch(model: FlareFormer,
     return score, losser.get_mean_loss()
 
 
-def eval_epoch(model: FlareFormer,
+def eval_epoch(model: torch.nn.Module,
                val_dl: DataLoader,
                losser: Losser,
-               args: Namespace,
                stat: Stat) -> Tuple[Dict[str, Any], float]:
     """evaluate the given model"""
     model.eval()

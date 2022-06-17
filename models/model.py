@@ -6,17 +6,15 @@ from models.attn import ProbAttention, AttentionLayer
 from timm.models.layers import trunc_normal_, DropPath
 from torch import Tensor
 from typing import Tuple, List, Dict, Union
-from torch.nn.modules.container import Sequential
-from torch.nn.modules.conv import Conv2d
 
 
-class FlareFormer(nn.Module):
+class Flareformer(nn.Module):
     def __init__(self, input_channel: int,
                  output_channel: int,
                  sfm_params: Dict[str, float],
                  mm_params: Dict[str, float],
                  window: int = 24):
-        super(FlareFormer, self).__init__()
+        super(Flareformer, self).__init__()
 
         # Informer
         self.mag_encoder = nn.Sequential(*[InformerEncoderLayer(
