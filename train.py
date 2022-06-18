@@ -9,7 +9,7 @@ import numpy as np
 import colored_traceback.always
 
 from argparse import Namespace
-from typing import Dict, Tuple, Any
+from typing import Dict, Optional, Tuple, Any
 from torchinfo import summary
 from torch.utils.data import DataLoader
 from utils.statistics import Stat
@@ -65,8 +65,7 @@ class FlareformerManager():
 
         # Prepare dataloaders
         if args.mode == "train":
-            dataloaders, sample = prepare_dataloaders(args, args.debug, args.imbalance)
-            self.dataloaders = dataloaders  # (train, valid, test)
+            sample = self.load_dataloaders(args,args.imbalance)
         else:
             args.detail_summary = False
             sample = None
@@ -82,7 +81,7 @@ class FlareformerManager():
         self.args = args
         self.mock_sample = sample
 
-    def train(self, lr=None, epochs=None):
+    def train(self, lr: Optional[float]=None, epochs: Optional[int]=None):
         """
         Train model
         """
@@ -102,17 +101,15 @@ class FlareformerManager():
                                                   train_dl,
                                                   losser=self.losser,
                                                   stat=self.stat)
-
             # validation
             valid_score, valid_loss = eval_epoch(self.model,
                                                  val_dl,
                                                  losser=self.losser,
                                                  stat=self.stat)
-
             # test
             test_score, test_loss = valid_score, valid_loss
 
-            # log & save
+            # log
             torch.save(self.model.state_dict(), self.args.save_model_path)
             self.logger.write(epoch, [Log("train", np.mean(train_loss), train_score),
                                       Log("valid", np.mean(valid_loss), valid_score),
@@ -125,6 +122,11 @@ class FlareformerManager():
         Load model from path
         """
         self.model.load_state_dict(torch.load(path))
+
+    def load_dataloaders(self, args: Namespace, imbalance: bool):
+        dataloaders, sample = prepare_dataloaders(args, args.debug, imbalance)
+        self.dataloaders = dataloaders  # (train, valid, test)
+        return sample
 
     def test(self):
         """
@@ -142,10 +144,7 @@ class FlareformerManager():
         mean, std = conf["mean"], conf["std"]
         dataset = OneshotDataset(imgs, feats, mean, std)
         dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
-        _ = eval_epoch(self.model,
-                       dataloader,
-                       losser=self.losser,
-                       stat=self.stat)
+        _ = eval_epoch(self.model, dataloader, losser=self.losser, stat=self.stat)
 
         return self.stat.predictions[0]
 
@@ -164,7 +163,7 @@ class FlareformerManager():
         """
         self.model.freeze_feature_extractor()
 
-    def reset_optimizer(self, lr=None):
+    def reset_optimizer(self, lr: Optional[float]=None):
         """
         Reset optimizer with new lr
         """
@@ -221,6 +220,7 @@ def main():
             flareformer.freeze_feature_extractor()
             flareformer.reset_optimizer(lr=args.lr_for_2stage)
             flareformer.print_summary()
+            flareformer.load_dataloaders(args, imbalance=False)
             print("Start cRT (Classifier Re-training)\n")
             flareformer.train(lr=args.lr_for_2stage, epochs=args.epoch_for_2stage)
     elif args.mode == "server":
