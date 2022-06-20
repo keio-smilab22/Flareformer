@@ -121,14 +121,11 @@ for ii in range(args.itr):
                 args.d_model, args.n_heads, args.e_layers, args.d_layers, args.d_ff, args.attn, args.factor, 
                 args.embed, args.distil, args.mix, args.des, ii)
 
-    exp = Exp(args) # set experiments
-    print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
-    exp.train(setting)
-    
+    exp = Exp(args) # set experiments    
     print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
     # calculate time
     start_time = time.time()
-    exp.test(setting)
+    exp.test_with_loading_model(setting)
     end_time = time.time()
     print('time: {}'.format(end_time-start_time))
 
