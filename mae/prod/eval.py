@@ -21,8 +21,8 @@ def show_image(image, title=''):
     # img = np.empty((image.shape[0],image.shape[1],3))
     # for i in range(3): img[:,:,i] = image[:,:,0]
 
-    plt.imshow(image, cmap='gray')
-    plt.title(title, fontsize=6)
+    plt.imshow(image, cmap='gray', vmin=0, vmax=255)
+    plt.title(title, fontsize=20)
     plt.axis('off') 
     return
 
@@ -62,7 +62,7 @@ def run_one_image(img, model, mean=None, std=None, mask_ratio=0.75):
     x = torch.einsum('nhwc->nchw', x)
 
     # run MAE
-    loss, y, mask = model(x, mask_ratio=mask_ratio)
+    loss, y, mask = model(x, mask_ratio=mask_ratio, do_pyramid=True)
     y = model.unpatchify(y)
     mse = F.mse_loss(x, y)
     y = torch.einsum('nchw->nhwc', y).detach()
@@ -91,24 +91,37 @@ def run_one_image(img, model, mean=None, std=None, mask_ratio=0.75):
     # masked image
     im_masked = x * (1 - mask)
 
+    im_keep = x * mask
+
     # MAE reconstruction pasted with visible patches
-    im_paste = x * (1 - mask) + y * mask
-
-    # make the plt figure larger
-    plt.rcParams['figure.figsize'] = [24, 24]
+    # im_paste = x * (1 - mask) + y * mask
+    # return mse.item()
+    # # make the plt figure larger
+    # plt.rcParams['figure.figsize'] = [24, 24]
     
-    plt.subplot(1, 4, 1)
-    show_image(x[0].cpu(), "original")
+    # plt.subplot(1, 3, 1)
+    # show_image(x[0].cpu(), "original")
+    
+    plt.figure()
+    # plt.figure(figsize=(24, 24))
+    
+    im_masked = im_masked[:, 168:200, 64:96]
+    x = x[:, 168:200, 64:96]
+    y = y[:, 168:200, 64:96]
 
-    plt.subplot(1, 4, 2)
-    show_image(im_masked[0].cpu(), "masked")
+    plt.subplot(1, 3, 1)
+    show_image(im_masked[0].cpu(), "input")
 
-    plt.subplot(1, 4, 3)
+    plt.subplot(1, 3, 2)
     show_image(y[0].cpu(), "reconstruction")
 
-    plt.subplot(1, 4, 4)
-    show_image(im_paste[0].cpu(), "reconstruction + visible")
+    plt.subplot(1, 3, 3)
+    show_image(x[0].cpu(), "original")
 
+
+    # plt.subplot(1, 4, 4)
+    # show_image(im_paste[0].cpu(), "reconstruction + visible")
+    plt.tight_layout()
     plt.show()
 
 
@@ -233,8 +246,8 @@ def run_one_image_sp(img, model, mean=None, std=None, mask_ratio=0.75):
 
 class MaskedAutoEncoder:
     def __init__(self,baseline,embed_dim):
-        chkpt_dir = f'output_dir/{baseline}/checkpoint-50-64d4b_base-16.pth' # パス注意
-        self.model = prepare_model(chkpt_dir,baseline=baseline,embed_dim=embed_dim)
+        chkpt_dir = f'output_dir/{baseline}/checkpoint-50-64d4b_stdwise-16.pth' # パス注意
+        self.model:mae.prod.models_mae.MaskedAutoencoderViT = prepare_model(chkpt_dir,baseline=baseline,embed_dim=embed_dim)
         self.dim = self.model.embed_dim
 
     def get_model(self):
