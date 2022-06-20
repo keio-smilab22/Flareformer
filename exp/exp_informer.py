@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader
 import os
 import time
 import wandb
+from torchinfo import summary
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -271,6 +272,70 @@ class Exp_Informer(Exp_Basic):
         np.save(folder_path+'metrics.npy', np.array([mae, mse, rmse, mape, mspe]))
         np.save(folder_path+'pred.npy', preds)
         np.save(folder_path+'true.npy', trues)
+
+        return
+
+    def test_with_loading_model(self, setting):
+        test_data, test_loader = self._get_data(flag='test')
+        path = os.path.join(self.args.checkpoints, setting)
+        if not os.path.exists(path):
+            os.makedirs(path)
+        best_model_path = path+'/'+'checkpoint.pth'
+        print(f"best model path: {best_model_path}")
+        self.model.load_state_dict(torch.load(best_model_path))
+
+        self.model.eval()
+        
+        preds = []
+        trues = []
+        prev_seqs = []
+        
+        for i, (batch_x,batch_mag,batch_y,batch_x_mark,batch_y_mark, batch_y_test) in enumerate(test_loader):
+            pred, true = self._process_one_batch(
+                test_data, batch_x, batch_mag, batch_y, batch_x_mark, batch_y_mark)
+            # NOTE:only y_t+24 is used
+            # pred = pred[:,-1:,:]
+            # true = true[:,-1:,:]
+            preds.append(pred.detach().cpu().numpy())
+            trues.append(true.detach().cpu().numpy())
+
+            batch_y_test = batch_y_test.float()
+            f_dim = -1 if self.args.features=='MS' else 0
+            batch_y_test = batch_y_test[:,:,f_dim:].to(self.device)
+            prev_seqs.append(batch_y_test.detach().cpu().numpy())
+
+        preds = np.array(preds)
+        trues = np.array(trues)
+        print('test shape:', preds.shape, trues.shape)
+        preds = preds.reshape(-1, preds.shape[-2], preds.shape[-1])
+        trues = trues.reshape(-1, trues.shape[-2], trues.shape[-1])
+        print('test shape:', preds.shape, trues.shape)
+
+        prev_seqs = np.array(prev_seqs)
+        # print('prev_seqs shape:', prev_seqs.shape)
+        prev_seqs = prev_seqs.reshape(-1, prev_seqs.shape[-2], prev_seqs.shape[-1])
+        # print('prev_seqs shape:', prev_seqs.shape)
+
+
+        # result save
+        folder_path = './results/' + setting +'/'
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+
+        mae, mse, rmse, mape, mspe = metric(preds, trues)
+        wandb.log({
+            'mse': mse,
+            'mae': mae,
+            'rmse': rmse,
+            'mape': mape,
+            'mspe': mspe
+        })
+        print('mse:{}, mae:{}'.format(mse, mae))
+
+        np.save(folder_path+'metrics.npy', np.array([mae, mse, rmse, mape, mspe]))
+        np.save(folder_path+'pred.npy', preds)
+        np.save(folder_path+'true.npy', trues)
+        np.save(folder_path+'prev_seqs.npy', prev_seqs)
 
         return
 

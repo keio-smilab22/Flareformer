@@ -70,30 +70,47 @@ def analyze_feat(feat_path, target='logXmax1h', seq_len=1, set_type=0, scale=Fal
     # self.data_magnetogram = data_magnetogram[border1:border2]:
     data_y = data[border1:border2]
 
-    span = 24 * 30 * 3
+    span = 30
     s_begin = index # start index
     s_end = s_begin + span # end index
     r_begin = s_end # decoder start index, label_lenだけ前のデータを使う
     r_end = r_begin + 24
 
     df = df_raw.loc[border1+s_begin:border1 + s_end, ['Time', target]]
+    df.rename(columns={target: 'Ground Truth'}, inplace=True)
     df['Time'] = pd.to_datetime(df_stamp["Time"], format='%Y-%m-%d %H:%M:%S')
-    df.set_index('Time', inplace=True)
-    df.plot()
-
-
-    # plt.title('logXmax1h')                            #グラフタイトル
+    df.rename(columns={'Time': 'date'}, inplace=True)
+    df.set_index('date', inplace=True)
     
-    plt.ylabel('logXmax1h') #タテ軸のラベル
-    plt.xlabel('date')                                #ヨコ軸のラベル
-    # press any key to close
+    plt.rcParams['xtick.direction'] = 'in'#x軸の目盛線が内向き('in')か外向き('out')か双方向か('inout')
+    plt.rcParams['ytick.direction'] = 'in'#y軸の目盛線が内向き('in')か外向き('out')か双方向か('inout')
+    plt.rcParams["font.size"] = 30 #フォントの大きさ
+
+    fig, ax = plt.subplots(figsize=(12,10))
+    fig.subplots_adjust(bottom=0.2)
+    # ax.plot(df.index, df['(a)'], label='(a)', color='blue')
+    df.plot(ax=ax, label='(a)', color='blue', legend=True)
+    ax.get_xaxis().set_tick_params(pad=20)
+    
+
+    ax.set_xlabel('Time', fontsize=30)
+    ax.set_ylabel('logXmax1h', fontsize=30)
+    ax.set_ylim(-2, 6)
+    plt.tight_layout()
     plt.show()
+    # # plt.title('logXmax1h')                            #グラフタイトル
+    # plt.ylabel('logXmax1h') #タテ軸のラベル
+    # plt.xlabel('date')                                #ヨコ軸のラベル
+    # # press any key to close
+    # plt.ylim(-3, 5)
+    # # plt.tight_layout()
+    # plt.show()
     
 
 
 if __name__ == '__main__':
-    feat_path = 'data/data_all_stddev_fillna0.csv'
+    feat_path = 'data/data_all_stddev_ffill.csv'
 
-    for i in range(0, 24 * 30 * 12 * 8, 24 * 30 * 3):
+    for i in range(24 * 30 * 12 + 24 * 30 * 3 + 24 * 7 - 1 - 6, 24 * 30 * 12 + 24 * 30 * 12 + 24 * 7, 30 * 1):
         analyze_feat(feat_path, set_type=0, index=i)
         
