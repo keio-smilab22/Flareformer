@@ -2,7 +2,7 @@
 
 PyTorch training code for **Flareformer**.
 
-![model](https://user-images.githubusercontent.com/51681991/172095937-4d57db9d-3178-4c94-8658-7a4aaa169dc5.jpg)
+![model](https://user-images.githubusercontent.com/51681991/174759454-ae57f8e8-f0ed-4b75-b976-7099f69e1bdc.png)
 
 ## Getting Started
 
@@ -55,6 +55,8 @@ $ tar -zxvf data/magnetogram_images.tar.gz
     - `python main.py --params params/params_2014.json --warmup_epochs=5 --imbalance --wandb`
 
 ## License
+
+Flareformer is released under the Apache 2.0 license. Please see the [LICENSE](LICENSE) file for more information.
 
 ## Others
 
