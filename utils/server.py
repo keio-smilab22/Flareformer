@@ -42,8 +42,8 @@ class CallbackServer:
         ):
             imgs = torch.cat([CallbackServer.get_tensor_image(io.file.read()) for io in image_feats])
             phys = np.array([list(map(float, raw.split(","))) for raw in physical_feats])[:, :90]
-            prob = callback(imgs, phys)
-            return JSONResponse(content={"probability": prob.tolist()})
+            prob = callback(imgs, phys).tolist()
+            return JSONResponse(content={"probability": {"OCMX"[i]: prob[i] for i in range(len(prob))}})
 
         host_name = "127.0.0.1"
         port_num = 8080
