@@ -65,7 +65,7 @@ class FlareformerManager():
 
         # Prepare dataloaders
         if args.mode == "train":
-            sample = self.load_dataloaders(args,args.imbalance)
+            sample = self.load_dataloaders(args, args.imbalance)
         else:
             args.detail_summary = False
             sample = None
@@ -81,7 +81,7 @@ class FlareformerManager():
         self.args = args
         self.mock_sample = sample
 
-    def train(self, lr: Optional[float]=None, epochs: Optional[int]=None):
+    def train(self, lr: Optional[float] = None, epochs: Optional[int] = None):
         """
         Train model
         """
@@ -139,7 +139,7 @@ class FlareformerManager():
                                    stat=self.stat)
         print(test_score)
 
-    def predict_one_shot(self, imgs, feats):
+    def predict_one_shot(self, imgs: torch.Tensor, feats: np.ndarray):
         conf = self.args.dataset
         mean, std = conf["mean"], conf["std"]
         dataset = OneshotDataset(imgs, feats, mean, std)
@@ -163,7 +163,7 @@ class FlareformerManager():
         """
         self.model.freeze_feature_extractor()
 
-    def reset_optimizer(self, lr: Optional[float]=None):
+    def reset_optimizer(self, lr: Optional[float] = None):
         """
         Reset optimizer with new lr
         """
