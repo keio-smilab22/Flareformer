@@ -27,11 +27,51 @@
 
 # python main_informer.py --model FT_linear --data Flare --batch_size 64 --feat_path data_all_v2_fillna0.csv --learning_rate 1e-6 --train_epochs 40 --lradj none
 
-for method in ffill time fillna0
+# for method in ffill
+# do
+#     for y in 2017 2016 2015
+#     do
+#     python main_informer.py --model FT --data Flare_stddev --des ${method}_${y} --batch_size 64 --feat_path data_all_stddev_${method}.csv --magnetogram_path data_magnetogram_256_stddev.npy --lradj none --train_epochs 20 --learning_rate 1e-6 --year ${y} --seq_len 8
+#     done
+# done
+
+# for method in ffill
+# do
+#     for y in 2017 2016 2015
+#     do
+#     python main_informer.py --model FT_linear --data Flare_stddev --des ${method}_${y} --batch_size 64 --feat_path data_all_stddev_${method}.csv --magnetogram_path data_magnetogram_256_stddev.npy --lradj none --train_epochs 20 --learning_rate 1e-6 --year ${y} --seq_len 8
+#     done
+# done
+
+# for method in ffill
+# do
+#     for y in 2017 2016 2015
+#     do
+#     python main_informer.py --model FT --data Flare_stddev --des ${method}_${y} --batch_size 64 --feat_path data_all_stddev_${method}.csv --magnetogram_path data_magnetogram_256_stddev.npy --lradj none --train_epochs 20 --learning_rate 1e-6 --year ${y} --seq_len 8 --attn full
+#     done
+# done
+
+# for method in ffill
+# do
+#     for y in 2017 2016 2015
+#     do
+#     python main_informer.py --model FT_linear --data Flare_stddev --des ${method}_${y} --batch_size 64 --feat_path data_all_stddev_${method}.csv --magnetogram_path data_magnetogram_256_stddev.npy --lradj none --train_epochs 20 --learning_rate 1e-6 --year ${y} --seq_len 8 --attn full
+#     done
+# done
+
+for method in ffill
 do
-    for y in 2015 2016 2017
+    for y in 2017 2016 2015
     do
-    python main_informer.py --model FT --data Flare_stddev --des ${method} --batch_size 64 --feat_path data_all_stddev_${method}.csv --magnetogram_path data_magnetogram_256_stddev.npy --lradj none --train_epochs 20 --learning_rate 1e-6 --year ${y}
-    python main_informer.py --model FT_linear --data Flare_stddev --des ${method} --batch_size 64 --feat_path data_all_stddev_${method}.csv --magnetogram_path data_magnetogram_256_stddev.npy --lradj none --train_epochs 20 --learning_rate 1e-6 --year ${y}
+    python main_informer.py --model FT_MAE --data Flare_stddev --des ${method}_${y}_mae_corrected_std --batch_size 8 --feat_path data_all_stddev_${method}.csv --magnetogram_path data_magnetogram_256_stddev.npy --lradj none --train_epochs 20 --learning_rate 1e-6 --year ${y}
     done
 done
+
+
+# for method in ffill
+# do
+#     for y in 2017 2016 2015
+#     do
+#     python main_informer.py --model FT_MAE_linear --data Flare_stddev --des ${method}_${y} --batch_size 4 --feat_path data_all_stddev_${method}.csv --magnetogram_path data_magnetogram_256_stddev.npy --lradj none --train_epochs 20 --learning_rate 1e-6 --year ${y} --seq_len 8
+#     done
+# done
