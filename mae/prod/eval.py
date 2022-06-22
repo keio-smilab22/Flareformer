@@ -93,6 +93,9 @@ def run_one_image(img, model, mean=None, std=None, mask_ratio=0.75):
 
     im_keep = x * mask
 
+    y_masked = y * (mask) + (1 - mask) * 255 # mask is 1 is keeping, 0 is removing
+    x_masked = x * (mask) + (1 - mask) * 255
+
     # MAE reconstruction pasted with visible patches
     # im_paste = x * (1 - mask) + y * mask
     # return mse.item()
@@ -102,21 +105,29 @@ def run_one_image(img, model, mean=None, std=None, mask_ratio=0.75):
     # plt.subplot(1, 3, 1)
     # show_image(x[0].cpu(), "original")
     
-    plt.figure()
+    plt.figure(figsize=(10, 5))
     # plt.figure(figsize=(24, 24))
     
-    im_masked = im_masked[:, 168:200, 64:96]
-    x = x[:, 168:200, 64:96]
-    y = y[:, 168:200, 64:96]
+    x_start = 64
+    y_start = 168 + 8
+    x_end = x_start + 32
+    y_end = y_start + 32
+
+    im_masked = im_masked[:, y_start:y_end, x_start:x_end]
+    x = x[:, y_start:y_end, x_start:x_end]
+    y = y[:, y_start:y_end, x_start:x_end]
+    y_masked = y_masked[:, y_start:y_end, x_start:x_end]
+    x_masked = x_masked[:, y_start:y_end, x_start:x_end]
+
 
     plt.subplot(1, 3, 1)
     show_image(im_masked[0].cpu(), "input")
 
     plt.subplot(1, 3, 2)
-    show_image(y[0].cpu(), "reconstruction")
+    show_image(y_masked[0].cpu(), "reconstructed")
 
     plt.subplot(1, 3, 3)
-    show_image(x[0].cpu(), "original")
+    show_image(x_masked[0].cpu(), "original")
 
 
     # plt.subplot(1, 4, 4)

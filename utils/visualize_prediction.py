@@ -50,6 +50,7 @@ def visualize_prediction(preds, trues, prev_seqs, base_dir):
         # plt.title(f'MAE: {mae:.3f}, {current_time}')
         plt.ylabel('logXmax1h', fontsize=20)
         plt.xlabel('Time [h]', fontsize=20)
+        plt.xticks(np.arange(0, 25, 5), fontsize=20)
         plt.axvline(x=0, color='black', linestyle='--', zorder=0)
         plt.ylim(-3.0, 5.0)
         
