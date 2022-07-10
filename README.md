@@ -56,7 +56,7 @@ $ tar -zxvf data/magnetogram_images.tar.gz
 
 ## License
 
-Flareformer is released under the Apache 2.0 license. Please see the [LICENSE](LICENSE) file for more information.
+Flareformer is released under the BSD-3-Clause-Clear license. Please see the [LICENSE](LICENSE) file for more information.
 
 ## Others
 
