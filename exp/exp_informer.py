@@ -29,7 +29,9 @@ class Exp_Informer(Exp_Basic):
             'FT':FlareTransformerRegression,
             'FT_linear':FlareTransformerRegressionLastLinear,
             'FT_MAE':FlareTransformerRegressionMAE,
-            'FT_MAE_linear':FlareTransformerRegressionrLastLinearMAE
+            'FT_MAE_linear':FlareTransformerRegressionrLastLinearMAE,
+            'FT_IMG':FlareTransformerRegressionWithoutPhys,
+            'FT_MAE_IMG':FlareTransformerRegressionMAEWithoutPhys,
         }
         # if self.args.model=='regression' or self.args.model=='regression_linear':
         #     e_layers = self.args.e_layers if self.args.model=='regression' or  self.args.model=='regression_linear' else self.args.s_layers

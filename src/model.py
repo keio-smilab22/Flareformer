@@ -1315,7 +1315,7 @@ class InformerEncoderLayer(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.activation = F.relu if activation == "relu" else F.gelu
 
-    def forward(self, q, kv):
+    def forward(self, q, attn_mask=None):
         """
         How to use'
             x = encoder_layer(x)
@@ -1326,6 +1326,7 @@ class InformerEncoderLayer(nn.Module):
         #     x, x, x,
         #     attn_mask = attn_mask
         # ))
+        kv = attn_mask
         new_x, attn = self.attention(
             q, kv, kv,
             attn_mask=None
@@ -1336,7 +1337,7 @@ class InformerEncoderLayer(nn.Module):
         y = self.dropout(self.activation(self.conv1(y.transpose(-1, 1))))
         y = self.dropout(self.conv2(y).transpose(-1, 1))
 
-        return self.norm2(q+y)#, attn
+        return self.norm2(q+y), attn
 
 
 class InformerDecoderLayer(nn.Module):
@@ -1386,6 +1387,33 @@ class Decoder(nn.Module):
             x = self.norm(x)
 
         return x
+
+class Encoder(nn.Module):
+    def __init__(self, attn_layers, conv_layers=None, norm_layer=None):
+        super(Encoder, self).__init__()
+        self.attn_layers = nn.ModuleList(attn_layers)
+        self.conv_layers = nn.ModuleList(conv_layers) if conv_layers is not None else None
+        self.norm = norm_layer
+
+    def forward(self, x, attn_mask=None):
+        # x [B, L, D]
+        attns = []
+        if self.conv_layers is not None:
+            for attn_layer, conv_layer in zip(self.attn_layers, self.conv_layers):
+                x, attn = attn_layer(x, attn_mask=attn_mask)
+                x = conv_layer(x)
+                attns.append(attn)
+            x, attn = self.attn_layers[-1](x, attn_mask=attn_mask)
+            attns.append(attn)
+        else:
+            for attn_layer in self.attn_layers:
+                x, attn = attn_layer(x, attn_mask=attn_mask)
+                attns.append(attn)
+
+        if self.norm is not None:
+            x = self.norm(x)
+
+        return x#, attns
 
 
 class SublayerConnection(torch.nn.Module):

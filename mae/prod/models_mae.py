@@ -945,9 +945,9 @@ class MaskedAutoencoderViT(nn.Module):
         
         return loss
 
-    def forward(self, imgs, mask_ratio=0.75, do_pyramid=False):
+    def forward(self, imgs, mask_ratio=0.75, stdwise=False):
         # print(imgs.shape)
-        if do_pyramid:
+        if stdwise:
             # x, x_not_masked, mask, ids_restore = self.forward_encoder_pyramid(imgs, mask_ratio)
             # pred = self.forward_decoder_pyramid(x, x_not_masked, ids_restore)  # [N, L, p*p*3]
             latent, mask, ids_restore = self.forward_encoder_std(imgs, mask_ratio)
