@@ -93,11 +93,11 @@ def create_data_noaa(path_d, path_save):
     plt.show()
 
 
-def create_data_noaa_with_sunpy():
+def create_data_noaa_with_sunpy_ewm():
     # pd.options.display.float_format = '{:.7f}'.format
     year = 2010
     # goes = Fido.search(a.Time(f"{year}/01/01", f"{year}/12/31"), a.Instrument.xrs, a.goes.SatelliteNumber(15))
-    goes = Fido.search(a.Time(f"{year}/01/01", f"{year}/12/31"), a.Instrument.xrs, a.goes.SatelliteNumber(15)|a.goes.SatelliteNumber(14))
+    goes = Fido.search(a.Time(f"{year}/01/01", f"{year}/12/31"), a.Instrument.xrs, a.goes.SatelliteNumber(15)|a.goes.SatelliteNumber(14)|a.goes.SatelliteNumber(13))
 
     print(goes)
     # goes = Fido.search(a.Time("2013/06/21", "2013/06/23"), a.Instrument.xrs)
@@ -181,13 +181,14 @@ def create_data_noaa_with_sunpy():
     plt.show()
 
 
-def create_data_noaa_with_sunpy_new():
+def create_data_noaa_with_sunpy_new(year=2010):
     # pd.options.display.float_format = '{:.7f}'.format
     # pd.options.display.precision = 8
 
-    year = 2010
+    
     # goes = Fido.search(a.Time(f"{year}/01/01", f"{year}/12/31"), a.Instrument.xrs, a.goes.SatelliteNumber(15))
-    goes = Fido.search(a.Time(f"{year}/01/01", f"{year}/12/31"), a.Instrument.xrs, a.goes.SatelliteNumber(15)|a.goes.SatelliteNumber(14))
+    # goes = Fido.search(a.Time(f"{year}/01/01", f"{year}/12/31"), a.Instrument.xrs, a.goes.SatelliteNumber(15)|a.goes.SatelliteNumber(14)|a.goes.SatelliteNumber(13))
+    goes = Fido.search(a.Time(f"{year}/01/01", f"{year}/12/31"), a.Instrument.xrs, a.goes.SatelliteNumber(15)|a.goes.SatelliteNumber(14)|a.goes.SatelliteNumber(13)|a.goes.SatelliteNumber(16)|a.goes.SatelliteNumber(17))
 
     print(goes)
     # goes = Fido.search(a.Time("2013/06/21", "2013/06/23"), a.Instrument.xrs)
@@ -204,8 +205,17 @@ def create_data_noaa_with_sunpy_new():
     print("files combined")
     
     df = combined_goes_ts.to_dataframe()
+
+    # drop xrsa column
+    df.drop(columns=['xrsa'], inplace=True)
+
     # Set the negative value to 10e-9
     df.loc[df['xrsb'] <= 0, 'xrsb'] = np.nan
+    # only keep {year}/01/01 to {year}/12/31
+    start_time = datetime(year, 1, 1)
+    end_time = datetime(year, 12, 31)
+    df = df[(df.index >= start_time) & (df.index <= end_time)]
+
 
     df.index = df.index.round('S')
     # find duplicated index
@@ -228,13 +238,20 @@ def create_data_noaa_with_sunpy_new():
     # if logxmax1h_t-1 - logxmax1h_t > 3, then logxmax1h_t = logxmax1h_t-1
     # df.loc[(df['logxmax1h'] - df['logxmax1h'].shift(freq='60T')).abs() > 3, 'logxmax1h'] = df['logxmax1h'].shift(freq='60T')
 
-    fig, ax = plt.subplots()
-    ax.set_ylim(-3.5, 3.5)
-    df.plot(y="logxmax1h", ax=ax)
+    # fig, ax = plt.subplots()
+    # ax.set_ylim(-3.5, 3.5)
+    # df.plot(y="logxmax1h", ax=ax)
     
     df_downsampled = df.resample('60T', label='left', closed='left').max()
-    df_downsampled.loc[(df_downsampled['logxmax1h'] - df_downsampled['logxmax1h'].shift(1)).abs() > 3.0, 'logxmax1h'] = np.nan
-    df_downsampled.fillna(method='ffill', inplace=True)
+    # two path
+    # df_downsampled.loc[(df_downsampled['logxmax1h'] - df_downsampled['logxmax1h'].shift(1)).abs() > 3.0, 'logxmax1h'] = np.nan
+    # df_downsampled.fillna(method='ffill', inplace=True)
+
+    # one path
+    for i in range(1, len(df_downsampled)):
+        if (df_downsampled['logxmax1h'].iloc[i] - df_downsampled['logxmax1h'].iloc[i-1]) > 2.5:
+            df_downsampled['logxmax1h'].iloc[i] = df_downsampled['logxmax1h'].iloc[i-1]
+
     # df_original_source = pd.read_csv("data/noaa/xrs_downsampled_2010_scale.csv")
     # df_original_source.set_index('time', inplace=True)
     # df_original_source.index = pd.to_datetime(df_original_source.index)
@@ -242,9 +259,6 @@ def create_data_noaa_with_sunpy_new():
     # print(df_original_source.head())
     # print(df_original_source.index)
     
-
-    # If the xrsb values of df_downsampled and df_original_source are compared and differ by a factor of 1000 or more, replace the xrsb value with that of df_original_source.
-    # df_downsampled.loc[(df_downsampled['xrsb'] / df_original_source['xrsb']).abs() > 1000, 'xrsb'] = df_original_source['xrsb']
 
     # print(df_downsampled.isnull().sum())
 
@@ -256,28 +270,28 @@ def create_data_noaa_with_sunpy_new():
                                              combined_goes_ts.meta,
                                              combined_goes_ts.units)
     fig, ax = plt.subplots()
-    ax.set_ylim(-3.5, 3.5)
+    ax.set_ylim(-2.5, 3.5)
     ts_downsampled.plot(columns=["logxmax1h"])
     
     # save to file
-    ts_downsampled.to_dataframe().to_csv(os.path.join('data/noaa', f'xrs_downsampled_{year}_no.csv'))
+    ts_downsampled.to_dataframe().to_csv(os.path.join('data/noaa', f'xrs_downsampled_{year}.csv'))
     print(ts_downsampled.to_dataframe().info())
-    plt.show()
-
-def create_data_original_noaa(file_name):
-    df = pd.read_csv(file_name, header=None, names=['time', 'xrsb'], parse_dates=True)
-    df["scaled_xrsb"] = df["xrsb"] / 0.7
-
-    df.to_csv(os.path.join('data/noaa', f'xrs_downsampled_2010_scale.csv'), index=False)
+    
+    # save to file
+    plt.savefig(os.path.join(f'sunpy_logxmax1h_{year}.png'))
+    
+    # plt.show()
 
 
-def check_data(file_name, start_date:str, end_date:str):
+def check_data(file_name, start_date:str = None, end_date:str = None):
     df = pd.read_csv(file_name, index_col=0, parse_dates=True)
-    # change start and end date to datetime
-    start_date = datetime.strptime(start_date, "%Y-%m-%d %H:%M:%S")
-    end_date = datetime.strptime(end_date, "%Y-%m-%d %H:%M:%S")
-
-    df = df[(df.index >= start_date) & (df.index <= end_date)]
+    if start_date is not None:
+        start_date = datetime.strptime(start_date, "%Y-%m-%d %H:%M:%S")
+        df = df.loc[df.index >= start_date]
+    if end_date is not None:
+        end_date = datetime.strptime(end_date, "%Y-%m-%d %H:%M:%S")
+        df = df.loc[df.index <= end_date]
+    
     print(df.info())
     print(df.head())
     print(df.tail())
@@ -285,6 +299,7 @@ def check_data(file_name, start_date:str, end_date:str):
     print(df.isnull().sum())
     
     df.plot(y="logxmax1h")
+    plt.ylim(-2.5, 3.5)
     plt.show()
 
 if __name__ == "__main__":
@@ -292,9 +307,9 @@ if __name__ == "__main__":
     path_save = os.path.join("data/noaa/g_15_new.csv")
     # create_data_noaa(path_data, path_save)
     # create_data_original_noaa("/tmp/tmp_2010.csv")
-    create_data_noaa_with_sunpy_new()
-    # preprocess_data_noaa(path_data)
-    file_name = os.path.join(path_data, "xrs_downsampled_2010.csv")
-    # check_data(file_name=file_name, start_date="2010-06-01 00:00:00", end_date="2010-06-02 00:00:00")
+    for i in range(2010, 2022):
+        create_data_noaa_with_sunpy_new(i)
+    file_name = os.path.join(path_data, "xrs_downsampled_2012.csv")
+    check_data(file_name=file_name, start_date=None, end_date=None)
     print("Data created.")
     

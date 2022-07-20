@@ -83,7 +83,7 @@ plt.show()
 # derivative which is useful in terms of the Neupert effect when analyzing
 # flares.
 
-goes_flare = goes_15.truncate("2015-06-21 09:35", "2015-06-21 10:30")
+goes_flare = goes_15.truncate("2011-06-21 01:35", "2011-06-21 10:30")
 fig, ax = plt.subplots()
 ax.plot(goes_flare.index, np.gradient(goes_flare.quantity("xrsb")))
 ax.set_ylabel("Flux (Wm$^{-2}$$s^{-1}$)")
@@ -104,8 +104,8 @@ plt.show()
 ###############################################################
 # Lets query for some recent data over two days.
 
-results = Fido.search(a.Time("2020-11-20 00:00", "2020-11-21 23:00"), a.Instrument("XRS"))
-print(results)
+# results = Fido.search(a.Time("2020-11-20 00:00", "2020-11-21 23:00"), a.Instrument("XRS"))
+# print(results)
 
 ###############################################################
 # We can see that we are provided with 4 results, two files for GOES 16

@@ -70,7 +70,7 @@ def analyze_feat(feat_path, target='logXmax1h', seq_len=1, set_type=0, scale=Fal
     # self.data_magnetogram = data_magnetogram[border1:border2]:
     data_y = data[border1:border2]
 
-    span = 30
+    span = 24 * 31 * 1
     s_begin = index # start index
     s_end = s_begin + span # end index
     r_begin = s_end # decoder start index, label_lenだけ前のデータを使う
@@ -93,9 +93,9 @@ def analyze_feat(feat_path, target='logXmax1h', seq_len=1, set_type=0, scale=Fal
     ax.get_xaxis().set_tick_params(pad=20)
     
 
-    ax.set_xlabel('Time', fontsize=30)
+    ax.set_xlabel('Time (UT)', fontsize=30)
     ax.set_ylabel('logXmax1h', fontsize=30)
-    ax.set_ylim(-2, 6)
+    ax.set_ylim(-3, 6)
     plt.tight_layout()
     plt.show()
     # # plt.title('logXmax1h')                            #グラフタイトル
@@ -111,6 +111,8 @@ def analyze_feat(feat_path, target='logXmax1h', seq_len=1, set_type=0, scale=Fal
 if __name__ == '__main__':
     feat_path = 'data/data_all_stddev_ffill.csv'
 
-    for i in range(24 * 30 * 12 + 24 * 30 * 3 + 24 * 7 - 1 - 6, 24 * 30 * 12 + 24 * 30 * 12 + 24 * 7, 30 * 1):
+    # for i in range(24 * 30 * 12 + 24 * 30 * 3 + 24 * 7 - 1 - 6, 24 * 30 * 12 + 24 * 30 * 12 + 24 * 7, 30 * 1):
+    #     analyze_feat(feat_path, set_type=0, index=i)
+    for i in range(0, 24 * 30 * 12 + 24 * 30 * 12 + 24 * 7, 24 * 31 * 1):
         analyze_feat(feat_path, set_type=0, index=i)
         
