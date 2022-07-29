@@ -1,5 +1,3 @@
-from fileinput import filename
-from turtle import color
 import pandas as pd
 import numpy as np
 import os
@@ -22,8 +20,8 @@ from sunpy.net import Fido
 from sunpy.net import attrs as a
 from sunpy.time import TimeRange, parse_time
 from sunpy.util.metadata import MetaDict
+from decimal import Decimal, ROUND_HALF_UP, ROUND_HALF_EVEN
 
-import seaborn as sns
 
 def preprocess_data_noaa(path_d):
     # Find the part of g14_xrs_2s_2010{month:02d}{i:02d}_2010{month:02d}{i:02d}.csv that says "data" and delete the line before it.
@@ -181,14 +179,14 @@ def create_data_noaa_with_sunpy_ewm():
     plt.show()
 
 
-def create_data_noaa_with_sunpy_new(year=2010):
+def create_data_noaa_with_sunpy_new(year=2010, thr=3):
     # pd.options.display.float_format = '{:.7f}'.format
     # pd.options.display.precision = 8
 
     
     # goes = Fido.search(a.Time(f"{year}/01/01", f"{year}/12/31"), a.Instrument.xrs, a.goes.SatelliteNumber(15))
     # goes = Fido.search(a.Time(f"{year}/01/01", f"{year}/12/31"), a.Instrument.xrs, a.goes.SatelliteNumber(15)|a.goes.SatelliteNumber(14)|a.goes.SatelliteNumber(13))
-    goes = Fido.search(a.Time(f"{year}/01/01", f"{year}/12/31"), a.Instrument.xrs, a.goes.SatelliteNumber(15)|a.goes.SatelliteNumber(14)|a.goes.SatelliteNumber(13)|a.goes.SatelliteNumber(16)|a.goes.SatelliteNumber(17))
+    goes = Fido.search(a.Time(f"{year}/10/01", f"{year}/10/31"), a.Instrument.xrs, a.goes.SatelliteNumber(15)|a.goes.SatelliteNumber(14)|a.goes.SatelliteNumber(13)|a.goes.SatelliteNumber(16)|a.goes.SatelliteNumber(17))
 
     print(goes)
     # goes = Fido.search(a.Time("2013/06/21", "2013/06/23"), a.Instrument.xrs)
@@ -228,12 +226,10 @@ def create_data_noaa_with_sunpy_new(year=2010):
     # df_nan = df[df['xrsb'].isnull()]
     # print(df_nan.head())
     print("dataframe created")
-    # fill missing values with previous value
-    df.fillna(method='ffill', inplace=True)
-    print(f"missing value\n{df.isna().sum()}")
     
-    df['logxrsb'] = np.log10(df['xrsb'])
-    df['logxmax1h'] = np.log10(df['xrsb']) + 6
+    # print(f"missing value\n{df.isna().sum()}")
+    
+    
     
     # if logxmax1h_t-1 - logxmax1h_t > 3, then logxmax1h_t = logxmax1h_t-1
     # df.loc[(df['logxmax1h'] - df['logxmax1h'].shift(freq='60T')).abs() > 3, 'logxmax1h'] = df['logxmax1h'].shift(freq='60T')
@@ -242,22 +238,53 @@ def create_data_noaa_with_sunpy_new(year=2010):
     # ax.set_ylim(-3.5, 3.5)
     # df.plot(y="logxmax1h", ax=ax)
     
-    df_downsampled = df.resample('60T', label='left', closed='left').max()
+    df_downsampled:pd.DataFrame = df.resample('60T', label='left', closed='left').max()
+    # 欠損値が連続している箇所毎にグループ番号を振る
+    df_downsampled['nan_group'] = ((df_downsampled['xrsb'].isna()) & (df_downsampled['xrsb'].shift(1).notna())).where(df_downsampled['xrsb'].isna()).cumsum()
+    # 上記のグループ毎に欠損値が何個連続しているかを求める
+    df_downsampled['nan_count'] = df_downsampled['nan_group'].map(df_downsampled.groupby('nan_group').size())
+
+    print(df_downsampled[df_downsampled['nan_count'].notna()])
+    # 箇所毎にグループ番号はもう使わないので削除
+    df_downsampled = df_downsampled.drop(columns=['nan_group'])
+
+    # 欠損値がN個連続している箇所以外を補間
+    N=24
+    
+    df_downsampled['xrsb'] = df_downsampled.loc[(df_downsampled['nan_count'] < N) | (df_downsampled['nan_count'].isna()), 'xrsb'].interpolate(method='ffill')
+    df_downsampled = df_downsampled.drop(columns=['nan_count'])
+    # fill missing values with previous value
+    # df.fillna(method='ffill', inplace=True)
+    # if xrsb is nan, then drop xrsb
+    # df_downsampled.dropna(subset=['xrsb'], inplace=True)
+    
+    df_downsampled['logxrsb'] = np.log10(df_downsampled['xrsb'])
+    df_downsampled['logxmax1h'] = np.log10(df_downsampled['xrsb']) + 6
+    print("dataframe processed")
+    print(df_downsampled)
+
     # two path
     # df_downsampled.loc[(df_downsampled['logxmax1h'] - df_downsampled['logxmax1h'].shift(1)).abs() > 3.0, 'logxmax1h'] = np.nan
     # df_downsampled.fillna(method='ffill', inplace=True)
 
     # one path
-    for i in range(1, len(df_downsampled)):
-        if (df_downsampled['logxmax1h'].iloc[i] - df_downsampled['logxmax1h'].iloc[i-1]) > 2.5:
-            df_downsampled['logxmax1h'].iloc[i] = df_downsampled['logxmax1h'].iloc[i-1]
+    # for i in range(1, len(df_downsampled)):
+    #     if (df_downsampled['logxmax1h'].iloc[i] - df_downsampled['logxmax1h'].iloc[i-1]) > thr:
+    #         df_downsampled['logxmax1h'].iloc[i] = df_downsampled['logxmax1h'].iloc[i-1]
 
-    # df_original_source = pd.read_csv("data/noaa/xrs_downsampled_2010_scale.csv")
-    # df_original_source.set_index('time', inplace=True)
-    # df_original_source.index = pd.to_datetime(df_original_source.index)
-    # df_original_source.index = df_original_source.index.round('1H')
-    # print(df_original_source.head())
-    # print(df_original_source.index)
+    # If the value is the same for 24 consecutive hours, delete the row
+    # df_downsampled_copy = df_downsampled.copy()
+    # for i in range(1, len(df_downsampled)-24):
+    #     print(i)
+    #     if df_downsampled['logxmax1h'].iloc[i] == df_downsampled['logxmax1h'].iloc[i-1]:
+    #         cnt = 0
+    #         for j in range(i, i+24):
+    #             if df_downsampled['logxmax1h'].iloc[j] == df_downsampled['logxmax1h'].iloc[i]:
+    #                 cnt += 1
+    #         if cnt == 24:
+    #             df_downsampled_copy.drop(df_downsampled.index[i])
+
+
     
 
     # print(df_downsampled.isnull().sum())
@@ -272,13 +299,23 @@ def create_data_noaa_with_sunpy_new(year=2010):
     fig, ax = plt.subplots()
     ax.set_ylim(-2.5, 3.5)
     ts_downsampled.plot(columns=["logxmax1h"])
+    # df_downsampled.plot(y="logxmax1h", ax=ax)
     
     # save to file
-    ts_downsampled.to_dataframe().to_csv(os.path.join('data/noaa', f'xrs_downsampled_{year}.csv'))
-    print(ts_downsampled.to_dataframe().info())
+    ts_downsampled = ts_downsampled.to_dataframe()
+    ts_downsampled.dropna(subset=['xrsb', 'logxrsb', 'logxmax1h'], inplace=True)
+
+    # ts_downsampled['xrsb'] = ts_downsampled['xrsb'].map(lambda x: float(Decimal(str(x)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)))
+    # ts_downsampled['logxrsb'] = ts_downsampled['logxrsb'].map(lambda x: float(Decimal(str(x)).quantize(Decimal('0.000001'), rounding=ROUND_HALF_EVEN)))
+    # ts_downsampled['logxmax1h'] = ts_downsampled['logxmax1h'].map(lambda x: float(Decimal(str(x)).quantize(Decimal('0.000001'), rounding=ROUND_HALF_EVEN)))
+    ts_downsampled['logxrsb'] = ts_downsampled['logxrsb'].map('{:.6f}'.format)
+    ts_downsampled['logxmax1h'] = ts_downsampled['logxmax1h'].map('{:.6f}'.format)
+    
+    ts_downsampled.to_csv(os.path.join('data/noaa', f'xrs_downsampled_{year}_{thr}_trial.csv'))
+    print(ts_downsampled.info())
     
     # save to file
-    plt.savefig(os.path.join(f'sunpy_logxmax1h_{year}.png'))
+    plt.savefig(os.path.join(f'sunpy_logxmax1h_{year}_{thr}.png'))
     
     # plt.show()
 
@@ -307,9 +344,12 @@ if __name__ == "__main__":
     path_save = os.path.join("data/noaa/g_15_new.csv")
     # create_data_noaa(path_data, path_save)
     # create_data_original_noaa("/tmp/tmp_2010.csv")
-    for i in range(2010, 2022):
-        create_data_noaa_with_sunpy_new(i)
-    file_name = os.path.join(path_data, "xrs_downsampled_2012.csv")
-    check_data(file_name=file_name, start_date=None, end_date=None)
+    for thr in [3.0, 2.5]:
+        for i in range(2010, 2022):
+            create_data_noaa_with_sunpy_new(year=i, thr=thr)
+    # create_data_noaa_with_sunpy_new(year=2014, thr=0)
+    
+    # file_name = os.path.join(path_data, f"xrs_downsampled_2012_{thr}.csv")
+    # check_data(file_name=file_name, start_date=None, end_date=None)
     print("Data created.")
     
