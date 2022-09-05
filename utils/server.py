@@ -108,6 +108,7 @@ class CallbackServer:
                         print(imgs.shape)
                         prob = callback(imgs, phys).tolist()
                         status = "success"
+                        break
 
             return JSONResponse(content={"probability": {"OCMX"[i]: prob[i] for i in range(len(prob))}, "oneshot_status": status})
 
