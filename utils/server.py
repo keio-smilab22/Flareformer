@@ -92,7 +92,8 @@ class CallbackServer:
             jsonl_database_path = "data/ft_database_all17.jsonl"
             query = f"{date.year}-{date.month}-{date.day}-{date.hour}"
             targets = []
-            target_flg = False
+            prob = []
+            status = "failed"
             with open(jsonl_database_path, "r") as f:
                 query_date = datetime.datetime.strptime(query, '%Y-%m-%d-%H').strftime('%Y-%m-%d-%H')
                 for line in f.readlines():
@@ -102,18 +103,11 @@ class CallbackServer:
                         targets.pop(0)
                     target_date = datetime.datetime.strptime(data["time"], '%d-%b-%Y %H').strftime('%Y-%m-%d-%H')
                     if query_date == target_date:
-                        target_flg = True
-                        break
-
-            if target_flg == True:
-                imgs = torch.cat([CallbackServer.get_tensor_image_from_path(t["magnetogram"]) for t in targets])
-                phys = np.array([list(map(float, t["feature"].split(","))) for t in targets])[:, :90]
-                print(imgs.shape)
-                prob = callback(imgs, phys).tolist()
-                status = "success"
-            else:
-                prob = []
-                status = "failed"
+                        imgs = torch.cat([CallbackServer.get_tensor_image_from_path(t["magnetogram"]) for t in targets])
+                        phys = np.array([list(map(float, t["feature"].split(","))) for t in targets])[:, :90]
+                        print(imgs.shape)
+                        prob = callback(imgs, phys).tolist()
+                        status = "success"
 
             return JSONResponse(content={"probability": {"OCMX"[i]: prob[i] for i in range(len(prob))}, "oneshot_status": status})
 
