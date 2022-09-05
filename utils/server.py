@@ -112,7 +112,7 @@ class CallbackServer:
                 prob = callback(imgs, phys).tolist()
                 status = "success"
             else:
-                prob = [0,0,0,0]
+                prob = []
                 status = "failed"
 
             return JSONResponse(content={"probability": {"OCMX"[i]: prob[i] for i in range(len(prob))}, "oneshot_status": status})
@@ -132,13 +132,13 @@ class CallbackServer:
             jsonl_database_path = "data/ft_database_all17.jsonl"
             query = f"{date.year}-{date.month}-{date.day}-{date.hour}"
             query_date = datetime.datetime.strptime(query, '%Y-%m-%d-%H')
-            finish_date = query_date + datetime.timedelta(hours=24) 
+            finish_date = query_date + datetime.timedelta(hours=24)
             targets = []
             with open(jsonl_database_path, "r") as f:
                 for line in f.readlines():
                     data = json.loads(line)
                     target_date = datetime.datetime.strptime(data["time"], '%d-%b-%Y %H')
-                    if query_date < target_date and target_date < finish_date:
+                    if query_date < target_date and target_date <= finish_date:
                         targets.append(data)
 
             if len(targets) == 0:
