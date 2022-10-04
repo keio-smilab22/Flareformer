@@ -1,5 +1,4 @@
 import datetime
-from pickle import FALSE
 import matplotlib.pyplot as plt
 
 import sunpy.map
@@ -11,10 +10,15 @@ import os
 from tqdm import tqdm
 import cv2
 
-def create_magentogram(path_d, path_save, year=2011, month=1):
+def create_magentogram(path_save, year=2011, month=1):
     # result = Fido.search(a.Time('2011/01/01 00:00:00', '2011/01/01 00:30:00'),
     #                  a.Instrument.hmi, a.Physobs.los_magnetic_field, a.Sample(10*u.minute))
-    month_span ={1:31, 2:28, 3:31, 4:30, 5:31, 6:30, 7:31, 8:31, 9:30, 10:31, 11:30, 12:31}
+    
+    # if year is the leap year, then 
+    if year % 4 == 0:
+        month_span = {1:31, 2:29, 3:31, 4:30, 5:31, 6:30, 7:31, 8:31, 9:30, 10:31, 11:30, 12:31}
+    else:
+        month_span = {1:31, 2:28, 3:31, 4:30, 5:31, 6:30, 7:31, 8:31, 9:30, 10:31, 11:30, 12:31}
 
     for day in tqdm(range(1, month_span[month]+1), desc='day'):
         start_date = f'{year}/{month:02d}/{day:02d}'
@@ -35,12 +39,7 @@ def create_magentogram(path_d, path_save, year=2011, month=1):
 
             downloaded_file = Fido.fetch(downloaded_file, max_conn=100, overwrite=False)
         
-        # figsize_px = np.array([1024, 1024])
-        # dpi = 300
-        # figsize_inch = figsize_px / dpi
-        # fig, ax = plt.subplots(frameon=False, figsize=figsize_inch, dpi=dpi)
         fig, ax = plt.subplots(frameon=False)
-        
         
         for file in tqdm(downloaded_file, desc='Creating magentogram', total=len(downloaded_file)):
             try :
@@ -70,7 +69,6 @@ def create_magentogram(path_d, path_save, year=2011, month=1):
                             cmap=hmi_rotated.plot_settings['cmap'],
                             origin="lower",
                             norm=hmi_rotated.plot_settings['norm'])
-                    # print(file)
                     
                     # ax.imshow(hmi_rotated.data)
                     
@@ -106,10 +104,9 @@ def test_magnetogram(path_d):
 
 
 if __name__ == '__main__':
-    path_d = 'data/noaa/'
-    year = 2011
+    year = 2013
     path_save = f'data/noaa/magnetogram/{year}_5m/'
-    for i in range(1, 13):
-        create_magentogram(path_d, path_save, year, i)
+    for i in range(2,5):
+        create_magentogram(path_save=path_save, year=year, month=i)
         print(f'Month {i} done')
     # test_magnetogram(path_save)
