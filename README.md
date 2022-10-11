@@ -50,9 +50,9 @@ $ tar -zxvf data/magnetogram_images.tar.gz
 
 ## Training
 
-- To train Flareformer with warmup and [cRT](https://arxiv.org/abs/1910.09217) using `params/params_2014.json`: 
+- To train Flareformer with warmup and [cRT](https://arxiv.org/abs/1910.09217) using `config/params_2014.json`: 
 
-    - `python main.py --params params/params_2014.json --warmup_epochs=5 --imbalance --wandb`
+    - `python main.py --params config/params_2014.json --warmup_epochs=5 --imbalance --wandb`
 
 ## License
 

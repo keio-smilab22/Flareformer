@@ -29,7 +29,7 @@ def parse_params(dump: bool = False) -> Tuple[Namespace, Dict[str, Any]]:
     parser.add_argument('--mode', default="train")
     parser.add_argument('--wandb', action='store_true')
     parser.add_argument('--model', default='Flareformer')
-    parser.add_argument('--params', default='params/params_2017.json')
+    parser.add_argument('--params', default='config/params_2017.json')
     parser.add_argument('--project_name', default='flare_transformer_test')
     parser.add_argument('--model_name', default='id1_2017')
     parser.add_argument('--warmup_epochs', default=5, type=int)
