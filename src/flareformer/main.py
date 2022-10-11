@@ -3,7 +3,7 @@
 import json
 import argparse
 import torch
-import src.flareformer.structure.structure as model
+import structure.structure as model
 import torch.nn as nn
 import numpy as np
 import colored_traceback.always
@@ -12,16 +12,16 @@ from argparse import Namespace
 from typing import Dict, Optional, Tuple, Any
 from torchinfo import summary
 from torch.utils.data import DataLoader
-from src.flareformer.utils.statistics import Stat
-from src.flareformer.dataloader.flare import OneshotDataset
+from utils.statistics import Stat
+from dataloader.flare import OneshotDataset
 
-from src.flareformer.utils.utils import adjust_learning_rate, fix_seed, inject_args
-from src.flareformer.utils.losses import LossConfig, Losser
+from utils.utils import adjust_learning_rate, fix_seed, inject_args
+from utils.losses import LossConfig, Losser
 from engine import train_epoch, eval_epoch
-from src.flareformer.utils.logs import Log, Logger
-from src.flareformer.utils.server import CallbackServer
+from utils.logs import Log, Logger
+from utils.server import CallbackServer
 
-from src.flareformer.dataloader.dataloader import prepare_dataloaders
+from dataloader.dataloader import prepare_dataloaders
 
 
 def parse_params(dump: bool = False) -> Tuple[Namespace, Dict[str, Any]]:
