@@ -12,14 +12,14 @@ from argparse import Namespace
 from typing import Dict, Optional, Tuple, Any
 from torchinfo import summary
 from torch.utils.data import DataLoader
-from utils.statistics import Stat
+from src.flareformer.utils.statistics import Stat
 from datasets.flare import OneshotDataset
 
-from utils.utils import adjust_learning_rate, fix_seed, inject_args
-from utils.losses import LossConfig, Losser
+from src.flareformer.utils.utils import adjust_learning_rate, fix_seed, inject_args
+from src.flareformer.utils.losses import LossConfig, Losser
 from engine import train_epoch, eval_epoch
-from utils.logs import Log, Logger
-from utils.server import CallbackServer
+from src.flareformer.utils.logs import Log, Logger
+from src.flareformer.utils.server import CallbackServer
 
 from datasets.datasets import prepare_dataloaders
 

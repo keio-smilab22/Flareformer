@@ -5,9 +5,9 @@ Train and eval functions used in main.py
 from dataclasses import dataclass
 import numpy as np
 import torch
-from utils.losses import Losser
-from utils.statistics import Stat
-from utils.utils import adjust_learning_rate
+from src.flareformer.utils.losses import Losser
+from src.flareformer.utils.statistics import Stat
+from src.flareformer.utils.utils import adjust_learning_rate
 
 from tqdm import tqdm
 from argparse import Namespace
