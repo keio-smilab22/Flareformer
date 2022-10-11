@@ -1,6 +1,7 @@
-data/
-checkpoints/
+data*/
+checkpoints*/
 wandb/
+params*/
 __pycache__/
 output_dir/
 
