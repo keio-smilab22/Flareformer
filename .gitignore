@@ -1,5 +1,5 @@
 data/
-checkpoints/
+models/
 wandb/
 __pycache__/
 output_dir/
