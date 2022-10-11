@@ -66,3 +66,37 @@ class Losser:
         Clear accumulated loss
         """
         self.accum.clear()
+
+
+@dataclass
+class ForeCastLossConfig:
+    lambda_CE: float
+
+class ForeCastLosser:
+    def __init__(self, config: ForeCastLossConfig, device: str = "cuda"):
+        self.ce_loss = nn.CrossEntropyLoss().to(device)
+        self.bce_loss = nn.BCELoss().to(device)
+        self.config = config
+        self.accum = []
+
+    def __call__(self, y_preds: Tensor, y_true: Tensor) -> Tensor:
+        """
+        Compute loss
+        """
+        loss_class = self.ce_loss(y_preds[0], torch.argmax(y_true[0], dim=1))
+        loss_active = self.bce_loss(y_preds[1], y_true[1])
+        loss = loss_class + loss_active
+        self.accum.append(loss.clone().detach().cpu().item())
+        return loss
+
+    def get_mean_loss(self) -> float:
+        """
+        Get mean loss
+        """
+        return np.mean(self.accum)
+
+    def clear(self):
+        """
+        Clear accumulated loss
+        """
+        self.accum.clear()

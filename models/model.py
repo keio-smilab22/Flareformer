@@ -15,7 +15,6 @@ class Flareformer(nn.Module):
                  mm_params: Dict[str, float],
                  window: int = 24):
         super(Flareformer, self).__init__()
-
         # Informer
         self.mag_encoder = nn.Sequential(*[InformerEncoderLayer(
             AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
@@ -290,3 +289,145 @@ class PositionwiseFeedForward(torch.nn.Module):
 
     def forward(self, x):
         return self.w_2(self.dropout(F.relu(self.w_1(x))))
+
+class TemplateDecoder(nn.Module):
+    def __init__(self,
+                sfm_params: Dict[str, float],
+                mm_params: Dict[str, float],
+                output_flareclass: int,
+                output_active: int):
+        super(TemplateDecoder, self).__init__()
+        
+        self.linear1 = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
+                                output_flareclass)
+        self.softmax1 = nn.Softmax(dim=1)
+
+        self.linear2 = nn.Linear(sfm_params["d_model"]+mm_params["d_model"],
+                                output_active)
+        self.sigmoid = nn.Sigmoid()
+    
+    def forward(self, x, y):
+        # 前半用モジュール
+        class_ = self.linear1(x)
+        class_ = self.softmax1(class_)
+
+        active = self.linear2(x)
+        active = self.sigmoid(active)
+        
+        # 前半用
+        overview = self._make_overview(class_, active)
+        # 後半用
+        predict = self._make_predict(y)
+        assert len(overview) == len(predict)
+
+        templates = []
+        for idx in range(len(overview)):
+            templates.append(overview[idx]+predict[idx])
+        
+        return class_, active, templates
+    
+    def _make_overview(self, class_: Tensor, active: Tensor):
+        template = "<AA>、太陽活動は<BB>でした。"
+
+        class_list = torch.argmax(class_, dim=1).tolist()
+        active_list = torch.argmax(active, dim=1).tolist()
+        outputs = []
+
+        for idx in range(len(class_)):
+            if active_list[idx] == 0:
+                BB = "静穏"
+                if class_list[idx] == 0:
+                    AA = "太陽面で目立った活動は発生せず"
+                elif class_list[idx] == 1:
+                    AA = "活動領域でＢクラスフレアが発生しましたが"
+                elif class_list[idx] == 2:
+                    AA = "活動領域でＣクラスフレアが発生しましたが"
+                elif class_list[idx] == 3:
+                    AA = "活動領域でＭクラスフレアが発生しましたが"
+                elif class_list[idx] == 4:
+                    AA = "活動領域でＸクラスフレアが発生しましたが"
+            
+            elif active_list[idx] == 1:
+                BB = "活発"
+                if class_list[idx] == 0:
+                    AA = "太陽面で目立った活動は発生しませんでしたが"
+                elif class_list[idx] == 1:
+                    AA = "活動領域でＢクラスフレアが発生し"
+                elif class_list[idx] == 2:
+                    AA = "活動領域でＣクラスフレアが発生し"
+                elif class_list[idx] == 3:
+                    AA = "活動領域でＭクラスフレアが発生し"
+                elif class_list[idx] == 4:
+                    AA = "活動領域でＸクラスフレアが発生し"
+        
+            template = template.replace("<AA>", AA).replace("<BB>", BB)
+            outputs.append(template)
+        return outputs
+    
+    def _make_predict(self, y):
+        '''
+            Args:
+                y : FlareFormerの出力==(O, C, M, X)の4クラスの予測確率
+            Return:
+                テンプレ予報文の後半部分
+        '''
+        outputs = []
+        template = "<CC>太陽活動は<DD>な状態が予想されます"
+
+        preds = torch.argmax(y, dim=1).tolist()
+        for pred in preds:
+            if pred==0:
+                CC = ""
+                DD = "静穏"
+            else:
+                CC = "引き続き今後一日間、"
+                DD = "活発"
+            template = template.replace("<CC>", CC).replace("<DD>", DD)
+            outputs.append(template)
+        return outputs
+
+class ForecastFormer(nn.Module):
+
+    def __init__(self,
+                input_channel: int,
+                output_channel: int,
+                sfm_params: Dict[str, float],
+                mm_params: Dict[str, float],
+                window: int=24,
+                output_flareclass: int=5,
+                output_active: int=2):
+        super(ForecastFormer, self).__init__()
+        self.flareformer = Flareformer(
+            input_channel,
+            output_channel,
+            sfm_params,
+            mm_params,
+            window,
+        )
+        
+        # template用
+        self.template_decoder = TemplateDecoder(
+            sfm_params,
+            mm_params,
+            output_flareclass = output_flareclass,
+            output_active = output_active,
+        )
+
+        # dnn用
+        # self.dnn = XXX
+
+    def forward(self, 
+                img_list: Tensor, 
+                feat: Tensor, 
+                ) -> Tuple[Tensor, Tensor]:
+
+        output, x = self.flareformer(img_list, feat)
+        # template用
+        y_class, y_active, templates = self.template_decoder(x, output)
+        outputs = (y_class, y_active, templates)
+        
+        return outputs
+    
+    def freeze_flareformer(self):
+        for param in self.flareformer.parameters():
+            param.requires_grad = False

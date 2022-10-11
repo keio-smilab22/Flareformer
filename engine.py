@@ -5,8 +5,8 @@ Train and eval functions used in main.py
 from dataclasses import dataclass
 import numpy as np
 import torch
-from utils.losses import Losser
-from utils.statistics import Stat
+from utils.losses import Losser, ForeCastLosser
+from utils.statistics import Stat, ForeCastStat
 from utils.utils import adjust_learning_rate
 
 from tqdm import tqdm
@@ -56,6 +56,53 @@ def eval_epoch(model: torch.nn.Module,
             gt = y.cuda().to(torch.float)
             _ = losser(output, gt)
             stat.collect(output, y)
+
+    score = stat.aggregate("valid")
+    return score, losser.get_mean_loss()
+
+
+def train_epoch_forecast(model: torch.nn.Module,
+                optimizer: Adam,
+                train_dl: DataLoader,
+                losser: ForeCastLosser,
+                stat: ForeCastStat) -> Tuple[Dict[str, Any], float]:
+    """train one epoch"""
+    model.train()
+    losser.clear()
+    stat.clear_all()
+    for _, (x, y, _) in enumerate(tqdm(train_dl)):
+        optimizer.zero_grad()
+        imgs, feats = x
+        imgs, feats = imgs.cuda().float(), feats.cuda().float()
+        outputs = model(imgs, feats)
+        gt_class = y[0].cuda().to(torch.float)
+        gt_active = y[1].cuda().to(torch.float)
+        loss = losser(outputs, (gt_class, gt_active))
+        loss.backward()
+        optimizer.step()
+        stat.collect(outputs, y)
+
+    score = stat.aggregate("train")
+    return score, losser.get_mean_loss()
+
+
+def eval_epoch_forecast(model: torch.nn.Module,
+               val_dl: DataLoader,
+               losser: ForeCastLosser,
+               stat: ForeCastStat) -> Tuple[Dict[str, Any], float]:
+    """evaluate the given model"""
+    model.eval()
+    losser.clear()
+    stat.clear_all()
+    with torch.no_grad():
+        for _, (x, y, _) in enumerate(tqdm(val_dl)):
+            imgs, feats = x
+            imgs, feats = imgs.cuda().float(), feats.cuda().float()
+            outputs = model(imgs, feats)
+            gt_class = y[0].cuda().to(torch.float)
+            gt_active = y[1].cuda().to(torch.float)
+            _ = losser(outputs, (gt_class, gt_active))
+            stat.collect(outputs, y)
 
     score = stat.aggregate("valid")
     return score, losser.get_mean_loss()

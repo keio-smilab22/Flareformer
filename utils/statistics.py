@@ -126,3 +126,72 @@ class Stat:
         fn, tp = mtx[target_class:, :target_class].sum(), mtx[target_class:, target_class:].sum()
 
         return tn, fp, fn, tp
+
+class ForeCastStat:
+    """
+    collect predictions and calculate some metrics
+    """
+
+    def __init__(self, climatology: List[float]) -> None:
+        self.predictions = [[], []]
+        self.observations = [[], []]
+        self.climate = climatology
+
+    def collect(self, pred: torch.Tensor, ground_truth: torch.Tensor):
+        """
+        Collect predictions and ground truth
+        """
+        gt_class, gt_active = ground_truth
+        pred_class, pred_active = pred[:2]
+
+        observations_class = torch.argmax(gt_class, dim=1)
+        observation_active = torch.argmax(gt_active, dim=1)
+        
+        self.predictions[0].extend(pred_class.cpu().detach().numpy())
+        self.predictions[1].extend(pred_active.cpu().detach().numpy())
+        self.observations[0].extend(observations_class.cpu().detach().numpy())
+        self.observations[1].extend(observation_active.cpu().detach().numpy())
+
+    def aggregate(self, dataset_type: str) -> Dict[str, Any]:
+        """
+        Aggregate collected data and calculate metrics
+        """
+        score = {}
+        y_pred_class, y_true_class = np.asarray(self.predictions[0]), np.asarray(self.observations[0])
+        y_pred_active, y_true_active = np.asarray(self.predictions[1]), np.asarray(self.observations[1])
+        
+        y_predl_class = [np.argmax(y) for y in y_pred_class]
+        y_predl_active = [np.argmax(y) for y in y_pred_active]
+
+        score["ACC(class)"] = self.calc_accs(y_predl_class, y_true_class, num=5)
+        score["ACC(active)"] = self.calc_accs(y_predl_active, y_true_active, num=2)
+        results = {dataset_type + "_" + k: v for k, v in score.items()}
+
+        return results
+
+    def clear_all(self):
+        """
+        Clear all collected data
+        """
+        self.predictions.clear()
+        self.observations.clear()
+        
+        # init
+        self.predictions = [[], []]
+        self.observations = [[], []]
+
+    def confusion_matrix(self, y_pred: ndarray, y_true: ndarray, num: int) -> ndarray:
+        """
+        return confusion matrix for n class
+        """
+        labels = [idx for idx in range(num)]
+        return metrics.confusion_matrix(y_true, y_pred, labels=labels)
+
+    def calc_accs(self, y_pred: ndarray, y_true: ndarray, num: int) -> float:
+        """
+        Compute classification accuracy for 4 class
+        """
+        cm = self.confusion_matrix(y_pred, y_true, num)
+        accs = np.diag(cm).sum() / len(y_pred)
+        print(cm)
+        return accs

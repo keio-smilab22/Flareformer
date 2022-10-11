@@ -1,14 +1,20 @@
 from argparse import Namespace
 from torch.utils.data import DataLoader
-from datasets.flare import FlareDataset
+from datasets.flare import FlareDataset, ForecastDataset
 from datasets.sampler import TrainBalancedBatchSampler
 
 
 def load_datasets(args: Namespace, debug: bool):
-    train_dataset = FlareDataset("train", args.dataset, debug=debug)
-    val_dataset = FlareDataset("valid", args.dataset, debug=debug)
-    test_dataset = FlareDataset("test", args.dataset, debug=debug)
-
+    if args.stage == 'flareformer':
+        train_dataset = FlareDataset("train", args.dataset, debug=debug) # (48617, 1, 256, 256)
+        val_dataset = FlareDataset("valid", args.dataset, debug=debug) # (7991, 1, 256, 256)
+        test_dataset = FlareDataset("test", args.dataset, debug=debug)
+    elif args.stage == 'forecast':
+        train_dataset = ForecastDataset("train", args.dataset, debug=debug) # (48617, 1, 256, 256)
+        val_dataset = ForecastDataset("valid", args.dataset, debug=debug) # (7991, 1, 256, 256)
+        test_dataset = ForecastDataset("test", args.dataset, debug=debug)
+    else:
+        print("No dataset")
     mean, std = train_dataset.calc_mean()
 
     train_dataset.set_mean(mean, std)
