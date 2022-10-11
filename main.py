@@ -3,7 +3,7 @@
 import json
 import argparse
 import torch
-import src.flareformer.models.model as model
+import src.flareformer.structure.structure as model
 import torch.nn as nn
 import numpy as np
 import colored_traceback.always
