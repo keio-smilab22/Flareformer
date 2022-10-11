@@ -1,20 +1,14 @@
-data/
-models/
-wandb/
+/data/*
+!/data/.gitkeep
+/models/*
+!/models/.gitkeep
+/wandb/*
 __pycache__/
-output_dir/
 
 .python-version
-.csv
-.jsonl
-.pth
-.json
-*.log
-.*.txt
 
 pyproject.toml
 type_info.json
 pyannotate.py
 command_memo.txt
 view.sh
-data
