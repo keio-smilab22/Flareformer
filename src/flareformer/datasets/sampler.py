@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import numpy as np
 import torch
-from datasets.flare import FlareDataset
+from .flare import FlareDataset
 from numpy import int64
 from typing import Iterator, List
 

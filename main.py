@@ -13,7 +13,7 @@ from typing import Dict, Optional, Tuple, Any
 from torchinfo import summary
 from torch.utils.data import DataLoader
 from src.flareformer.utils.statistics import Stat
-from datasets.flare import OneshotDataset
+from src.flareformer.datasets.flare import OneshotDataset
 
 from src.flareformer.utils.utils import adjust_learning_rate, fix_seed, inject_args
 from src.flareformer.utils.losses import LossConfig, Losser
@@ -21,7 +21,7 @@ from engine import train_epoch, eval_epoch
 from src.flareformer.utils.logs import Log, Logger
 from src.flareformer.utils.server import CallbackServer
 
-from datasets.datasets import prepare_dataloaders
+from src.flareformer.datasets.datasets import prepare_dataloaders
 
 
 def parse_params(dump: bool = False) -> Tuple[Namespace, Dict[str, Any]]:
