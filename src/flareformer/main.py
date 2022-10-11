@@ -3,7 +3,7 @@
 import json
 import argparse
 import torch
-import models.model
+import structure.structure
 import torch.nn as nn
 import numpy as np
 import colored_traceback.always
@@ -13,7 +13,7 @@ from typing import Dict, Optional, Tuple, Any
 from torchinfo import summary
 from torch.utils.data import DataLoader
 from utils.statistics import Stat
-from datasets.flare import OneshotDataset
+from dataloader.flare import OneshotDataset
 
 from utils.utils import adjust_learning_rate, fix_seed, inject_args
 from utils.losses import LossConfig, Losser
@@ -21,7 +21,7 @@ from engine import train_epoch, eval_epoch
 from utils.logs import Log, Logger
 from utils.server import CallbackServer
 
-from datasets.datasets import prepare_dataloaders
+from dataloader.dataloader import prepare_dataloaders
 
 
 def parse_params(dump: bool = False) -> Tuple[Namespace, Dict[str, Any]]:
@@ -29,7 +29,7 @@ def parse_params(dump: bool = False) -> Tuple[Namespace, Dict[str, Any]]:
     parser.add_argument('--mode', default="train")
     parser.add_argument('--wandb', action='store_true')
     parser.add_argument('--model', default='Flareformer')
-    parser.add_argument('--params', default='params/params_2017.json')
+    parser.add_argument('--params', default='config/params_2017.json')
     parser.add_argument('--project_name', default='flare_transformer_test')
     parser.add_argument('--model_name', default='id1_2017')
     parser.add_argument('--warmup_epochs', default=5, type=int)
@@ -200,7 +200,7 @@ class FlareformerManager():
         return model, losser, optimizer, stat
 
     def _get_model_class(self, name: str) -> nn.Module:
-        mclass = models.model.__dict__[name]
+        mclass = structure.structure.__dict__[name]
         return mclass
 
 
