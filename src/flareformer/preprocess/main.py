@@ -6,8 +6,8 @@ from tqdm import tqdm
 from argparse import Namespace
 from time import sleep
 
-from utils import make_prefix, identity, sub_1h
-from datasets import read_jsonl, detect_year_sections, split_dataset, get_image
+from preprocess.utils import make_prefix, identity, sub_1h
+from preprocess.datasets import read_jsonl, detect_year_sections, split_dataset, get_image
 
 
 @ray.remote

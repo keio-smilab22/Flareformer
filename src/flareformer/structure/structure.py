@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .attn import ProbAttention, AttentionLayer
+from structure.attn import ProbAttention, AttentionLayer
 from timm.models.layers import trunc_normal_, DropPath
 from torch import Tensor
 from typing import Tuple, List, Dict, Union

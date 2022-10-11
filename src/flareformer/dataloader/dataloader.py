@@ -1,7 +1,7 @@
 from argparse import Namespace
 from torch.utils.data import DataLoader
-from .flare import FlareDataset
-from .sampler import TrainBalancedBatchSampler
+from dataloader.flare import FlareDataset
+from dataloader.sampler import TrainBalancedBatchSampler
 
 
 def load_datasets(args: Namespace, debug: bool):
