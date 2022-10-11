@@ -2,7 +2,7 @@
 !/data/.gitkeep
 /models/*
 !/models/.gitkeep
-/wandb/*
+/wandb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
