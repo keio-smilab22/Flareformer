@@ -3,7 +3,7 @@
 import json
 import argparse
 import torch
-import structure.structure as model
+import structure.structure
 import torch.nn as nn
 import numpy as np
 import colored_traceback.always
@@ -200,7 +200,7 @@ class FlareformerManager():
         return model, losser, optimizer, stat
 
     def _get_model_class(self, name: str) -> nn.Module:
-        mclass = model.__dict__[name]
+        mclass = structure.structure.__dict__[name]
         return mclass
 
 
