@@ -3,7 +3,7 @@
 import json
 import argparse
 import torch
-import models.model
+import src.flareformer.models.model as model
 import torch.nn as nn
 import numpy as np
 import colored_traceback.always
@@ -200,7 +200,7 @@ class FlareformerManager():
         return model, losser, optimizer, stat
 
     def _get_model_class(self, name: str) -> nn.Module:
-        mclass = models.model.__dict__[name]
+        mclass = model.__dict__[name]
         return mclass
 
 
