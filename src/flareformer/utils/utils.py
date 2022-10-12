@@ -1,4 +1,4 @@
-""" Scripts for evaluation utils """
+"""学習に用いる設定値を決めるモジュール"""
 import math
 from argparse import Namespace
 from typing import Any, Dict

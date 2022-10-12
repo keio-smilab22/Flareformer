@@ -1,4 +1,4 @@
-""" Preprocess physical features and magnetogram images for model input"""
+"""Preprocess physical features and magnetogram images for model input"""
 import argparse
 from argparse import Namespace
 from time import sleep

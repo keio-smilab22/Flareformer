@@ -1,4 +1,4 @@
-"""Scripts for losses"""
+"""損失関数を定義するモジュール"""
 from dataclasses import dataclass
 import torch
 import numpy as np

@@ -1,4 +1,4 @@
-"""Scripts for logs"""
+"""ログを定義するモジュール"""
 from argparse import Namespace
 from dataclasses import dataclass
 from typing import Any, Dict, List
