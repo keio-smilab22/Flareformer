@@ -30,6 +30,7 @@ protobuf = "^3.19.4"
 python-multipart = "^0.0.5"
 uvicorn = "^0.18.2"
 wandb = "^0.12.11"
+flake8-docstrings = "^1.6.0"
 
 [tool.poetry.dev-dependencies]
 pytest-cov = "^3.0.0"
