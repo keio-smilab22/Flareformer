@@ -2,29 +2,28 @@
 
 import json
 import argparse
-import torch
-import structure.structure
-import torch.nn as nn
-import numpy as np
-import colored_traceback.always
-
 from argparse import Namespace
 from typing import Dict, Optional, Tuple, Any
-from torchinfo import summary
+import structure.structure
+import torch
+from torch import nn
 from torch.utils.data import DataLoader
+from torchinfo import summary
+import numpy as np
 from utils.statistics import Stat
-from dataloader.flare import OneshotDataset
-
 from utils.utils import adjust_learning_rate, fix_seed, inject_args
 from utils.losses import LossConfig, Losser
-from engine import train_epoch, eval_epoch
 from utils.logs import Log, Logger
 from utils.server import CallbackServer
-
 from dataloader.dataloader import prepare_dataloaders
+from dataloader.flare import OneshotDataset
+from engine import train_epoch, eval_epoch
 
 
 def parse_params(dump: bool = False) -> Tuple[Namespace, Dict[str, Any]]:
+    """
+    Parse params
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', default="train")
     parser.add_argument('--wandb', action='store_true')
@@ -115,7 +114,7 @@ class FlareformerManager():
                                       Log("valid", np.mean(valid_loss), valid_score),
                                       Log("test", np.mean(test_loss), test_score)])
 
-            print("Epoch {}: Train loss:{:.4f}  Valid loss:{:.4f}".format(epoch, train_loss, valid_loss), test_score)
+            print(f"Epoch {epoch}: Train loss:{train_loss:.4f}  Valid loss:{valid_loss:.4f}", test_score)
 
     def load(self, path: str):
         """
@@ -124,6 +123,9 @@ class FlareformerManager():
         self.model.load_state_dict(torch.load(path))
 
     def load_dataloaders(self, args: Namespace, imbalance: bool):
+        """
+        Load dataloaders
+        """
         dataloaders, sample = prepare_dataloaders(args, args.debug, imbalance)
         self.dataloaders = dataloaders  # (train, valid, test)
         return sample
@@ -140,6 +142,9 @@ class FlareformerManager():
         print(test_score)
 
     def predict_one_shot(self, imgs: torch.Tensor, feats: np.ndarray):
+        """
+        Predict oneshot
+        """
         conf = self.args.dataset
         mean, std = conf["mean"], conf["std"]
         dataset = OneshotDataset(imgs, feats, mean, std)
@@ -200,11 +205,17 @@ class FlareformerManager():
         return model, losser, optimizer, stat
 
     def _get_model_class(self, name: str) -> nn.Module:
+        """
+        Get model class
+        """
         mclass = structure.structure.__dict__[name]
         return mclass
 
 
 def main():
+    """
+    main
+    """
     args, _ = parse_params(dump=True)
     flareformer = FlareformerManager(args)
 
