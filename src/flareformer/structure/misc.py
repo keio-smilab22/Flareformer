@@ -1,3 +1,4 @@
+""" misc """
 import math
 import torch
 import torch.nn.functional as F
@@ -7,12 +8,13 @@ class LayerNorm(torch.nn.Module):
     "Construct a layernorm module (See citation for details)."
 
     def __init__(self, features, eps=1e-6):
-        super(LayerNorm, self).__init__()
+        super().__init__()
         self.a_2 = torch.nn.Parameter(torch.ones(features))
         self.b_2 = torch.nn.Parameter(torch.zeros(features))
         self.eps = eps
 
     def forward(self, x):
+        """ Forward """
         mean = x.mean(-1, keepdim=True)
         std = x.std(-1, keepdim=True)
         return self.a_2 * (x - mean) / (std + self.eps) + self.b_2
@@ -22,7 +24,7 @@ class EncoderLayer(torch.nn.Module):
     "Encoder is made up of self-attn and feed forward (defined below)"
 
     def __init__(self, size, self_attn, feed_forward, dropout):
-        super(EncoderLayer, self).__init__()
+        super().__init__()
         self.self_attn = self_attn
         self.feed_forward = feed_forward
         self.sublayer = clones(SublayerConnection(size, dropout), 2)
@@ -41,7 +43,7 @@ class SublayerConnection(torch.nn.Module):
     """
 
     def __init__(self, size, dropout):
-        super(SublayerConnection, self).__init__()
+        super().__init__()
         self.norm = LayerNorm(size)
         self.dropout = torch.nn.Dropout(dropout)
 
@@ -53,7 +55,7 @@ class SublayerConnection(torch.nn.Module):
 class MultiHeadedAttention(torch.nn.Module):
     def __init__(self, h, d_model, dropout=0.1):
         "Take in model size and number of heads."
-        super(MultiHeadedAttention, self).__init__()
+        super().__init__()
         assert d_model % h == 0
         # We assume d_v always equals d_k
         self.d_k = d_model // h
@@ -71,8 +73,8 @@ class MultiHeadedAttention(torch.nn.Module):
 
         # 1) Do all the linear projections in batch from d_model => h x d_k
         query, key, value = \
-            [l(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
-             for l, x in zip(self.linears, (query, key, value))]
+            [_l(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
+             for _l, x in zip(self.linears, (query, key, value))]
 
         # 2) Apply attention on all the projected vectors in batch.
         x, self.attn = attention(query, key, value, mask=mask,

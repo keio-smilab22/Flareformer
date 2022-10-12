@@ -1,9 +1,11 @@
-import torch.nn as nn
+""" CNN """
 from typing import Callable, Optional
+from torch import nn
 from torch import Tensor
 
 
 class CNNModel(nn.Module):
+    """ CNN model class """
     def __init__(self, output_channel=4, size=2, pretrain=False):
         super().__init__()
 
@@ -33,6 +35,7 @@ class CNNModel(nn.Module):
         self.dropout = nn.Dropout()
 
     def forward(self, x):
+        """ Forward """
         # print(x.shape)  # [bs, 1, 512, 512]
         x = self.conv1(x)
         x = self.bn1(x)
@@ -59,6 +62,7 @@ class CNNModel(nn.Module):
 
 
 class Bottleneck(nn.Module):
+    """ Bottleneck class """
     expansion: int = 4
 
     def __init__(
@@ -88,6 +92,7 @@ class Bottleneck(nn.Module):
         self.stride = stride
 
     def forward(self, x: Tensor) -> Tensor:
+        """ Forward """
         identity = x
 
         out = self.conv1(x)
