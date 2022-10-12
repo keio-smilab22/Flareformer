@@ -1,4 +1,4 @@
-"""Set structure"""
+"""モデル構造を定義するモジュール"""
 from typing import Tuple, List, Dict, Union
 import torch
 from torch import nn
