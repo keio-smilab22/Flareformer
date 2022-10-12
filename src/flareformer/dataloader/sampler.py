@@ -18,8 +18,8 @@ class TrainBalancedBatchSampler(BatchSampler):
         print("Prepare Batch Sampler ...")
         loader = DataLoader(dataset)
         self.labels_list = []
-        for _x, _y, idx in tqdm(loader):
-            self.labels_list.append(np.argmax(_y))
+        for _x, y, idx in tqdm(loader):
+            self.labels_list.append(np.argmax(y))
 
         self.labels = torch.LongTensor(self.labels_list)
         self.labels_set = list(set(self.labels.numpy()))
@@ -27,8 +27,8 @@ class TrainBalancedBatchSampler(BatchSampler):
             label: np.where(self.labels.numpy() == label)[0]
             for label in self.labels_set
         }
-        for _l in self.labels_set:
-            np.random.shuffle(self.label_to_indices[_l])
+        for l in self.labels_set:
+            np.random.shuffle(self.label_to_indices[l])
         self.used_label_indices_count = {label: 0 for label in self.labels_set}
         self.count = 0
         self.n_classes = n_classes

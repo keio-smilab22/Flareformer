@@ -55,9 +55,9 @@ def get_window(num, times, current_time, horizon):
     """
     Get window index of time
     """
-    _s = max(num - horizon + 1, 0)
-    index = list(range(_s, num)) + [num]
-    candidate_time = times[max(_s, 0):num]
+    s = max(num - horizon + 1, 0)
+    index = list(range(s, num)) + [num]
+    candidate_time = times[max(s, 0):num]
     candidate_time.append(current_time)
 
     ids = []

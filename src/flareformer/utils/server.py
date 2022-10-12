@@ -133,8 +133,8 @@ class CallbackServer:
             query_date = datetime.datetime.strptime(query, '%Y-%m-%d-%H')
             finish_date = query_date + datetime.timedelta(hours=24)
             targets = []
-            with open(jsonl_database_path, "r") as _f:
-                for line in _f.readlines():
+            with open(jsonl_database_path, "r") as f:
+                for line in f.readlines():
                     data = json.loads(line)
                     target_date = datetime.datetime.strptime(data["time"], '%d-%b-%Y %H')
                     if query_date < target_date <= finish_date:

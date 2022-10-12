@@ -23,10 +23,10 @@ class Logger:
 
     def write(self, epoch: int, logs: List[Log]):
         """ Write logs """
-        _l: Dict[str, Any] = {"epoch": epoch}
-        for _lg in logs:
-            _l[f"{_lg.stage}_loss"] = _lg.loss
-            _l.update(_lg.score)
+        l: Dict[str, Any] = {"epoch": epoch}
+        for lg in logs:
+            l[f"{lg.stage}_loss"] = lg.loss
+            l.update(lg.score)
 
         if self.wandb_enabled:
-            wandb_runner.log(_l)
+            wandb_runner.log(l)

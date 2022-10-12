@@ -20,8 +20,8 @@ def read_jsonl(path: str) -> List[dict]:
     """
     Read jsonl
     """
-    with open(path) as _f:
-        return [json.loads(line) for line in _f]
+    with open(path) as f:
+        return [json.loads(line) for line in f]
 
 
 def detect_year_sections(jsonl: List[dict]):
@@ -45,8 +45,8 @@ def split_dataset(jsonl: List[dict], sections: dict) -> dict:
     Split dataset
     """
     results = {}
-    for _k, _v in sections.items():
-        results[_k] = jsonl[_v.start:_v.end + 1]
+    for k, v in sections.items():
+        results[k] = jsonl[v.start:v.end + 1]
     return results
 
 
