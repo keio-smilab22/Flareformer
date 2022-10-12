@@ -90,20 +90,22 @@ def make_label_by_year(data_path: str):
 
 
 def main(args: argparse.Namespace):
+    print(f'input_path >>> {args.input_path}')
     txt_list = sorted(glob(args.input_path+"/*.txt"))
     for txt in tqdm(txt_list, desc="parse forecast: "):
         parse_forecast(input_path=txt, output_path=args.output_path)
 
+    print(f'output_path >>> {args.output_path}')
     label_list = sorted(glob(args.output_path+"*.txt"))
     for idx, txt in enumerate(tqdm(label_list, desc='divide templete')):
         divide_templete(txt, args.output_path)
     
-    print(args.output_path)
-    print()
-    print('##### Save label by year #####')
+    print('##### Save label by year ##### >>> ', end='')
     make_label_by_year(args.output_path)
-    print('##### Save all label to json #####')
+    print('ok')
+    print('##### Save all label to json ##### >>> ', end='')
     all_label_to_json(args.output_path)
+    print('ok')
 
 
 
