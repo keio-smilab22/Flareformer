@@ -14,7 +14,7 @@ class LayerNorm(torch.nn.Module):
         self.eps = eps
 
     def forward(self, x):
-        """ Forward """
+        """順伝播を定義する関数"""
         mean = x.mean(-1, keepdim=True)
         std = x.std(-1, keepdim=True)
         return self.a_2 * (x - mean) / (std + self.eps) + self.b_2

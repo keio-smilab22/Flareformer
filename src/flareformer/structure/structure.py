@@ -63,7 +63,7 @@ class Flareformer(nn.Module):
 
     def forward(self, img_list: Tensor, feat: Tensor) -> Tuple[Tensor, Tensor]:
         """
-        Forward
+        順伝播を定義する関数
         """
         # image feat
         img_feat = torch.cat([self.img_embedder(img).unsqueeze(0) for img in img_list])
@@ -130,7 +130,7 @@ class Block(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         """
-        Forward
+        順伝播を定義する関数
         """
         input = x
         x = self.dwconv(x)
@@ -211,7 +211,7 @@ class ConvNeXt(nn.Module):
 
     def forward_features(self, x: Tensor) -> Tensor:
         """
-        Forward features
+        順伝播で用いる特徴量を更新する
         """
         for i in range(4):
             x = self.downsample_layers[i](x)
@@ -220,7 +220,7 @@ class ConvNeXt(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         """
-        Forward
+        順伝播を定義する関数
         """
         x = self.forward_features(x)
         x = self.linear(x)
@@ -247,7 +247,7 @@ class LayerNorm2(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         """
-        Forward
+        順伝播を定義する関数
         """
         if self.data_format == "channels_last":
             return F.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
@@ -317,6 +317,6 @@ class PositionwiseFeedForward(torch.nn.Module):
 
     def forward(self, x):
         """
-        Forward
+        順伝播を定義する関数
         """
         return self.w_2(self.dropout(F.relu(self.w_1(x))))

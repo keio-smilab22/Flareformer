@@ -1,4 +1,4 @@
-""" attn """
+""" 学習に用いるAttentionモデルを定義するモジュール """
 from math import sqrt
 from typing import Tuple, Optional, Any
 import torch
@@ -8,7 +8,7 @@ import numpy as np
 
 
 class FullAttention(nn.Module):
-    """ Full attention class"""
+    """Full Attention"""
     def __init__(self, mask_flag=True,
                  factor=5,
                  scale=None,
@@ -21,7 +21,7 @@ class FullAttention(nn.Module):
         self.dropout = nn.Dropout(attention_dropout)
 
     def forward(self, queries, keys, values, attn_mask):
-        """ Forward """
+        """順伝播を定義する関数"""
         B, L, _, E = queries.shape
         scale = self.scale or 1. / sqrt(E)
 
@@ -42,7 +42,7 @@ class FullAttention(nn.Module):
 
 
 class ProbAttention(nn.Module):
-    """ Prob attention class """
+    """Prob Attention"""
     def __init__(self,
                  mask_flag: bool = True,
                  factor: int = 5,
@@ -136,7 +136,7 @@ class ProbAttention(nn.Module):
                 keys: Tensor,
                 values: Tensor,
                 attn_mask: Optional[Any]) -> Tuple[Tensor, None]:
-        """ Forward """
+        """順伝播を定義する関数"""
         _, L_Q, _, D = queries.shape
         _, L_K, _, _ = keys.shape
 
@@ -169,7 +169,7 @@ class ProbAttention(nn.Module):
 
 
 class AttentionLayer(nn.Module):
-    """ Attention layer class"""
+    """Attention Layer"""
     def __init__(self,
                  attention: ProbAttention,
                  d_model: int,
@@ -194,7 +194,7 @@ class AttentionLayer(nn.Module):
                 keys: Tensor,
                 values: Tensor,
                 attn_mask: Optional[Any]) -> Tuple[Tensor, None]:
-        """ Forward """
+        """順伝播を定義する関数"""
         B, L, _ = queries.shape
         _, S, _ = keys.shape
         H = self.n_heads
