@@ -27,8 +27,8 @@ class TrainBalancedBatchSampler(BatchSampler):
             label: np.where(self.labels.numpy() == label)[0]
             for label in self.labels_set
         }
-        for l in self.labels_set:
-            np.random.shuffle(self.label_to_indices[l])
+        for label in self.labels_set:
+            np.random.shuffle(self.label_to_indices[label])
         self.used_label_indices_count = {label: 0 for label in self.labels_set}
         self.count = 0
         self.n_classes = n_classes
