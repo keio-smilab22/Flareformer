@@ -1,19 +1,20 @@
 """Dataloader for Flare Transformer"""
-
-from distutils.log import debug
-import torch
-import numpy as np
 import os
+from typing import Dict, Tuple, Any
+import torch
+from torch import Tensor
 from torch.utils.data import Dataset
+import numpy as np
+from numpy import ndarray
+from numpy import float32
 from skimage.transform import resize
 from tqdm import tqdm
-from typing import Dict, Tuple, Any
-from numpy import ndarray
-from torch import Tensor
-from numpy import float32
 
 
 class FlareDataset(Dataset):
+    """
+    Flare dataset class
+    """
     def __init__(self,
                  dataset_type: str,
                  params: Dict[str, Any],
@@ -57,7 +58,7 @@ class FlareDataset(Dataset):
             shapes = [self.img.shape, self.feat.shape, self.label.shape, self.window.shape]
             samples = shapes[0][0]
             print(f"Samples: {samples}")
-            assert all([samples == shape[0] for shape in shapes]), "The number of all samples must be equal."
+            assert all(samples == shape[0] for shape in shapes), "The number of all samples must be equal."
 
     def __len__(self) -> int:
         """
@@ -82,6 +83,9 @@ class FlareDataset(Dataset):
         return x, y, idx
 
     def get_plain(self, idx: int) -> Tuple[Tuple[Tensor, ndarray], ndarray, int]:
+        """
+            get plain
+        """
         imgs, feats = self.img[idx], self.feat[idx]
         imgs = (imgs - self.mean) / self.std
         x = (imgs, feats)
@@ -170,6 +174,9 @@ class FlareDataset(Dataset):
 
 
 class OneshotDataset(Dataset):
+    """
+    Oneshot dataset class
+    """
     def __init__(self, imgs, feats, mean, std):
         self.imgs = [imgs]
         self.feats = [feats]
