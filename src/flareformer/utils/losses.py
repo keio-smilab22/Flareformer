@@ -1,19 +1,25 @@
+""" Scripts for losses """
+from dataclasses import dataclass
 import torch
 import numpy as np
-
-from dataclasses import dataclass
 from torch import nn
 from torch import Tensor
 
 
 @dataclass
 class LossConfig:
+    """
+    LossConfig class
+    """
     lambda_bss: float
     lambda_gmgs: float
     score_mtx: torch.Tensor  # for GMGS
 
 
 class Losser:
+    """
+    Losser class
+    """
     def __init__(self, config: LossConfig, device: str = "cuda"):
         self.ce_loss = nn.CrossEntropyLoss().to(device)
         self.config = config

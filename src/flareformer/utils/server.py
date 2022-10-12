@@ -2,24 +2,24 @@
 Callback server
 """
 import os
-import uvicorn
-import torch
 import json
 import datetime
 import locale
-import numpy as np
-
-from fastapi import FastAPI, File, Form, Response, UploadFile
-from fastapi.responses import JSONResponse
-from starlette.middleware.cors import CORSMiddleware
 from typing import List
+import uvicorn
+import torch
 from torchvision import transforms
+import numpy as np
+from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse
+from starlette.middleware.cors import CORSMiddleware
 from PIL import Image
 from pydantic import BaseModel
-from fastapi.responses import FileResponse
 
 
 class Date(BaseModel):
+    """ Date class """
     year: str
     month: str
     day: str
@@ -27,8 +27,10 @@ class Date(BaseModel):
 
 
 class CallbackServer:
+    """ Callback server class """
     @staticmethod
     def get_tensor_image(img_buff):
+        """ Get tensor image """
         transform = transforms.Compose([transforms.ToTensor()])
         img = Image.frombytes(mode="RGB", size=(256, 256), data=img_buff)
         img = transform(img)
@@ -37,6 +39,7 @@ class CallbackServer:
 
     @staticmethod
     def get_tensor_image_from_path(path):
+        """ Get tensor image from path """
         transform = transforms.Compose([
             transforms.Resize((256, 256)),
             transforms.ToTensor()
@@ -110,7 +113,8 @@ class CallbackServer:
                         status = "success"
                         break
 
-            return JSONResponse(content={"probability": {"OCMX"[i]: prob[i] for i in range(len(prob))}, "oneshot_status": status})
+            return JSONResponse(content={"probability": {"OCMX"[i]: prob[i] for i in range(len(prob))},
+                                         "oneshot_status": status})
 
         @fapi.post(
             "/images/path",
@@ -129,18 +133,18 @@ class CallbackServer:
             query_date = datetime.datetime.strptime(query, '%Y-%m-%d-%H')
             finish_date = query_date + datetime.timedelta(hours=24)
             targets = []
-            with open(jsonl_database_path, "r") as f:
-                for line in f.readlines():
+            with open(jsonl_database_path, "r") as _f:
+                for line in _f.readlines():
                     data = json.loads(line)
                     target_date = datetime.datetime.strptime(data["time"], '%d-%b-%Y %H')
-                    if query_date < target_date and target_date <= finish_date:
+                    if query_date < target_date <= finish_date:
                         targets.append(data)
 
             if len(targets) == 0:
                 status = "failed"
             elif len(targets) < 24:
                 status = "warning"
-            else :
+            else:
                 status = "success"
 
             paths = [t["magnetogram"] for t in targets]
