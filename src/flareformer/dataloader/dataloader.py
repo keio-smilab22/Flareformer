@@ -1,4 +1,4 @@
-""" Dataloader for Flare Transformer """
+""" 太陽フレアの設定値を読み込むモジュール """
 from argparse import Namespace
 from torch.utils.data import DataLoader
 from dataloader.flare import FlareDataset

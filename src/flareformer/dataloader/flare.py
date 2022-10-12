@@ -1,4 +1,4 @@
-"""Dataloader for Flare Transformer"""
+"""太陽フレアのデータセットを設定するモジュール"""
 import os
 from typing import Dict, Tuple, Any
 import torch
@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 class FlareDataset(Dataset):
     """
-    Flare dataset class
+    太陽フレアのデータセットを設定するクラス
     """
     def __init__(self,
                  dataset_type: str,
@@ -175,7 +175,7 @@ class FlareDataset(Dataset):
 
 class OneshotDataset(Dataset):
     """
-    Oneshot dataset class
+    OneshotDatasetを設定するクラス
     """
     def __init__(self, imgs, feats, mean, std):
         self.imgs = [imgs]

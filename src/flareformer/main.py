@@ -1,4 +1,4 @@
-"""Train Flare Transformer"""
+"""Train Flare Former"""
 
 import json
 import argparse
