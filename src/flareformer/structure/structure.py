@@ -169,7 +169,7 @@ class ConvNeXt(nn.Module):
                  drop_path_rate: float = 0.,
                  layer_scale_init_value: float = 1e-6,
                  head_init_scale: float = 1.
-                                  ):
+                 ):
         super().__init__()
 
         self.downsample_layers = nn.ModuleList()  # stem and 3 intermediate downsampling conv layers
