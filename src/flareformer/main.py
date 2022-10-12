@@ -10,6 +10,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 from torchinfo import summary
 import numpy as np
+import colored_traceback.always
 from utils.statistics import Stat
 from utils.utils import adjust_learning_rate, fix_seed, inject_args
 from utils.losses import LossConfig, Losser
