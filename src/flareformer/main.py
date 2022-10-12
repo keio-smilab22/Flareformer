@@ -164,7 +164,7 @@ class FlareformerManager():
 
     def freeze_feature_extractor(self):
         """
-        Freeze feature extractor
+        抽出した特徴量を固定する
         """
         self.model.freeze_feature_extractor()
 

@@ -1,4 +1,4 @@
-""" Scripts for losses """
+"""Scripts for losses"""
 from dataclasses import dataclass
 import torch
 import numpy as np

@@ -1,4 +1,4 @@
-""" Set structure """
+"""Set structure"""
 from typing import Tuple, List, Dict, Union
 import torch
 from torch import nn
@@ -10,7 +10,7 @@ from timm.models.layers import trunc_normal_, DropPath
 
 class Flareformer(nn.Module):
     """
-    Flareformer class
+    Flareformer
     """
     def __init__(self, input_channel: int,
                  output_channel: int,
@@ -94,7 +94,7 @@ class Flareformer(nn.Module):
 
     def freeze_feature_extractor(self):
         """
-        Freeze feature extractor
+        抽出した特徴量を固定する
         """
         for param in self.parameters():
             param.requires_grad = False  # 重み固定
@@ -261,7 +261,7 @@ class LayerNorm2(nn.Module):
 
 class InformerEncoderLayer(nn.Module):
     """
-    Informer encoder layer class
+    Informer encoder layer
     """
     def __init__(self,
                  attention: AttentionLayer,

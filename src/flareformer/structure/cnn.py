@@ -1,4 +1,4 @@
-""" CNN """
+"""学習に用いるCNNモデルを定義するモジュール"""
 from typing import Callable, Optional
 from torch import nn
 from torch import Tensor

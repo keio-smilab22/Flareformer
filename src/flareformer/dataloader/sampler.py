@@ -1,4 +1,4 @@
-"""Sampler for Flare Transformer"""
+"""太陽フレアに用いるバッチサンプルを取得するモジュール"""
 from typing import Iterator, List
 from tqdm import tqdm
 import numpy as np
