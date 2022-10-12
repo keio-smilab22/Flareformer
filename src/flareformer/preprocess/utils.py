@@ -1,3 +1,4 @@
+"""Preprocess utils"""
 import datetime
 
 
@@ -8,7 +9,11 @@ def make_prefix(output_path: str, year: int, data_type: str) -> str:
     return f"{output_path}/data_{year}_{data_type}"
 
 
-def identity(x): return x
+def identity(_x):
+    """
+    Identity
+    """
+    return _x
 
 
 def get_time(str_time: str):

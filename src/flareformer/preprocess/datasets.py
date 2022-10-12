@@ -1,24 +1,33 @@
+""" Datasets for preprocess"""
 import json
-
+from typing import List
+from dataclasses import dataclass
 from numpy import ndarray
 from torchvision import transforms
 from PIL import Image
-from typing import List
-from dataclasses import dataclass
 
 
 @dataclass
 class YearSection:
+    """
+    Year section class
+    """
     start: int
     end: int
 
 
 def read_jsonl(path: str) -> List[dict]:
-    with open(path) as f:
-        return [json.loads(line) for line in f]
+    """
+    Read jsonl
+    """
+    with open(path) as _f:
+        return [json.loads(line) for line in _f]
 
 
 def detect_year_sections(jsonl: List[dict]):
+    """
+    Detect year sections
+    """
     secs = {}
     for i, data in enumerate(jsonl):
         year = int(data["time"][-7:-3])
@@ -32,13 +41,19 @@ def detect_year_sections(jsonl: List[dict]):
 
 
 def split_dataset(jsonl: List[dict], sections: dict) -> dict:
+    """
+    Split dataset
+    """
     results = {}
-    for k, v in sections.items():
-        results[k] = jsonl[v.start:v.end + 1]
+    for _k, _v in sections.items():
+        results[_k] = jsonl[_v.start:_v.end + 1]
     return results
 
 
 def get_image(img_path: str, resize_size: int = 512) -> ndarray:
+    """
+    Get image
+    """
     transform = transforms.Compose([transforms.Resize(resize_size), transforms.ToTensor()])
     img = Image.open(img_path)
     img = transform(img)
