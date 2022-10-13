@@ -211,7 +211,7 @@ class ConvNeXt(nn.Module):
 
     def forward_features(self, x: Tensor) -> Tensor:
         """
-        順伝播で用いる特徴量を更新する
+        全結合層に入力する特徴量までの順伝播を定義する関数
         """
         for i in range(4):
             x = self.downsample_layers[i](x)
