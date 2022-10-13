@@ -117,7 +117,7 @@ class FlareformerManager():
 
             print(f"Epoch {epoch}: Train loss:{train_loss:.4f}  Valid loss:{valid_loss:.4f}", test_score)
 
-    def load(self, path: str):
+    def load_model(self, path: str):
         """
         Load model from path
         """
@@ -225,7 +225,7 @@ def main():
         flareformer.train()
 
         print("\n========== eval ===========")
-        flareformer.load(args.save_model_path)
+        flareformer.load_model(args.save_model_path)
         flareformer.test()
 
         if args.imbalance:
@@ -236,7 +236,7 @@ def main():
             print("Start cRT (Classifier Re-training)\n")
             flareformer.train(lr=args.lr_for_2stage, epochs=args.epoch_for_2stage)
     elif args.mode == "server":
-        flareformer.load(args.save_model_path)
+        flareformer.load_model(args.save_model_path)
         CallbackServer.start(callback=flareformer.predict_oneshot)
     else:
         assert False, "Unknown mode"
