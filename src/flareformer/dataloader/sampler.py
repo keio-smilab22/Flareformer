@@ -18,7 +18,7 @@ class TrainBalancedBatchSampler(BatchSampler):
         print("Prepare Batch Sampler ...")
         loader = DataLoader(dataset)
         self.labels_list = []
-        for _x, y, idx in tqdm(loader):
+        for _, y, idx in tqdm(loader):
             self.labels_list.append(np.argmax(y))
 
         self.labels = torch.LongTensor(self.labels_list)

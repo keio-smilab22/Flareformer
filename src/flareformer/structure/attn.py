@@ -231,7 +231,7 @@ class TriangularCausalMask():
 
 
 class ProbMask():
-    """Probabilistic Maskを生成するクラス"""
+    """Prob Maskを生成するクラス"""
     def __init__(self, B, H, L, index, scores, device="cpu"):
         _mask = torch.ones(
             L, scores.shape[-1], dtype=torch.bool).to(device).triu(1)

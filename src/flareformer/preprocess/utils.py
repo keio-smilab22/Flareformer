@@ -9,11 +9,11 @@ def make_prefix(output_path: str, year: int, data_type: str) -> str:
     return f"{output_path}/data_{year}_{data_type}"
 
 
-def identity(_x):
+def identity(x):
     """
     Identity
     """
-    return _x
+    return x
 
 
 def get_time(str_time: str):
