@@ -131,7 +131,7 @@ class FlareformerManager():
         self.dataloaders = dataloaders  # (train, valid, test)
         return sample
 
-    def test(self):
+    def test_model(self):
         """
         Test model
         """
@@ -226,7 +226,7 @@ def main():
 
         print("\n========== eval ===========")
         flareformer.load_model(args.save_model_path)
-        flareformer.test()
+        flareformer.test_model()
 
         if args.imbalance:
             flareformer.freeze_feature_extractor()
