@@ -1,4 +1,4 @@
-"""Train Flare Former"""
+"""Flareformerのメインモジュール"""
 
 import json
 import argparse
@@ -243,4 +243,5 @@ def main():
 
 
 if __name__ == "__main__":
+    assert colored_traceback.always  # to avoid unused import warning
     main()

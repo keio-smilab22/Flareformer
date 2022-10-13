@@ -1,4 +1,4 @@
-"""Scripts for evaluation metrics"""
+"""Script for evaluation metrics"""
 
 import math
 from typing import Dict, List, Any, Tuple

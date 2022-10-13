@@ -1,4 +1,4 @@
-"""太陽フレアに用いるバッチサンプルを取得するモジュール"""
+"""太陽フレア向け学習データのサンプラモジュール"""
 from typing import Iterator, List
 from tqdm import tqdm
 import numpy as np

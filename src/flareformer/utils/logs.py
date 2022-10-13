@@ -1,4 +1,4 @@
-"""ログを定義するモジュール"""
+"""ロガーモジュール"""
 from argparse import Namespace
 from dataclasses import dataclass
 from typing import Any, Dict, List
@@ -7,7 +7,7 @@ import wandb as wandb_runner
 
 @dataclass
 class Log:
-    """Log class"""
+    """ログフォーマットを定義するデータクラス"""
     stage: str
     loss: float
     score: Any

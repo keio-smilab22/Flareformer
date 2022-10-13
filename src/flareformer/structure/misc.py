@@ -1,4 +1,4 @@
-"""その他の雑多にモデルを定義するモジュール"""
+"""その他雑多にモデルを定義するモジュール"""
 import math
 import torch
 import torch.nn.functional as F
