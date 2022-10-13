@@ -1,24 +1,28 @@
+"""モデル構造を定義するモジュール"""
+from typing import Tuple, List, Dict, Union
 import torch
-import torch.nn as nn
+from torch import nn
+from torch import Tensor
 import torch.nn.functional as F
-
 from structure.attn import ProbAttention, AttentionLayer
 from timm.models.layers import trunc_normal_, DropPath
-from torch import Tensor
-from typing import Tuple, List, Dict, Union
 
 
 class Flareformer(nn.Module):
+    """
+    Flareformer
+    """
     def __init__(self, input_channel: int,
                  output_channel: int,
                  sfm_params: Dict[str, float],
                  mm_params: Dict[str, float],
                  window: int = 24):
-        super(Flareformer, self).__init__()
+        super().__init__()
 
         # Informer
         self.mag_encoder = nn.Sequential(*[InformerEncoderLayer(
-            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"],
+                                         output_attention=False),
                            d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
             mm_params["d_model"],
             mm_params["d_ff"],
@@ -27,7 +31,8 @@ class Flareformer(nn.Module):
         ) for _ in range(mm_params["N"])])
 
         self.phys_encoder = nn.Sequential(*[InformerEncoderLayer(
-            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False),
+            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"],
+                                         output_attention=False),
                            d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
             sfm_params["d_model"],
             sfm_params["d_ff"],
@@ -36,7 +41,8 @@ class Flareformer(nn.Module):
         ) for _ in range(sfm_params["N"])])
 
         # Image Feature Extractor
-        self.img_embedder = ConvNeXt(in_chans=1, out_chans=mm_params["d_model"], depths=[2, 2, 2, 2], dims=[64, 128, 256, 512])
+        self.img_embedder = ConvNeXt(in_chans=1, out_chans=mm_params["d_model"],
+                                     depths=[2, 2, 2, 2], dims=[64, 128, 256, 512])
 
         self.linear = nn.Linear(sfm_params["d_model"] + mm_params["d_model"],
                                 output_channel)
@@ -56,6 +62,9 @@ class Flareformer(nn.Module):
         self.bn1 = torch.nn.BatchNorm1d(window)  # 128
 
     def forward(self, img_list: Tensor, feat: Tensor) -> Tuple[Tensor, Tensor]:
+        """
+        順伝播を定義する関数
+        """
         # image feat
         img_feat = torch.cat([self.img_embedder(img).unsqueeze(0) for img in img_list])
 
@@ -84,6 +93,9 @@ class Flareformer(nn.Module):
         return output, x
 
     def freeze_feature_extractor(self):
+        """
+        Feature Extractorの重みを固定する
+        """
         for param in self.parameters():
             param.requires_grad = False  # 重み固定
 
@@ -117,6 +129,9 @@ class Block(nn.Module):
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
     def forward(self, x: Tensor) -> Tensor:
+        """
+        順伝播を定義する関数
+        """
         input = x
         x = self.dwconv(x)
         x = x.permute(0, 2, 3, 1)  # (N, C, H, W) -> (N, H, W, C)
@@ -195,12 +210,18 @@ class ConvNeXt(nn.Module):
             nn.init.constant_(m.bias, 0)
 
     def forward_features(self, x: Tensor) -> Tensor:
+        """
+        全結合層に入力する特徴量までの順伝播を定義する関数
+        """
         for i in range(4):
             x = self.downsample_layers[i](x)
             x = self.stages[i](x)
         return self.norm(x.mean([-2, -1]))  # global average pooling, (N, C, H, W) -> (N, C)
 
     def forward(self, x: Tensor) -> Tensor:
+        """
+        順伝播を定義する関数
+        """
         x = self.forward_features(x)
         x = self.linear(x)
         # x = self.head(x)
@@ -225,6 +246,9 @@ class LayerNorm2(nn.Module):
         self.normalized_shape = (normalized_shape, )
 
     def forward(self, x: Tensor) -> Tensor:
+        """
+        順伝播を定義する関数
+        """
         if self.data_format == "channels_last":
             return F.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
         elif self.data_format == "channels_first":
@@ -236,13 +260,16 @@ class LayerNorm2(nn.Module):
 
 
 class InformerEncoderLayer(nn.Module):
+    """
+    Informer Encoder Layer
+    """
     def __init__(self,
                  attention: AttentionLayer,
                  d_model: int,
                  d_ff: int = None,
                  dropout: float = 0.1,
                  activation: str = "relu"):
-        super(InformerEncoderLayer, self).__init__()
+        super().__init__()
 
         d_ff = d_ff or 4 * d_model
         self.attention = attention
@@ -283,10 +310,13 @@ class PositionwiseFeedForward(torch.nn.Module):
     "Implements FFN equation."
 
     def __init__(self, d_model, d_ff, dropout=0.1):
-        super(PositionwiseFeedForward, self).__init__()
+        super().__init__()
         self.w_1 = torch.nn.Linear(d_model, d_ff)
         self.w_2 = torch.nn.Linear(d_ff, d_model)
         self.dropout = torch.nn.Dropout(dropout)
 
     def forward(self, x):
+        """
+        順伝播を定義する関数
+        """
         return self.w_2(self.dropout(F.relu(self.w_1(x))))

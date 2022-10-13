@@ -1,11 +1,12 @@
-from torch.utils.data.sampler import BatchSampler
-from torch.utils.data import DataLoader
+"""太陽フレア向け学習データのサンプラモジュール"""
+from typing import Iterator, List
 from tqdm import tqdm
 import numpy as np
-import torch
-from dataloader.flare import FlareDataset
 from numpy import int64
-from typing import Iterator, List
+import torch
+from torch.utils.data.sampler import BatchSampler
+from torch.utils.data import DataLoader
+from dataloader.flare import FlareDataset
 
 
 class TrainBalancedBatchSampler(BatchSampler):
@@ -13,12 +14,11 @@ class TrainBalancedBatchSampler(BatchSampler):
     BatchSampler - from a MNIST-like dataset, samples n_classes and within these classes samples n_samples.
     Returns batches of size n_classes * n_samples
     """
-
     def __init__(self, dataset: FlareDataset, n_classes: int, n_samples: int):
         print("Prepare Batch Sampler ...")
         loader = DataLoader(dataset)
         self.labels_list = []
-        for x, y, idx in tqdm(loader):
+        for _, y, idx in tqdm(loader):
             self.labels_list.append(np.argmax(y))
 
         self.labels = torch.LongTensor(self.labels_list)
@@ -27,8 +27,8 @@ class TrainBalancedBatchSampler(BatchSampler):
             label: np.where(self.labels.numpy() == label)[0]
             for label in self.labels_set
         }
-        for l in self.labels_set:
-            np.random.shuffle(self.label_to_indices[l])
+        for label in self.labels_set:
+            np.random.shuffle(self.label_to_indices[label])
         self.used_label_indices_count = {label: 0 for label in self.labels_set}
         self.count = 0
         self.n_classes = n_classes

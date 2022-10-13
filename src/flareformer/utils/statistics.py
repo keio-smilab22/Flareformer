@@ -1,10 +1,10 @@
-"""Scripts for evaluation metrics"""
+"""Script for evaluation metrics"""
 
 import math
+from typing import Dict, List, Any, Tuple
 import torch
 from sklearn import metrics
 import numpy as np
-from typing import Dict, List, Any, Tuple
 from numpy import ndarray
 
 

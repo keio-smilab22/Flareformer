@@ -1,29 +1,28 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-import numpy as np
-
+"""Attentionモデルを定義するモジュール"""
 from math import sqrt
-from torch import Tensor
 from typing import Tuple, Optional, Any
+import torch
+from torch import nn
+from torch import Tensor
+import numpy as np
 
 
 class FullAttention(nn.Module):
+    """Full Attention"""
     def __init__(self, mask_flag=True,
                  factor=5,
                  scale=None,
                  attention_dropout=0.1,
                  output_attention=False):
-        super(FullAttention, self).__init__()
+        super().__init__()
         self.scale = scale
         self.mask_flag = mask_flag
         self.output_attention = output_attention
         self.dropout = nn.Dropout(attention_dropout)
 
     def forward(self, queries, keys, values, attn_mask):
-        B, L, H, E = queries.shape
-        _, S, _, D = values.shape
+        """順伝播を定義する関数"""
+        B, L, _, E = queries.shape
         scale = self.scale or 1. / sqrt(E)
 
         scores = torch.einsum("blhe,bshe->bhls", queries, keys)
@@ -38,18 +37,19 @@ class FullAttention(nn.Module):
 
         if self.output_attention:
             return (V.contiguous(), A)
-        else:
-            return (V.contiguous(), None)
+
+        return (V.contiguous(), None)
 
 
 class ProbAttention(nn.Module):
+    """Prob Attention"""
     def __init__(self,
                  mask_flag: bool = True,
                  factor: int = 5,
                  scale: Optional[float] = None,
                  attention_dropout: float = 0.1,
                  output_attention: bool = False):
-        super(ProbAttention, self).__init__()
+        super().__init__()
         self.factor = factor
         self.scale = scale
         self.mask_flag = mask_flag
@@ -91,7 +91,7 @@ class ProbAttention(nn.Module):
         return Q_K, M_top
 
     def _get_initial_context(self, V: Tensor, L_Q: int) -> Tensor:
-        B, H, L_V, D = V.shape
+        B, H, L_V, _ = V.shape
         if not self.mask_flag:
             # V_sum = V.sum(dim=-2)
             V_sum = V.mean(dim=-2)
@@ -99,7 +99,7 @@ class ProbAttention(nn.Module):
                                                 L_Q, V_sum.shape[-1]).clone()
         else:  # use mask
             # requires that L_Q == L_V, i.e. for self-attention only
-            assert(L_Q == L_V)
+            assert L_Q == L_V
             contex = V.cumsum(dim=-2)
         return contex
 
@@ -111,7 +111,7 @@ class ProbAttention(nn.Module):
                         L_Q: int,
                         attn_mask: Optional[Any]
                         ) -> Tuple[Tensor, None]:
-        B, H, L_V, D = V.shape
+        B, H, L_V, _ = V.shape
 
         if self.mask_flag:
             attn_mask = ProbMask(B, H, L_Q, index, scores, device=V.device)
@@ -128,15 +128,16 @@ class ProbAttention(nn.Module):
             attns[torch.arange(B)[:, None, None], torch.arange(H)[
                 None, :, None], index, :] = attn
             return (context_in, attns)
-        else:
-            return (context_in, None)
+
+        return (context_in, None)
 
     def forward(self,
                 queries: Tensor,
                 keys: Tensor,
                 values: Tensor,
                 attn_mask: Optional[Any]) -> Tuple[Tensor, None]:
-        B, L_Q, H, D = queries.shape
+        """順伝播を定義する関数"""
+        _, L_Q, _, D = queries.shape
         _, L_K, _, _ = keys.shape
 
         queries = queries.transpose(2, 1)
@@ -168,6 +169,7 @@ class ProbAttention(nn.Module):
 
 
 class AttentionLayer(nn.Module):
+    """Attention Layer"""
     def __init__(self,
                  attention: ProbAttention,
                  d_model: int,
@@ -175,7 +177,7 @@ class AttentionLayer(nn.Module):
                  d_keys: Optional[Any] = None,
                  d_values: Optional[Any] = None,
                  mix: bool = False):
-        super(AttentionLayer, self).__init__()
+        super().__init__()
 
         d_keys = d_keys or (d_model // n_heads)
         d_values = d_values or (d_model // n_heads)
@@ -192,6 +194,7 @@ class AttentionLayer(nn.Module):
                 keys: Tensor,
                 values: Tensor,
                 attn_mask: Optional[Any]) -> Tuple[Tensor, None]:
+        """順伝播を定義する関数"""
         B, L, _ = queries.shape
         _, S, _ = keys.shape
         H = self.n_heads
@@ -214,6 +217,7 @@ class AttentionLayer(nn.Module):
 
 
 class TriangularCausalMask():
+    """Triangular Causal Maskを生成するクラス"""
     def __init__(self, B, L, device="cpu"):
         mask_shape = [B, 1, L, L]
         with torch.no_grad():
@@ -222,10 +226,12 @@ class TriangularCausalMask():
 
     @property
     def mask(self):
+        """maskを返す"""
         return self._mask
 
 
 class ProbMask():
+    """Prob Maskを生成するクラス"""
     def __init__(self, B, H, L, index, scores, device="cpu"):
         _mask = torch.ones(
             L, scores.shape[-1], dtype=torch.bool).to(device).triu(1)
@@ -237,4 +243,5 @@ class ProbMask():
 
     @property
     def mask(self):
+        """maskを返す"""
         return self._mask

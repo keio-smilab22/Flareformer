@@ -1,17 +1,17 @@
-""" Preprocess physical features and magnetogram images for model input"""
+"""Preprocess physical features and magnetogram images for model input"""
 import argparse
+from argparse import Namespace
+from time import sleep
 import numpy as np
 import ray
 from tqdm import tqdm
-from argparse import Namespace
-from time import sleep
-
 from preprocess.utils import make_prefix, identity, sub_1h
 from preprocess.datasets import read_jsonl, detect_year_sections, split_dataset, get_image
 
 
 @ray.remote
-def make_yearwise_dataset(year: str, data: list, data_type: str, args: Namespace, preprocess=identity, need_save: bool = False):
+def make_yearwise_dataset(year: str, data: list, data_type: str, args: Namespace,
+                          preprocess=identity, need_save: bool = False):
     """
     Make dataset for each year
     """
@@ -73,6 +73,9 @@ def get_window(num, times, current_time, horizon):
 
 
 def main():
+    """
+    main
+    """
     # argument parser
     parser = argparse.ArgumentParser()
     parser.add_argument('--database_path', default='data/ft_database_all17.jsonl')
