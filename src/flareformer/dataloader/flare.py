@@ -1,4 +1,4 @@
-"""太陽フレアのデータセットを設定するモジュール"""
+"""太陽フレアのデータセットを管理するモジュール"""
 import os
 from typing import Dict, Tuple, Any
 import torch
@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 class FlareDataset(Dataset):
     """
-    太陽フレアのデータセットを設定するクラス
+    太陽フレアのデータセットを管理するクラス
     """
     def __init__(self,
                  dataset_type: str,
@@ -175,7 +175,7 @@ class FlareDataset(Dataset):
 
 class OneshotDataset(Dataset):
     """
-    OneshotDatasetを設定するクラス
+    一発打ちのデータを管理するクラス
     """
     def __init__(self, imgs, feats, mean, std):
         self.imgs = [imgs]

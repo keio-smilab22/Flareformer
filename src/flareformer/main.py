@@ -23,7 +23,7 @@ from engine import train_epoch, eval_epoch
 
 def parse_params(dump: bool = False) -> Tuple[Namespace, Dict[str, Any]]:
     """
-    Parse params
+    コマンドライン引数をパース
     """
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', default="train")
@@ -144,7 +144,7 @@ class FlareformerManager():
 
     def predict_one_shot(self, imgs: torch.Tensor, feats: np.ndarray):
         """
-        Predict oneshot
+        一発打ちを実行
         """
         conf = self.args.dataset
         mean, std = conf["mean"], conf["std"]
@@ -165,7 +165,7 @@ class FlareformerManager():
 
     def freeze_feature_extractor(self):
         """
-        抽出した特徴量を固定する
+        Feature Extractorの重みを固定する
         """
         self.model.freeze_feature_extractor()
 

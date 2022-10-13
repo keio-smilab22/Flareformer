@@ -1,4 +1,4 @@
-"""学習に用いるAttentionモデルを定義するモジュール"""
+"""Attentionモデルを定義するモジュール"""
 from math import sqrt
 from typing import Tuple, Optional, Any
 import torch
@@ -217,7 +217,7 @@ class AttentionLayer(nn.Module):
 
 
 class TriangularCausalMask():
-    """Triangular Causal Masking を設定するクラス"""
+    """Triangular Causal Maskを生成するクラス"""
     def __init__(self, B, L, device="cpu"):
         mask_shape = [B, 1, L, L]
         with torch.no_grad():
@@ -226,12 +226,12 @@ class TriangularCausalMask():
 
     @property
     def mask(self):
-        """mask関数"""
+        """maskを返す"""
         return self._mask
 
 
 class ProbMask():
-    """Probabilistic Masking を設定するクラス"""
+    """Probabilistic Maskを生成するクラス"""
     def __init__(self, B, H, L, index, scores, device="cpu"):
         _mask = torch.ones(
             L, scores.shape[-1], dtype=torch.bool).to(device).triu(1)
@@ -243,5 +243,5 @@ class ProbMask():
 
     @property
     def mask(self):
-        """mask関数"""
+        """maskを返す"""
         return self._mask

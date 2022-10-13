@@ -18,7 +18,7 @@ class YearSection:
 
 def read_jsonl(path: str) -> List[dict]:
     """
-    Read jsonl
+    josnlファイルをdictの配列として読み込む
     """
     with open(path) as f:
         return [json.loads(line) for line in f]
@@ -42,7 +42,7 @@ def detect_year_sections(jsonl: List[dict]):
 
 def split_dataset(jsonl: List[dict], sections: dict) -> dict:
     """
-    Split dataset
+    dictの配列データを純粋な辞書形式に変換
     """
     results = {}
     for k, v in sections.items():
@@ -52,7 +52,7 @@ def split_dataset(jsonl: List[dict], sections: dict) -> dict:
 
 def get_image(img_path: str, resize_size: int = 512) -> ndarray:
     """
-    Get image
+    指定されたパスの画像ファイルをnumpy形式で読み込む
     """
     transform = transforms.Compose([transforms.Resize(resize_size), transforms.ToTensor()])
     img = Image.open(img_path)

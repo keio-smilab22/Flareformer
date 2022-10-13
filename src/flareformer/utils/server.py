@@ -19,7 +19,7 @@ from pydantic import BaseModel
 
 
 class Date(BaseModel):
-    """ Date class """
+    """Date class"""
     year: str
     month: str
     day: str
@@ -27,10 +27,10 @@ class Date(BaseModel):
 
 
 class CallbackServer:
-    """ Callback server class """
+    """一発打ち・画像取得のためのコールバックを定義し、サーバを起動するクラス"""
     @staticmethod
     def get_tensor_image(img_buff):
-        """ Get tensor image """
+        """画像のRAWデータをTensorに変換"""
         transform = transforms.Compose([transforms.ToTensor()])
         img = Image.frombytes(mode="RGB", size=(256, 256), data=img_buff)
         img = transform(img)
@@ -39,7 +39,7 @@ class CallbackServer:
 
     @staticmethod
     def get_tensor_image_from_path(path):
-        """ Get tensor image from path """
+        """指定されたパスの画像ファイルを読み込んでTensor形式で返す"""
         transform = transforms.Compose([
             transforms.Resize((256, 256)),
             transforms.ToTensor()

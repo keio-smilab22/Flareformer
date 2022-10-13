@@ -94,7 +94,7 @@ class Flareformer(nn.Module):
 
     def freeze_feature_extractor(self):
         """
-        抽出した特徴量を固定する
+        Feature Extractorの重みを固定する
         """
         for param in self.parameters():
             param.requires_grad = False  # 重み固定
@@ -261,7 +261,7 @@ class LayerNorm2(nn.Module):
 
 class InformerEncoderLayer(nn.Module):
     """
-    Informer encoder layer
+    Informer Encoder Layer
     """
     def __init__(self,
                  attention: AttentionLayer,

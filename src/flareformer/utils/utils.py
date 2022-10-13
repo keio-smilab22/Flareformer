@@ -1,4 +1,4 @@
-"""学習に用いる設定値を決めるモジュール"""
+"""学習向けのユーティリティモジュール"""
 import math
 from argparse import Namespace
 from typing import Any, Dict
@@ -9,7 +9,7 @@ from sklearn.manifold import TSNE
 
 
 def fix_seed(seed: int) -> None:
-    """ fix seed
+    """fix seed
 
     Args:
         seed (int): seed value
