@@ -1,11 +1,12 @@
 """Script for evaluation metrics"""
 
 import math
-from typing import Dict, List, Any, Tuple
-import torch
-from sklearn import metrics
+from typing import Any, Dict, List, Tuple
+
 import numpy as np
+import torch
 from numpy import ndarray
+from sklearn import metrics
 
 
 class Stat:
@@ -67,7 +68,7 @@ class Stat:
         mtx = self.confusion_matrix(y_predl, y_true)
         tn, fp, fn, tp = self.binary_confusion_matrix(mtx, flare_class)
         tss = (tp / (tp + fn)) - (fp / (fp + tn))
-        return float(tss) if not math.isnan(tss) else 0.
+        return float(tss) if not math.isnan(tss) else 0.0
 
     def calc_gmgs(self, y_predl: ndarray, y_true: ndarray) -> float:
         """

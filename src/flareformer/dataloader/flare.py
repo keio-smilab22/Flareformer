@@ -1,13 +1,13 @@
 """太陽フレアのデータセットを管理するモジュール"""
 import os
-from typing import Dict, Tuple, Any
+from typing import Any, Dict, Tuple
+
+import numpy as np
 import torch
+from numpy import float32, ndarray
+from skimage.transform import resize
 from torch import Tensor
 from torch.utils.data import Dataset
-import numpy as np
-from numpy import ndarray
-from numpy import float32
-from skimage.transform import resize
 from tqdm import tqdm
 
 
@@ -15,13 +15,16 @@ class FlareDataset(Dataset):
     """
     太陽フレアのデータセットを管理するクラス
     """
-    def __init__(self,
-                 dataset_type: str,
-                 params: Dict[str, Any],
-                 image_type: str = "magnetogram",
-                 path: str = "data/data_",
-                 debug: bool = False,
-                 has_window: bool = True):
+
+    def __init__(
+        self,
+        dataset_type: str,
+        params: Dict[str, Any],
+        image_type: str = "magnetogram",
+        path: str = "data/data_",
+        debug: bool = False,
+        has_window: bool = True,
+    ):
 
         print(f"====== {dataset_type} ======")
         self.path = path
@@ -46,14 +49,16 @@ class FlareDataset(Dataset):
 
         # get window
         print("Loading windows ...")
-        self.window = self.get_multiple_year_window(start_year, end_year, "window_48")[:, :self.window_size]
+        self.window = self.get_multiple_year_window(start_year, end_year, "window_48")[:, : self.window_size]
         self.window = np.asarray(self.window, dtype=int)
 
         if debug:
-            print(f"img: {self.img.shape}\n",
-                  f"feat: {self.feat.shape}\n",
-                  f"label: {self.label.shape}\n",
-                  f"window: {self.window.shape}\n")
+            print(
+                f"img: {self.img.shape}\n",
+                f"feat: {self.feat.shape}\n",
+                f"label: {self.label.shape}\n",
+                f"window: {self.window.shape}\n",
+            )
         else:
             shapes = [self.img.shape, self.feat.shape, self.label.shape, self.window.shape]
             samples = shapes[0][0]
@@ -69,12 +74,12 @@ class FlareDataset(Dataset):
 
     def __getitem__(self, idx: int) -> Tuple[Tuple[Tensor, ndarray], ndarray, int]:
         """
-            get sample
+        get sample
         """
         if not self.has_window:
             return self.get_plain(idx)
 
-        window = np.asarray(self.window[idx][:self.window_size], dtype=int)
+        window = np.asarray(self.window[idx][: self.window_size], dtype=int)
         imgs, feats = self.img[window], self.feat[window]
         imgs = (imgs - self.mean) / self.std
         x = (imgs, feats)
@@ -84,7 +89,7 @@ class FlareDataset(Dataset):
 
     def get_plain(self, idx: int) -> Tuple[Tuple[Tensor, ndarray], ndarray, int]:
         """
-            get plain
+        get plain
         """
         imgs, feats = self.img[idx], self.feat[idx]
         imgs = (imgs - self.mean) / self.std
@@ -95,11 +100,10 @@ class FlareDataset(Dataset):
 
     def get_multiple_year_image(self, start_year: int, end_year: int, image_type: str) -> ndarray:
         """
-            concatenate data of multiple years [image]
+        concatenate data of multiple years [image]
         """
         result = []
-        for i, year in enumerate(tqdm(range(start_year,
-                                 end_year + 1))):
+        for i, year in enumerate(tqdm(range(start_year, end_year + 1))):
             data_path_256 = f"{self.path}{year}_{image_type}_256.npy"
             data_path_512 = f"{self.path}{year}_{image_type}.npy"
 
@@ -125,31 +129,31 @@ class FlareDataset(Dataset):
 
     def get_multiple_year_data(self, start_year: int, end_year: int, data_type: str) -> ndarray:
         """
-            concatenate data of multiple years [feat/label]
+        concatenate data of multiple years [feat/label]
         """
         result = []
         for year in tqdm(range(start_year, end_year + 1)):
             data_path = f"{self.path}{year}_{data_type}.csv"
-            data = np.loadtxt(data_path, delimiter=',')
+            data = np.loadtxt(data_path, delimiter=",")
             result.append(data)
         return np.concatenate(result, axis=0)
 
     def get_multiple_year_window(self, start_year: int, end_year: int, data_type: str) -> ndarray:
         """
-            concatenate data of multiple years [window]
+        concatenate data of multiple years [window]
         """
         result, N = [], 0
         for year in tqdm(range(start_year, end_year + 1)):
             data_path = f"{self.path}{year}_{data_type}.csv"
             data_path = self.path + str(year) + "_" + data_type + ".csv"
-            data = np.loadtxt(data_path, delimiter=',')
+            data = np.loadtxt(data_path, delimiter=",")
             result.append(data + N)
             N += data.shape[0]
         return np.concatenate(result, axis=0)
 
     def calc_mean(self) -> Tuple[float32, float32]:
         """
-            calculate mean and std of images
+        calculate mean and std of images
         """
         print("Calculate mean and std ...")
         bs = 1000000000
@@ -157,7 +161,7 @@ class FlareDataset(Dataset):
         mean = np.mean(ndata)
         std = 0
         for i in tqdm(range(ndata.shape[0] // bs + 1)):
-            tmp = ndata[bs * i:bs * (i + 1)] - mean
+            tmp = ndata[bs * i : bs * (i + 1)] - mean
             tmp = np.power(tmp, 2)
             std += np.sum(tmp)
         std = np.sqrt(std / len(ndata))
@@ -167,7 +171,7 @@ class FlareDataset(Dataset):
 
     def set_mean(self, mean: float32, std: float32):
         """
-            Set self.mean and self.std
+        Set self.mean and self.std
         """
         self.mean = mean
         self.std = std
@@ -177,6 +181,7 @@ class OneshotDataset(Dataset):
     """
     一発打ちのデータを管理するクラス
     """
+
     def __init__(self, imgs, feats, mean, std):
         self.imgs = [imgs]
         self.feats = [feats]
@@ -188,7 +193,7 @@ class OneshotDataset(Dataset):
 
     def __getitem__(self, idx: int) -> Tuple[Tuple[Tensor, ndarray], ndarray, int]:
         """
-            get sample
+        get sample
         """
 
         imgs = (self.imgs[idx] - self.mean) / self.std

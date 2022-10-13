@@ -1,10 +1,11 @@
 """Datasets for preprocess"""
 import json
-from typing import List
 from dataclasses import dataclass
+from typing import List
+
 from numpy import ndarray
-from torchvision import transforms
 from PIL import Image
+from torchvision import transforms
 
 
 @dataclass
@@ -12,6 +13,7 @@ class YearSection:
     """
     Year section class
     """
+
     start: int
     end: int
 
@@ -46,7 +48,7 @@ def split_dataset(jsonl: List[dict], sections: dict) -> dict:
     """
     results = {}
     for k, v in sections.items():
-        results[k] = jsonl[v.start:v.end + 1]
+        results[k] = jsonl[v.start : v.end + 1]
     return results
 
 

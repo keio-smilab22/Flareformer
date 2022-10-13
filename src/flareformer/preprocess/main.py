@@ -2,16 +2,18 @@
 import argparse
 from argparse import Namespace
 from time import sleep
+
 import numpy as np
 import ray
+from preprocess.datasets import detect_year_sections, get_image, read_jsonl, split_dataset
+from preprocess.utils import identity, make_prefix, sub_1h
 from tqdm import tqdm
-from preprocess.utils import make_prefix, identity, sub_1h
-from preprocess.datasets import read_jsonl, detect_year_sections, split_dataset, get_image
 
 
 @ray.remote
-def make_yearwise_dataset(year: str, data: list, data_type: str, args: Namespace,
-                          preprocess=identity, need_save: bool = False):
+def make_yearwise_dataset(
+    year: str, data: list, data_type: str, args: Namespace, preprocess=identity, need_save: bool = False
+):
     """
     Make dataset for each year
     """
@@ -40,12 +42,10 @@ def make_dataset(data_type: str, database, args: Namespace, preprocess=identity,
 
     print("Execute ray.remote ... ")
     sleep(2)
-    process = [make_yearwise_dataset.remote(year,
-                                            data,
-                                            data_type,
-                                            args,
-                                            preprocess,
-                                            need_save=need_save) for year, data in database.items()]
+    process = [
+        make_yearwise_dataset.remote(year, data, data_type, args, preprocess, need_save=need_save)
+        for year, data in database.items()
+    ]
     results = ray.get(process)
     datasets = {item[0]: item[1] for item in results}
     return datasets
@@ -57,7 +57,7 @@ def get_window(num, times, current_time, horizon):
     """
     s = max(num - horizon + 1, 0)
     index = list(range(s, num)) + [num]
-    candidate_time = times[max(s, 0):num]
+    candidate_time = times[max(s, 0) : num]
     candidate_time.append(current_time)
 
     ids = []
@@ -78,18 +78,18 @@ def main():
     """
     # argument parser
     parser = argparse.ArgumentParser()
-    parser.add_argument('--database_path', default='data/ft_database_all17.jsonl')
-    parser.add_argument('--output_path', default='data')
-    parser.add_argument('--start_year', default=2010)
-    parser.add_argument('--end_year', default=2017)
-    parser.add_argument('--horizon', default=48)
-    parser.add_argument('--size', default=256)
-    parser.add_argument('--magnetogram', action='store_true')
-    parser.add_argument('--aia131', action='store_true')
-    parser.add_argument('--aia1600', action='store_true')
-    parser.add_argument('--physical', action='store_true')
-    parser.add_argument('--label', action='store_true')
-    parser.add_argument('--window', action='store_true')
+    parser.add_argument("--database_path", default="data/ft_database_all17.jsonl")
+    parser.add_argument("--output_path", default="data")
+    parser.add_argument("--start_year", default=2010)
+    parser.add_argument("--end_year", default=2017)
+    parser.add_argument("--horizon", default=48)
+    parser.add_argument("--size", default=256)
+    parser.add_argument("--magnetogram", action="store_true")
+    parser.add_argument("--aia131", action="store_true")
+    parser.add_argument("--aia1600", action="store_true")
+    parser.add_argument("--physical", action="store_true")
+    parser.add_argument("--label", action="store_true")
+    parser.add_argument("--window", action="store_true")
 
     args = parser.parse_args()
     database_path = args.database_path

@@ -1,19 +1,16 @@
 """Attentionモデルを定義するモジュール"""
 from math import sqrt
-from typing import Tuple, Optional, Any
-import torch
-from torch import nn
-from torch import Tensor
+from typing import Any, Optional, Tuple
+
 import numpy as np
+import torch
+from torch import Tensor, nn
 
 
 class FullAttention(nn.Module):
     """Full Attention"""
-    def __init__(self, mask_flag=True,
-                 factor=5,
-                 scale=None,
-                 attention_dropout=0.1,
-                 output_attention=False):
+
+    def __init__(self, mask_flag=True, factor=5, scale=None, attention_dropout=0.1, output_attention=False):
         super().__init__()
         self.scale = scale
         self.mask_flag = mask_flag
@@ -23,7 +20,7 @@ class FullAttention(nn.Module):
     def forward(self, queries, keys, values, attn_mask):
         """順伝播を定義する関数"""
         B, L, _, E = queries.shape
-        scale = self.scale or 1. / sqrt(E)
+        scale = self.scale or 1.0 / sqrt(E)
 
         scores = torch.einsum("blhe,bshe->bhls", queries, keys)
         if self.mask_flag:
@@ -43,12 +40,15 @@ class FullAttention(nn.Module):
 
 class ProbAttention(nn.Module):
     """Prob Attention"""
-    def __init__(self,
-                 mask_flag: bool = True,
-                 factor: int = 5,
-                 scale: Optional[float] = None,
-                 attention_dropout: float = 0.1,
-                 output_attention: bool = False):
+
+    def __init__(
+        self,
+        mask_flag: bool = True,
+        factor: int = 5,
+        scale: Optional[float] = None,
+        attention_dropout: float = 0.1,
+        output_attention: bool = False,
+    ):
         super().__init__()
         self.factor = factor
         self.scale = scale
@@ -56,11 +56,7 @@ class ProbAttention(nn.Module):
         self.output_attention = output_attention
         self.dropout = nn.Dropout(attention_dropout)
 
-    def _prob_QK(self,
-                 Q: Tensor,
-                 K: Tensor,
-                 sample_k: int,
-                 n_top: int) -> Tuple[Tensor, Tensor]:  # n_top: c*ln(L_q)
+    def _prob_QK(self, Q: Tensor, K: Tensor, sample_k: int, n_top: int) -> Tuple[Tensor, Tensor]:  # n_top: c*ln(L_q)
         # Q [B, H, L, D]
         B, H, L_K, E = K.shape
         _, _, L_Q, _ = Q.shape
@@ -68,13 +64,11 @@ class ProbAttention(nn.Module):
         # calculate the sampled Q_K
         K_expand = K.unsqueeze(-3).expand(B, H, L_Q, L_K, E)
         index_sample = torch.randint(L_K, (L_Q, sample_k))
-        K_sample = K_expand[:, :, torch.arange(
-            L_Q).unsqueeze(1), index_sample, :]
+        K_sample = K_expand[:, :, torch.arange(L_Q).unsqueeze(1), index_sample, :]
         # K_sample = K_expand[:, :, torch.arange(L_Q).unsqueeze(1), :, :].squeeze(2)
         # print(Q.unsqueeze(-2).shape, K_sample.transpose(-2, -1).shape)
         # sys.exit()
-        Q_K_sample = torch.matmul(
-            Q.unsqueeze(-2), K_sample.transpose(-2, -1)).squeeze(-2)
+        Q_K_sample = torch.matmul(Q.unsqueeze(-2), K_sample.transpose(-2, -1)).squeeze(-2)
         # print(Q_K_sample.shape)
         # sys.exit()
 
@@ -83,9 +77,7 @@ class ProbAttention(nn.Module):
         M_top = M.topk(n_top, sorted=False)[1]
 
         # use the reduced Q to calculate Q_K
-        Q_reduce = Q[torch.arange(B)[:, None, None],
-                     torch.arange(H)[None, :, None],
-                     M_top, :]  # factor*ln(L_q)
+        Q_reduce = Q[torch.arange(B)[:, None, None], torch.arange(H)[None, :, None], M_top, :]  # factor*ln(L_q)
         Q_K = torch.matmul(Q_reduce, K.transpose(-2, -1))  # factor*ln(L_q)*L_k
 
         return Q_K, M_top
@@ -95,22 +87,16 @@ class ProbAttention(nn.Module):
         if not self.mask_flag:
             # V_sum = V.sum(dim=-2)
             V_sum = V.mean(dim=-2)
-            contex = V_sum.unsqueeze(-2).expand(B, H,
-                                                L_Q, V_sum.shape[-1]).clone()
+            contex = V_sum.unsqueeze(-2).expand(B, H, L_Q, V_sum.shape[-1]).clone()
         else:  # use mask
             # requires that L_Q == L_V, i.e. for self-attention only
             assert L_Q == L_V
             contex = V.cumsum(dim=-2)
         return contex
 
-    def _update_context(self,
-                        context_in: Tensor,
-                        V: Tensor,
-                        scores: Tensor,
-                        index: Tensor,
-                        L_Q: int,
-                        attn_mask: Optional[Any]
-                        ) -> Tuple[Tensor, None]:
+    def _update_context(
+        self, context_in: Tensor, V: Tensor, scores: Tensor, index: Tensor, L_Q: int, attn_mask: Optional[Any]
+    ) -> Tuple[Tensor, None]:
         B, H, L_V, _ = V.shape
 
         if self.mask_flag:
@@ -119,23 +105,17 @@ class ProbAttention(nn.Module):
 
         attn = torch.softmax(scores, dim=-1)  # nn.Softmax(dim=-1)(scores)
 
-        context_in[torch.arange(B)[:, None, None],
-                   torch.arange(H)[None, :, None],
-                   index, :] = torch.matmul(attn, V).type_as(context_in)
+        context_in[torch.arange(B)[:, None, None], torch.arange(H)[None, :, None], index, :] = torch.matmul(
+            attn, V
+        ).type_as(context_in)
         if self.output_attention:
-            attns = (torch.ones([B, H, L_V, L_V]) /
-                     L_V).type_as(attn).to(attn.device)
-            attns[torch.arange(B)[:, None, None], torch.arange(H)[
-                None, :, None], index, :] = attn
+            attns = (torch.ones([B, H, L_V, L_V]) / L_V).type_as(attn).to(attn.device)
+            attns[torch.arange(B)[:, None, None], torch.arange(H)[None, :, None], index, :] = attn
             return (context_in, attns)
 
         return (context_in, None)
 
-    def forward(self,
-                queries: Tensor,
-                keys: Tensor,
-                values: Tensor,
-                attn_mask: Optional[Any]) -> Tuple[Tensor, None]:
+    def forward(self, queries: Tensor, keys: Tensor, values: Tensor, attn_mask: Optional[Any]) -> Tuple[Tensor, None]:
         """順伝播を定義する関数"""
         _, L_Q, _, D = queries.shape
         _, L_K, _, _ = keys.shape
@@ -144,39 +124,38 @@ class ProbAttention(nn.Module):
         keys = keys.transpose(2, 1)
         values = values.transpose(2, 1)
 
-        U_part = self.factor * \
-            np.ceil(np.log(L_K)).astype('int').item()  # c*ln(L_k)
-        u = self.factor * \
-            np.ceil(np.log(L_Q)).astype('int').item()  # c*ln(L_q)
+        U_part = self.factor * np.ceil(np.log(L_K)).astype("int").item()  # c*ln(L_k)
+        u = self.factor * np.ceil(np.log(L_Q)).astype("int").item()  # c*ln(L_q)
 
         U_part = U_part if U_part < L_K else L_K
         u = u if u < L_Q else L_Q
 
-        scores_top, index = self._prob_QK(
-            queries, keys, sample_k=U_part, n_top=u)
+        scores_top, index = self._prob_QK(queries, keys, sample_k=U_part, n_top=u)
 
         # add scale factor
-        scale = self.scale or 1. / sqrt(D)
+        scale = self.scale or 1.0 / sqrt(D)
         if scale is not None:
             scores_top = scores_top * scale
         # get the context
         context = self._get_initial_context(values, L_Q)
         # update the context with selected top_k queries
-        context, attn = self._update_context(
-            context, values, scores_top, index, L_Q, attn_mask)
+        context, attn = self._update_context(context, values, scores_top, index, L_Q, attn_mask)
 
         return context.transpose(2, 1).contiguous(), attn
 
 
 class AttentionLayer(nn.Module):
     """Attention Layer"""
-    def __init__(self,
-                 attention: ProbAttention,
-                 d_model: int,
-                 n_heads: int,
-                 d_keys: Optional[Any] = None,
-                 d_values: Optional[Any] = None,
-                 mix: bool = False):
+
+    def __init__(
+        self,
+        attention: ProbAttention,
+        d_model: int,
+        n_heads: int,
+        d_keys: Optional[Any] = None,
+        d_values: Optional[Any] = None,
+        mix: bool = False,
+    ):
         super().__init__()
 
         d_keys = d_keys or (d_model // n_heads)
@@ -190,10 +169,7 @@ class AttentionLayer(nn.Module):
         self.n_heads = n_heads
         self.mix = mix
 
-    def forward(self, queries: Tensor,
-                keys: Tensor,
-                values: Tensor,
-                attn_mask: Optional[Any]) -> Tuple[Tensor, None]:
+    def forward(self, queries: Tensor, keys: Tensor, values: Tensor, attn_mask: Optional[Any]) -> Tuple[Tensor, None]:
         """順伝播を定義する関数"""
         B, L, _ = queries.shape
         _, S, _ = keys.shape
@@ -203,12 +179,7 @@ class AttentionLayer(nn.Module):
         keys = self.key_projection(keys).view(B, S, H, -1)
         values = self.value_projection(values).view(B, S, H, -1)
 
-        out, attn = self.inner_attention(
-            queries,
-            keys,
-            values,
-            attn_mask
-        )
+        out, attn = self.inner_attention(queries, keys, values, attn_mask)
         if self.mix:
             out = out.transpose(2, 1).contiguous()
         out = out.view(B, L, -1)
@@ -216,13 +187,13 @@ class AttentionLayer(nn.Module):
         return self.out_projection(out), attn
 
 
-class TriangularCausalMask():
+class TriangularCausalMask:
     """Triangular Causal Maskを生成するクラス"""
+
     def __init__(self, B, L, device="cpu"):
         mask_shape = [B, 1, L, L]
         with torch.no_grad():
-            self._mask = torch.triu(torch.ones(
-                mask_shape, dtype=torch.bool), diagonal=1).to(device)
+            self._mask = torch.triu(torch.ones(mask_shape, dtype=torch.bool), diagonal=1).to(device)
 
     @property
     def mask(self):
@@ -230,15 +201,13 @@ class TriangularCausalMask():
         return self._mask
 
 
-class ProbMask():
+class ProbMask:
     """Prob Maskを生成するクラス"""
+
     def __init__(self, B, H, L, index, scores, device="cpu"):
-        _mask = torch.ones(
-            L, scores.shape[-1], dtype=torch.bool).to(device).triu(1)
+        _mask = torch.ones(L, scores.shape[-1], dtype=torch.bool).to(device).triu(1)
         _mask_ex = _mask[None, None, :].expand(B, H, L, scores.shape[-1])
-        indicator = _mask_ex[torch.arange(B)[:, None, None],
-                             torch.arange(H)[None, :, None],
-                             index, :].to(device)
+        indicator = _mask_ex[torch.arange(B)[:, None, None], torch.arange(H)[None, :, None], index, :].to(device)
         self._mask = indicator.view(scores.shape).to(device)
 
     @property
