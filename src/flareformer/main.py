@@ -110,12 +110,21 @@ class FlareformerManager():
             test_score, test_loss = valid_score, valid_loss
 
             # log
-            torch.save(self.model.state_dict(), self.args.save_model_path)
+            # torch.save(self.model.state_dict(), self.args.save_model_path)
+            self.save_model(self.args.save_model_path)
+
             self.logger.write(epoch, [Log("train", np.mean(train_loss), train_score),
                                       Log("valid", np.mean(valid_loss), valid_score),
                                       Log("test", np.mean(test_loss), test_score)])
 
             print(f"Epoch {epoch}: Train loss:{train_loss:.4f}  Valid loss:{valid_loss:.4f}", test_score)
+
+    def save_model(self, path: str):
+        """
+        Save model to path
+        """
+        # self.model.load_state_dict(torch.load(path))
+        torch.save(self.model.state_dict(), path)
 
     def load_model(self, path: str):
         """
