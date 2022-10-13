@@ -142,7 +142,7 @@ class FlareformerManager():
                                    stat=self.stat)
         print(test_score)
 
-    def predict_one_shot(self, imgs: torch.Tensor, feats: np.ndarray):
+    def predict_oneshot(self, imgs: torch.Tensor, feats: np.ndarray):
         """
         一発打ちを実行
         """
@@ -237,7 +237,7 @@ def main():
             flareformer.train(lr=args.lr_for_2stage, epochs=args.epoch_for_2stage)
     elif args.mode == "server":
         flareformer.load(args.save_model_path)
-        CallbackServer.start(callback=flareformer.predict_one_shot)
+        CallbackServer.start(callback=flareformer.predict_oneshot)
     else:
         assert False, "Unknown mode"
 
