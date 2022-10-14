@@ -67,6 +67,8 @@ class FlareDataset(Dataset):
 
     def __len__(self) -> int:
         """
+        Get length of sample.
+
         Returns:
             [int]: [length of sample]
         """
@@ -74,7 +76,7 @@ class FlareDataset(Dataset):
 
     def __getitem__(self, idx: int) -> Tuple[Tuple[Tensor, ndarray], ndarray, int]:
         """
-        get sample
+        Get sample.
         """
         if not self.has_window:
             return self.get_plain(idx)
@@ -89,7 +91,7 @@ class FlareDataset(Dataset):
 
     def get_plain(self, idx: int) -> Tuple[Tuple[Tensor, ndarray], ndarray, int]:
         """
-        get plain
+        Get plain.
         """
         imgs, feats = self.img[idx], self.feat[idx]
         imgs = (imgs - self.mean) / self.std
@@ -100,7 +102,7 @@ class FlareDataset(Dataset):
 
     def get_multiple_year_image(self, start_year: int, end_year: int, image_type: str) -> ndarray:
         """
-        concatenate data of multiple years [image]
+        Concatenate data of multiple years [image].
         """
         result = []
         for i, year in enumerate(tqdm(range(start_year, end_year + 1))):
@@ -129,7 +131,7 @@ class FlareDataset(Dataset):
 
     def get_multiple_year_data(self, start_year: int, end_year: int, data_type: str) -> ndarray:
         """
-        concatenate data of multiple years [feat/label]
+        Concatenate data of multiple years [feat/label].
         """
         result = []
         for year in tqdm(range(start_year, end_year + 1)):
@@ -140,7 +142,7 @@ class FlareDataset(Dataset):
 
     def get_multiple_year_window(self, start_year: int, end_year: int, data_type: str) -> ndarray:
         """
-        concatenate data of multiple years [window]
+        Concatenate data of multiple years [window].
         """
         result, N = [], 0
         for year in tqdm(range(start_year, end_year + 1)):
@@ -153,7 +155,7 @@ class FlareDataset(Dataset):
 
     def calc_mean(self) -> Tuple[float32, float32]:
         """
-        calculate mean and std of images
+        Calculate mean and std of images.
         """
         print("Calculate mean and std ...")
         bs = 1000000000
@@ -171,7 +173,7 @@ class FlareDataset(Dataset):
 
     def set_mean(self, mean: float32, std: float32):
         """
-        Set self.mean and self.std
+        Set self.mean and self.std .
         """
         self.mean = mean
         self.std = std
@@ -193,7 +195,7 @@ class OneshotDataset(Dataset):
 
     def __getitem__(self, idx: int) -> Tuple[Tuple[Tensor, ndarray], ndarray, int]:
         """
-        get sample
+        Get sample.
         """
 
         imgs = (self.imgs[idx] - self.mean) / self.std

@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 
 class LayerNorm(torch.nn.Module):
-    "Construct a layernorm module (See citation for details)."
+    """Construct a layernorm module (See citation for details)."""
 
     def __init__(self, features, eps=1e-6):
         super().__init__()
@@ -23,7 +23,7 @@ class LayerNorm(torch.nn.Module):
 
 
 class EncoderLayer(torch.nn.Module):
-    "Encoder is made up of self-attn and feed forward (defined below)"
+    """Encoder is made up of self-attn and feed forward (defined below)."""
 
     def __init__(self, size, self_attn, feed_forward, dropout):
         super().__init__()
@@ -33,7 +33,7 @@ class EncoderLayer(torch.nn.Module):
         self.size = size
 
     def forward(self, x):
-        "Follow Figure 1 (left) for connections."
+        """Follow Figure 1 (left) for connections."""
         x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x))
         return self.sublayer[1](x, self.feed_forward)
 
@@ -41,7 +41,9 @@ class EncoderLayer(torch.nn.Module):
 class SublayerConnection(torch.nn.Module):
     """
     A residual connection followed by a layer norm.
-    Note for code simplicity the norm is first as opposed to last.
+
+    Note:
+        Note for code simplicity the norm is first as opposed to last.
     """
 
     def __init__(self, size, dropout):
@@ -50,13 +52,15 @@ class SublayerConnection(torch.nn.Module):
         self.dropout = torch.nn.Dropout(dropout)
 
     def forward(self, x, sublayer):
-        "Apply residual connection to any sublayer with the same size."
+        """Apply residual connection to any sublayer with the same size."""
         return x + self.dropout(sublayer(self.norm(x)))
 
 
 class MultiHeadedAttention(torch.nn.Module):
+    """Module for attention mechanisms which runs through an attention mechanism several times in parallel."""
+
     def __init__(self, h, d_model, dropout=0.1):
-        "Take in model size and number of heads."
+        """Take in model size and number of heads."""
         super().__init__()
         assert d_model % h == 0
         # We assume d_v always equals d_k
@@ -67,7 +71,7 @@ class MultiHeadedAttention(torch.nn.Module):
         self.dropout = torch.nn.Dropout(p=dropout)
 
     def forward(self, query, key, value, mask=None):
-        "Implements Figure 2"
+        """順伝播を定義する関数"""
         if mask is not None:
             # Same mask applied to all h heads.
             mask = mask.unsqueeze(1)
@@ -88,7 +92,7 @@ class MultiHeadedAttention(torch.nn.Module):
 
 
 def attention(query, key, value, mask=None, dropout=None):
-    "Compute 'Scaled Dot Product Attention'"
+    """Compute 'Scaled Dot Product Attention'."""
     d_k = query.size(-1)
     scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
     if mask is not None:
@@ -98,6 +102,7 @@ def attention(query, key, value, mask=None, dropout=None):
         p_attn = dropout(p_attn)
     return torch.matmul(p_attn, value), p_attn
 
+
 def clones(module, N):
-    "Produce N identical layers."
+    """Produce N identical layers."""
     return torch.nn.ModuleList([copy.deepcopy(module) for _ in range(N)])

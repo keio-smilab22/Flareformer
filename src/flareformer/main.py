@@ -223,7 +223,7 @@ class FlareformerManager:
 
 def main():
     """
-    main
+    Execute main process.
     """
     args, _ = parse_params(dump=True)
     flareformer = FlareformerManager(args)

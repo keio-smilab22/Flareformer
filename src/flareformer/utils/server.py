@@ -50,7 +50,7 @@ class CallbackServer:
     @staticmethod
     def start_server(callback):
         """
-        Function of start http server
+        Start http server.
         """
         fapi = FastAPI()
         fapi.add_middleware(

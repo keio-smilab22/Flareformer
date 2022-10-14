@@ -74,7 +74,7 @@ def get_window(num, times, current_time, horizon):
 
 def main():
     """
-    main
+    Execute main process.
     """
     # argument parser
     parser = argparse.ArgumentParser()

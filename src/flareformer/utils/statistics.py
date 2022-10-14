@@ -99,19 +99,19 @@ class Stat:
 
     def convert_binary_onehot(self, flare_class: int) -> List[int]:
         """
-        return 2-dimentional 1-of-K vector
+        Return 2-dimentional 1-of-K vector.
         """
         return np.array([1, 0] if flare_class < 2 else [0, 1])
 
     def confusion_matrix(self, y_pred: ndarray, y_true: ndarray) -> ndarray:
         """
-        return confusion matrix for 4 class
+        Return confusion matrix for 4 class.
         """
         return metrics.confusion_matrix(y_true, y_pred, labels=[0, 1, 2, 3])
 
     def calc_accs(self, y_pred: ndarray, y_true: ndarray) -> float:
         """
-        Compute classification accuracy for 4 class
+        Compute classification accuracy for 4 class.
         """
         cm = self.confusion_matrix(y_pred, y_true)
         accs = np.diag(cm).sum() / len(y_pred)
@@ -120,7 +120,7 @@ class Stat:
 
     def binary_confusion_matrix(self, mtx: ndarray, target_class: int) -> Tuple[int, int, int, int]:
         """
-        convert confusion matrix for 2 class ("< target_class" or ">= target_class")
+        Convert confusion matrix for 2 class ("< target_class" or ">= target_class").
         """
 
         tn, fp = mtx[:target_class, :target_class].sum(), mtx[:target_class, target_class:].sum()

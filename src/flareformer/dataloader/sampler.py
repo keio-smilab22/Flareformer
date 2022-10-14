@@ -13,7 +13,9 @@ from tqdm import tqdm
 class TrainBalancedBatchSampler(BatchSampler):
     """
     BatchSampler - from a MNIST-like dataset, samples n_classes and within these classes samples n_samples.
-    Returns batches of size n_classes * n_samples
+
+    Returns:
+        batches of size n_classes * n_samples
     """
 
     def __init__(self, dataset: FlareDataset, n_classes: int, n_samples: int):

@@ -122,7 +122,9 @@ class Flareformer(nn.Module):
 
 
 class Block(nn.Module):
-    r"""ConvNeXt Block. There are two equivalent implementations:
+    r"""ConvNeXt Block.
+
+    There are two equivalent implementations:
     (1) DwConv -> LayerNorm (channels_first) -> 1x1 Conv -> GELU -> 1x1 Conv; all in (N, C, H, W)
     (2) DwConv -> Permute to (N, H, W, C); LayerNorm (channels_last) -> Linear -> GELU -> Linear; Permute back
     We use (2) as we find it slightly faster in PyTorch
@@ -168,8 +170,9 @@ class Block(nn.Module):
 
 class ConvNeXt(nn.Module):
     r"""ConvNeXt
-        A PyTorch impl of : `A ConvNet for the 2020s`  -
-          https://arxiv.org/pdf/2201.03545.pdf
+
+    A PyTorch impl of : `A ConvNet for the 2020s`  - https://arxiv.org/pdf/2201.03545.pdf
+
     Args:
         in_chans (int): Number of input image channels. Default: 3
         num_classes (int): Number of classes for classification head. Default: 1000
@@ -251,10 +254,15 @@ class ConvNeXt(nn.Module):
 
 
 class LayerNorm2(nn.Module):
-    r"""LayerNorm that supports two data formats: channels_last (default) or channels_first.
-    The ordering of the dimensions in the inputs. channels_last corresponds to inputs with
-    shape (batch_size, height, width, channels) while channels_first corresponds to inputs
-    with shape (batch_size, channels, height, width).
+    r"""LayerNorm
+
+    That supports two data formats:
+        channels_last (default) or channels_first.
+
+    Note:
+        The ordering of the dimensions in the inputs. channels_last corresponds to inputs with
+        shape (batch_size, height, width, channels) while channels_first corresponds to inputs
+        with shape (batch_size, channels, height, width).
     """
 
     def __init__(self, normalized_shape: int, eps: float = 1e-6, data_format: str = "channels_last"):
@@ -302,6 +310,8 @@ class InformerEncoderLayer(nn.Module):
 
     def forward(self, q: Tensor, kv: Tensor) -> Tensor:
         """
+        順伝播を定義する関数
+
         How to use'
             x = encoder_layer(x)
             (original) x, attn = attn_layer(x, attn_mask=attn_mask)
@@ -322,7 +332,7 @@ class InformerEncoderLayer(nn.Module):
 
 
 class PositionwiseFeedForward(torch.nn.Module):
-    "Implements FFN equation."
+    """Implements FFN equation."""
 
     def __init__(self, d_model, d_ff, dropout=0.1):
         super().__init__()

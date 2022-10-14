@@ -10,7 +10,7 @@ from sklearn.manifold import TSNE
 
 
 def fix_seed(seed: int) -> None:
-    """fix seed
+    """Fix seed.
 
     Args:
         seed (int): seed value
@@ -21,7 +21,7 @@ def fix_seed(seed: int) -> None:
 
 
 def inject_args(args: Namespace, target: Dict[str, Any]) -> Namespace:
-    """inject args
+    """Inject args.
 
     Args:
         args (Namespace): argparser.args
@@ -36,7 +36,7 @@ def inject_args(args: Namespace, target: Dict[str, Any]) -> Namespace:
 
 
 def adjust_learning_rate(optimizer, current_epoch, epochs, lr, args):  # optimizerの内部パラメタを直接変えちゃうので注意
-    """Decay the learning rate with half-cycle cosine after warmup"""
+    """Decay the learning rate with half-cycle cosine after warmup."""
     min_lr = 0
     if current_epoch < args.warmup_epochs:
         lr = lr * current_epoch / args.warmup_epochs
@@ -55,7 +55,7 @@ def adjust_learning_rate(optimizer, current_epoch, epochs, lr, args):  # optimiz
 
 def visualize_3D_tSNE(embedded: torch.Tensor, labels: torch.Tensor):
     """
-    visualize 3d embedded vector using t-SNE.
+    Visualize 3d embedded vector using t-SNE.
     """
     if len(labels.shape) != 1:  # if labels are one-hot
         labels = labels.argmax(axis=1)
