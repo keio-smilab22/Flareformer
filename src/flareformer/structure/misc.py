@@ -1,4 +1,5 @@
 """その他雑多にモデルを定義するモジュール"""
+import copy
 import math
 
 import torch
@@ -96,3 +97,7 @@ def attention(query, key, value, mask=None, dropout=None):
     if dropout is not None:
         p_attn = dropout(p_attn)
     return torch.matmul(p_attn, value), p_attn
+
+def clones(module, N):
+    "Produce N identical layers."
+    return torch.nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
