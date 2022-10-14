@@ -69,7 +69,7 @@ class CallbackServer:
             return JSONResponse(content={"probability": {"OCMX"[i]: prob[i] for i in range(len(prob))}})
 
         @fapi.post("/simple", responses={200: {"content": {"application/json": {"example": {}}}}})
-        def execute_oneshot(date: Date):
+        def execute_oneshot_simple(date: Date):
             locale.setlocale(locale.LC_TIME, "en_US.UTF-8")
             jsonl_database_path = "data/ft_database_all17.jsonl"
             query = f"{date.year}-{date.month}-{date.day}-{date.hour}"
@@ -99,7 +99,7 @@ class CallbackServer:
             )
 
         @fapi.post("/images/path", responses={200: {"content": {"application/json": {"example": {}}}}})
-        def execute_oneshot(date: Date):
+        def execute_oneshot_images_path(date: Date):
             locale.setlocale(locale.LC_TIME, "en_US.UTF-8")
             jsonl_database_path = "data/ft_database_all17.jsonl"
             query = f"{date.year}-{date.month}-{date.day}-{date.hour}"
@@ -124,7 +124,7 @@ class CallbackServer:
             return JSONResponse(content={"images": paths, "get_image_status": status})
 
         @fapi.get("/images/bin", response_class=FileResponse)
-        def execute_oneshot(path: str):
+        def execute_oneshot_images_bin(path: str):
             path = os.path.join(os.getcwd(), path)
             return path
 
