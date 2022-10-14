@@ -49,7 +49,7 @@ class CallbackServer:
         return img.unsqueeze(0)
 
     @staticmethod
-    def start(callback):
+    def start_server(callback):
         """
         Function of start http server
         """

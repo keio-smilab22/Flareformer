@@ -81,7 +81,7 @@ class FlareformerManager():
         self.args = args
         self.mock_sample = sample
 
-    def train(self, lr: Optional[float] = None, epochs: Optional[int] = None):
+    def train_model(self, lr: Optional[float] = None, epochs: Optional[int] = None):
         """
         Train model
         """
@@ -109,15 +109,23 @@ class FlareformerManager():
             # test
             test_score, test_loss = valid_score, valid_loss
 
+            # save
+            self.save_model(self.args.save_model_path)
+
             # log
-            torch.save(self.model.state_dict(), self.args.save_model_path)
             self.logger.write(epoch, [Log("train", np.mean(train_loss), train_score),
                                       Log("valid", np.mean(valid_loss), valid_score),
                                       Log("test", np.mean(test_loss), test_score)])
 
             print(f"Epoch {epoch}: Train loss:{train_loss:.4f}  Valid loss:{valid_loss:.4f}", test_score)
 
-    def load(self, path: str):
+    def save_model(self, path: str):
+        """
+        Save model to path
+        """
+        torch.save(self.model.state_dict(), path)
+
+    def load_model(self, path: str):
         """
         Load model from path
         """
@@ -131,7 +139,7 @@ class FlareformerManager():
         self.dataloaders = dataloaders  # (train, valid, test)
         return sample
 
-    def test(self):
+    def test_model(self):
         """
         Test model
         """
@@ -142,7 +150,7 @@ class FlareformerManager():
                                    stat=self.stat)
         print(test_score)
 
-    def predict_one_shot(self, imgs: torch.Tensor, feats: np.ndarray):
+    def predict_oneshot(self, imgs: torch.Tensor, feats: np.ndarray):
         """
         一発打ちを実行
         """
@@ -222,11 +230,11 @@ def main():
 
     if args.mode == "train":
         print("Start training\n")
-        flareformer.train()
+        flareformer.train_model()
 
         print("\n========== eval ===========")
-        flareformer.load(args.save_model_path)
-        flareformer.test()
+        flareformer.load_model(args.save_model_path)
+        flareformer.test_model()
 
         if args.imbalance:
             flareformer.freeze_feature_extractor()
@@ -234,10 +242,10 @@ def main():
             flareformer.print_summary()
             flareformer.load_dataloaders(args, imbalance=False)
             print("Start cRT (Classifier Re-training)\n")
-            flareformer.train(lr=args.lr_for_2stage, epochs=args.epoch_for_2stage)
+            flareformer.train_model(lr=args.lr_for_2stage, epochs=args.epoch_for_2stage)
     elif args.mode == "server":
-        flareformer.load(args.save_model_path)
-        CallbackServer.start(callback=flareformer.predict_one_shot)
+        flareformer.load_model(args.save_model_path)
+        CallbackServer.start_server(callback=flareformer.predict_oneshot)
     else:
         assert False, "Unknown mode"
 
