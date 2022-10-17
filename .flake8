@@ -14,8 +14,8 @@ ignore =
     E231, # whitespace after ','.
     E501, # line too long; Black prefer 120 characters(by config file), and we don't need double check.
     W503, # line break before binary operator; This is a wellknown option. Plz search with the words "python W503 W504".
-    D104, # Missing docstring in public package; __init__.pyにdocstringが要求される So we decided to ignore this.
-    D105, # Missing docstring in magic method; 処理結果が比較的明示な組み込み関数に対してdocstringが要求される So we decided to ignore this.
-    D107, # Missing docstring in __init__; __init__関数にdocstringが要求される　So we decided to ignore this.
-    D200, # One-line docstring should fit on one line with quotes; 一行のコメントで記載された複数行のdocstringを許容するため.
-    D400  # First line should end with a period; 英語以外で表記した際にもピリオドを要求される So we decided to ignore this.
+    D104, # Missing docstring in public package; __init__.py requires docstring. So we decided to ignore this.
+    D105, # Missing docstring in magic method; This requires docstrings for built-in functions with relatively explicit results. So we decided to ignore this.
+    D107, # Missing docstring in __init__; __init__ function requires docstring. So we decided to ignore this.
+    D200, # One-line docstring should fit on one line with quotes; To allow multi-line docstrings written in single-line comments.
+    D400  # First line should end with a period; Periods are required even when written in languages ​​other than English. So we decided to ignore this.
