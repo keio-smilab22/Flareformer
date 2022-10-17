@@ -6,7 +6,7 @@
         "GMGS": 0.0001,
         "BS": 10
     },
-    "save_model_path": "checkpoints/pretrain_flareformer.pth",
+    "save_model_path": "checkpoints/forecastformer_test.pth",
     "dataset": {
         "window": 24,
         "year_split": {

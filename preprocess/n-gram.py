@@ -8,10 +8,12 @@ import pandas as pd
 
 TEXT_PATH = ""
 
+# 使用時には、14,15, 92 112 125 128 141 144 変更
+
 def aggregate_label(
-    dir_path: str="/home/taku/FlareFormer/Flareformer/data_forecast/defn_labels/", 
-    save_path: str="/home/taku/FlareFormer/Flareformer/data_forecast/defn_labels/all_predicts.txt",
-    kind: str="predict"):
+    dir_path: str="/home/initial/Flareformer/data_forecast/defn_labels/", 
+    save_path: str="/home/initial/Flareformer/data_forecast/defn_labels/all_other.txt",
+    kind: str="other"):
 
     # 1つの.txtファイルにまとめる
     text = ''
@@ -87,7 +89,7 @@ def ngram2csv(ngram: dict, path, kind: str="uni"):
 def main():
     """
     """
-    label_path = "/home/taku/FlareFormer/Flareformer/data_forecast/defn_labels/all_predicts.txt"
+    label_path = "/home/initial/Flareformer/data_forecast/defn_labels/all_other.txt"
     if not os.path.exists(label_path):
         aggregate_label()
     
@@ -107,7 +109,7 @@ def main():
                 uni_grams[uni] += 1
             else:
                 uni_grams[uni] = 1
-    ngram2csv(uni_grams, "/home/taku/FlareFormer/Flareformer/data_forecast/unigram.csv", "uni")
+    ngram2csv(uni_grams, "/home/initial/Flareformer/data_forecast/ngram/unigram_other.csv", "uni")
 
     # bi-gramの生成
     bi_grams = {}
@@ -120,10 +122,10 @@ def main():
                 bi_grams[bi] += 1
             else:
                 bi_grams[bi] = 1
-    ngram2csv(bi_grams, "/home/taku/FlareFormer/Flareformer/data_forecast/bigram.csv", "bi")
+    ngram2csv(bi_grams, "/home/initial/Flareformer/data_forecast/ngram/bigram_other.csv", "bi")
 
     print('----- bi_gramの先頭5行を表示 -----')
-    data = pd.read_csv("/home/taku/FlareFormer/Flareformer/data_forecast/bigram.csv", header=None)
+    data = pd.read_csv("/home/initial/Flareformer/data_forecast/ngram/bigram_other.csv", header=None)
     print(data.head())
 
     tri_grams = {}
@@ -136,10 +138,10 @@ def main():
                 tri_grams[tri] += 1
             else:
                 tri_grams[tri] = 1
-    ngram2csv(tri_grams, '/home/taku/FlareFormer/Flareformer/data_forecast/trigram.csv', 'tri')
+    ngram2csv(tri_grams, '/home/initial/Flareformer/data_forecast/ngram/trigram_other.csv', 'tri')
 
     print('----- tri_gramの先頭5行を表示 -----')
-    data = pd.read_csv('/home/taku/FlareFormer/Flareformer/data_forecast/trigram.csv', header=None)
+    data = pd.read_csv('/home/initial/Flareformer/data_forecast/ngram/trigram_other.csv', header=None)
     print(data.head())
 
 

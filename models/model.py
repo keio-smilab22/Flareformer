@@ -306,8 +306,12 @@ class TemplateDecoder(nn.Module):
                                 output_active)
         self.sigmoid = nn.Sigmoid()
     
-    def forward(self, x, y):
+    def forward(self, x, y, feat):
         # 前半用モジュール
+        """
+        (1) featから過去24時間の最大太陽フレアの特徴量を取り出す
+        (2) その特徴から、ルールベースで1行目を作成
+        """
         class_ = self.linear1(x)
         class_ = self.softmax1(class_)
 
@@ -315,7 +319,7 @@ class TemplateDecoder(nn.Module):
         active = self.sigmoid(active)
         
         # 前半用
-        overview = self._make_overview(class_, active)
+        overview = self._make_overview(feat, class_, active)
         # 後半用
         predict = self._make_predict(y)
         assert len(overview) == len(predict)
@@ -326,8 +330,14 @@ class TemplateDecoder(nn.Module):
         
         return class_, active, templates
     
-    def _make_overview(self, class_: Tensor, active: Tensor):
+    def _make_overview(self, feat: Tensor, class_, active):
         template = "<AA>、太陽活動は<BB>でした。"
+
+        # TODO X線情報が含まれるindexを指定
+        idx = 0
+        his_X = feat[..., idx] # (8, 24)
+        # 最大となるindexを得る
+        history = torch.argmax(his_X, dim=1).tolist() # (8,)
 
         class_list = torch.argmax(class_, dim=1).tolist()
         active_list = torch.argmax(active, dim=1).tolist()
@@ -372,18 +382,12 @@ class TemplateDecoder(nn.Module):
                 テンプレ予報文の後半部分
         '''
         outputs = []
-        template = "<CC>太陽活動は<DD>な状態が予想されます"
+        template = "今後１日間、太陽活動は<DD>な状態が予想されます"
+        labels = ["静穏", "やや活発", "活発", "非常に活発"]
 
         preds = torch.argmax(y, dim=1).tolist()
         for pred in preds:
-            if pred==0:
-                CC = ""
-                DD = "静穏"
-            else:
-                CC = "引き続き今後一日間、"
-                DD = "活発"
-            template = template.replace("<CC>", CC).replace("<DD>", DD)
-            outputs.append(template)
+            outputs.append(template.replace("<DD>", labels[pred]))
         return outputs
 
 class ForecastFormer(nn.Module):
@@ -423,7 +427,7 @@ class ForecastFormer(nn.Module):
 
         output, x = self.flareformer(img_list, feat)
         # template用
-        y_class, y_active, templates = self.template_decoder(x, output)
+        y_class, y_active, templates = self.template_decoder(x, output, feat)
         outputs = (y_class, y_active, templates)
         
         return outputs
