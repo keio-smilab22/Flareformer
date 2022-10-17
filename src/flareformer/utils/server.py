@@ -46,8 +46,8 @@ class CallbackServer:
         img = transform(img_pil)[0, :, :].unsqueeze(0)
         return img.unsqueeze(0)
 
-    @staticmethod
-    def start_server(callback):
+    @classmethod
+    def start_server(cls, callback):
         """
         Start http server.
         """
@@ -69,7 +69,7 @@ class CallbackServer:
 
         @fapi.get("/oneshot/simple", responses={200: {"content": {"application/json": {"example": {}}}}})
         def execute_oneshot_simple(date: str):
-            f_date = CallbackServer.parse_iso_time(date)
+            f_date = cls.parse_iso_time(date)
             query_date = f_date.strftime("%Y-%m-%d-%H")
             jsonl_database_path = "data/ft_database_all17.jsonl"
             targets = []
@@ -98,7 +98,7 @@ class CallbackServer:
 
         @fapi.get("/images/path", responses={200: {"content": {"application/json": {"example": {}}}}})
         def execute_oneshot_images_path(date: str):
-            f_date = CallbackServer.parse_iso_time(date)
+            f_date = cls.parse_iso_time(date)
             query_date = f_date.strftime("%Y-%m-%d-%H")
             jsonl_database_path = "data/ft_database_all17.jsonl"
             finish_date = (f_date + datetime.timedelta(hours=24)).strftime("%Y-%m-%d-%H")
