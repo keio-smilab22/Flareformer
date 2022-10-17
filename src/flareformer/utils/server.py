@@ -21,11 +21,7 @@ class CallbackServer:
 
     @staticmethod
     def parse_iso_time(iso_date):
-        """ISO8601拡張形式の文字列をdatetime型に変換する
-
-        iso_date 例:
-            2017-01-31T16:00:00.000Z
-        """
+        """ISO8601拡張形式の文字列をdatetime型に変換する"""
         parsed_date = datetime.datetime.fromisoformat(iso_date.replace("Z", "+00:00"))
         return parsed_date
 
