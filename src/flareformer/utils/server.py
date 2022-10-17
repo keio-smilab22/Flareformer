@@ -101,11 +101,14 @@ class CallbackServer:
                 content={"probability": {"OCMX"[i]: prob[i] for i in range(len(prob))}, "oneshot_status": status}
             )
 
-        @fapi.post("/images/path", responses={200: {"content": {"application/json": {"example": {}}}}})
-        def execute_oneshot_images_path(date: Date):
-            locale.setlocale(locale.LC_TIME, "en_US.UTF-8")
+        @fapi.get("/images/path", responses={200: {"content": {"application/json": {"example": {}}}}})
+        def execute_oneshot_images_path(date: str):
+            # ISO8601の基本形式から拡張形式へ変換
+            s_date = datetime.datetime.strptime(date, '%Y%m%dT%H%M%S').isoformat()
+            # datetime型に変換する
+            f_date = datetime.datetime.fromisoformat(s_date)
             jsonl_database_path = "data/ft_database_all17.jsonl"
-            query = f"{date.year}-{date.month}-{date.day}-{date.hour}"
+            query = f"{f_date.year}-{f_date.month}-{f_date.day}-{f_date.hour}"
             query_date = datetime.datetime.strptime(query, "%Y-%m-%d-%H")
             finish_date = query_date + datetime.timedelta(hours=24)
             targets = []
