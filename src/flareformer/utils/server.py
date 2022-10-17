@@ -68,11 +68,14 @@ class CallbackServer:
             prob = callback(imgs, phys).tolist()
             return JSONResponse(content={"probability": {"OCMX"[i]: prob[i] for i in range(len(prob))}})
 
-        @fapi.post("/oneshot/simple", responses={200: {"content": {"application/json": {"example": {}}}}})
-        def execute_oneshot_simple(date: Date):
-            locale.setlocale(locale.LC_TIME, "en_US.UTF-8")
+        @fapi.get("/oneshot/simple", responses={200: {"content": {"application/json": {"example": {}}}}})
+        def execute_oneshot_simple(date: str):
+            # ISO8601の基本形式から拡張形式へ変換
+            s_date = datetime.datetime.strptime(date, '%Y%m%dT%H%M%S').isoformat()
+            # datetime型に変換する
+            f_date = datetime.datetime.fromisoformat(s_date)
             jsonl_database_path = "data/ft_database_all17.jsonl"
-            query = f"{date.year}-{date.month}-{date.day}-{date.hour}"
+            query = f"{f_date.year}-{f_date.month}-{f_date.day}-{f_date.hour}"
             targets = []
             prob = []
             status = "failed"
