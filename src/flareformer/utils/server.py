@@ -128,6 +128,6 @@ class CallbackServer:
             path = os.path.join(os.getcwd(), path)
             return path
 
-        host_name = "127.0.0.1"
+        host_name = "0.0.0.0"
         port_num = 8080
         uvicorn.run(fapi, host=host_name, port=port_num)
