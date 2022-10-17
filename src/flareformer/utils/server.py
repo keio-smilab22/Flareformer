@@ -12,18 +12,8 @@ import uvicorn
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image
-from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 from torchvision import transforms
-
-
-class Date(BaseModel):
-    """Date class"""
-
-    year: str
-    month: str
-    day: str
-    hour: str
 
 
 class CallbackServer:
