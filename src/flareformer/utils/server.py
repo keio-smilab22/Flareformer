@@ -75,12 +75,11 @@ class CallbackServer:
             # datetime型に変換する
             f_date = datetime.datetime.fromisoformat(s_date)
             jsonl_database_path = "data/ft_database_all17.jsonl"
-            query = f"{f_date.year}-{f_date.month}-{f_date.day}-{f_date.hour}"
             targets = []
             prob = []
             status = "failed"
             with open(jsonl_database_path, "r") as f:
-                query_date = datetime.datetime.strptime(query, "%Y-%m-%d-%H").strftime("%Y-%m-%d-%H")
+                query_date = f_date.strftime("%Y-%m-%d-%H")
                 for line in f.readlines():
                     data = json.loads(line)
                     targets.append(data)
@@ -107,9 +106,8 @@ class CallbackServer:
             s_date = datetime.datetime.strptime(date, '%Y%m%dT%H%M%S').isoformat()
             # datetime型に変換する
             f_date = datetime.datetime.fromisoformat(s_date)
+            query_date = f_date.strftime("%Y-%m-%d-%H")
             jsonl_database_path = "data/ft_database_all17.jsonl"
-            query = f"{f_date.year}-{f_date.month}-{f_date.day}-{f_date.hour}"
-            query_date = datetime.datetime.strptime(query, "%Y-%m-%d-%H")
             finish_date = query_date + datetime.timedelta(hours=24)
             targets = []
             with open(jsonl_database_path, "r") as f:
