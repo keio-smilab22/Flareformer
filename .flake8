@@ -14,8 +14,8 @@ ignore =
     E231, # whitespace after ','.
     E501, # line too long; Black prefer 120 characters(by config file), and we don't need double check.
     W503, # line break before binary operator; This is a wellknown option. Plz search with the words "python W503 W504".
-    D104, # Missing docstring in public package; __init__.py requires docstring. So we decided to ignore this.
-    D105, # Missing docstring in magic method; This requires docstrings for built-in functions with relatively explicit results. So we decided to ignore this.
-    D107, # Missing docstring in __init__; __init__ function requires docstring. So we decided to ignore this.
+    D104, # Missing docstring in public package; Docstring is required in even empty __init__.py.
+    D105, # Missing docstring in magic method; This requires docstrings for built-in functions which returns explicit results.
+    D107, # Missing docstring in __init__; Docstring is required in __init__ function.
     D200, # One-line docstring should fit on one line with quotes; To allow multi-line docstrings written in single-line comments.
-    D400  # First line should end with a period; Periods are required even when written in languages ​​other than English. So we decided to ignore this.
+    D400  # First line should end with a period; Periods are required in docstring even when written in non-English languages.
