@@ -39,7 +39,6 @@ def make_dataset(data_type: str, database, args: Namespace, preprocess=identity,
     """
     Make dataset (parallel processing)
     """
-
     print("Execute ray.remote ... ")
     sleep(2)
     process = [

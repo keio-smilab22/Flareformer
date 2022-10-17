@@ -197,7 +197,6 @@ class OneshotDataset(Dataset):
         """
         Get sample.
         """
-
         imgs = (self.imgs[idx] - self.mean) / self.std
         x = (imgs, self.feats[idx])
         y_mock = np.array([1, 0, 0, 0])

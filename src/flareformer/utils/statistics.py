@@ -122,7 +122,6 @@ class Stat:
         """
         Convert confusion matrix for 2 class ("< target_class" or ">= target_class").
         """
-
         tn, fp = mtx[:target_class, :target_class].sum(), mtx[:target_class, target_class:].sum()
         fn, tp = mtx[target_class:, :target_class].sum(), mtx[target_class:, target_class:].sum()
 
