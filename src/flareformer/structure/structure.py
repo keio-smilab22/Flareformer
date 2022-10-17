@@ -1,64 +1,82 @@
 """モデル構造を定義するモジュール"""
-from typing import Tuple, List, Dict, Union
+from typing import Dict, List, Tuple, Union
+
 import torch
-from torch import nn
-from torch import Tensor
 import torch.nn.functional as F
-from structure.attn import ProbAttention, AttentionLayer
-from timm.models.layers import trunc_normal_, DropPath
+from structure.attn import AttentionLayer, ProbAttention
+from timm.models.layers import DropPath, trunc_normal_
+from torch import Tensor, nn
 
 
 class Flareformer(nn.Module):
     """
     Flareformer
     """
-    def __init__(self, input_channel: int,
-                 output_channel: int,
-                 sfm_params: Dict[str, float],
-                 mm_params: Dict[str, float],
-                 window: int = 24):
+
+    def __init__(
+        self,
+        input_channel: int,
+        output_channel: int,
+        sfm_params: Dict[str, float],
+        mm_params: Dict[str, float],
+        window: int = 24,
+    ):
         super().__init__()
 
         # Informer
-        self.mag_encoder = nn.Sequential(*[InformerEncoderLayer(
-            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"],
-                                         output_attention=False),
-                           d_model=mm_params["d_model"], n_heads=mm_params["h"], mix=False),
-            mm_params["d_model"],
-            mm_params["d_ff"],
-            dropout=mm_params["dropout"],
-            activation="relu"
-        ) for _ in range(mm_params["N"])])
+        self.mag_encoder = nn.Sequential(
+            *[
+                InformerEncoderLayer(
+                    AttentionLayer(
+                        ProbAttention(False, factor=5, attention_dropout=mm_params["dropout"], output_attention=False),
+                        d_model=mm_params["d_model"],
+                        n_heads=mm_params["h"],
+                        mix=False,
+                    ),
+                    mm_params["d_model"],
+                    mm_params["d_ff"],
+                    dropout=mm_params["dropout"],
+                    activation="relu",
+                )
+                for _ in range(mm_params["N"])
+            ]
+        )
 
-        self.phys_encoder = nn.Sequential(*[InformerEncoderLayer(
-            AttentionLayer(ProbAttention(False, factor=5, attention_dropout=sfm_params["dropout"],
-                                         output_attention=False),
-                           d_model=sfm_params["d_model"], n_heads=sfm_params["h"], mix=False),
-            sfm_params["d_model"],
-            sfm_params["d_ff"],
-            dropout=sfm_params["dropout"],
-            activation="relu"
-        ) for _ in range(sfm_params["N"])])
+        self.phys_encoder = nn.Sequential(
+            *[
+                InformerEncoderLayer(
+                    AttentionLayer(
+                        ProbAttention(
+                            False, factor=5, attention_dropout=sfm_params["dropout"], output_attention=False
+                        ),
+                        d_model=sfm_params["d_model"],
+                        n_heads=sfm_params["h"],
+                        mix=False,
+                    ),
+                    sfm_params["d_model"],
+                    sfm_params["d_ff"],
+                    dropout=sfm_params["dropout"],
+                    activation="relu",
+                )
+                for _ in range(sfm_params["N"])
+            ]
+        )
 
         # Image Feature Extractor
-        self.img_embedder = ConvNeXt(in_chans=1, out_chans=mm_params["d_model"],
-                                     depths=[2, 2, 2, 2], dims=[64, 128, 256, 512])
+        self.img_embedder = ConvNeXt(
+            in_chans=1, out_chans=mm_params["d_model"], depths=[2, 2, 2, 2], dims=[64, 128, 256, 512]
+        )
 
-        self.linear = nn.Linear(sfm_params["d_model"] + mm_params["d_model"],
-                                output_channel)
+        self.linear = nn.Linear(sfm_params["d_model"] + mm_params["d_model"], output_channel)
 
-        self._linear = nn.Linear(
-            window * mm_params["d_model"] * 2, sfm_params["d_model"])
+        self._linear = nn.Linear(window * mm_params["d_model"] * 2, sfm_params["d_model"])
         self.softmax = nn.Softmax(dim=1)
 
-        self.img_linear = nn.Linear(
-            mm_params["d_model"] * window, mm_params["d_model"])
+        self.img_linear = nn.Linear(mm_params["d_model"] * window, mm_params["d_model"])
 
-        self.phys_linear = nn.Linear(
-            sfm_params["d_model"] * window, sfm_params["d_model"])
+        self.phys_linear = nn.Linear(sfm_params["d_model"] * window, sfm_params["d_model"])
         self.relu = torch.nn.ReLU()
-        self.linear1 = torch.nn.Linear(
-            input_channel, sfm_params["d_model"])  # 79 -> 128
+        self.linear1 = torch.nn.Linear(input_channel, sfm_params["d_model"])  # 79 -> 128
         self.bn1 = torch.nn.BatchNorm1d(window)  # 128
 
     def forward(self, img_list: Tensor, feat: Tensor) -> Tuple[Tensor, Tensor]:
@@ -104,7 +122,9 @@ class Flareformer(nn.Module):
 
 
 class Block(nn.Module):
-    r""" ConvNeXt Block. There are two equivalent implementations:
+    r"""ConvNeXt Block.
+
+    There are two equivalent implementations:
     (1) DwConv -> LayerNorm (channels_first) -> 1x1 Conv -> GELU -> 1x1 Conv; all in (N, C, H, W)
     (2) DwConv -> Permute to (N, H, W, C); LayerNorm (channels_last) -> Linear -> GELU -> Linear; Permute back
     We use (2) as we find it slightly faster in PyTorch
@@ -115,18 +135,19 @@ class Block(nn.Module):
         layer_scale_init_value (float): Init value for Layer Scale. Default: 1e-6.
     """
 
-    def __init__(self, dim: int,
-                 drop_path: float = 0.,
-                 layer_scale_init_value: float = 1e-6):
+    def __init__(self, dim: int, drop_path: float = 0.0, layer_scale_init_value: float = 1e-6):
         super().__init__()
         self.dwconv = nn.Conv2d(dim, dim, kernel_size=7, padding=3, groups=dim)  # depthwise conv
         self.norm = LayerNorm2(dim, eps=1e-6)
         self.pwconv1 = nn.Linear(dim, 4 * dim)  # pointwise/1x1 convs, implemented with linear layers
         self.act = nn.GELU()
         self.pwconv2 = nn.Linear(4 * dim, dim)
-        self.gamma = nn.Parameter(layer_scale_init_value * torch.ones((dim)),
-                                  requires_grad=True) if layer_scale_init_value > 0 else None
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.gamma = (
+            nn.Parameter(layer_scale_init_value * torch.ones((dim)), requires_grad=True)
+            if layer_scale_init_value > 0
+            else None
+        )
+        self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -148,9 +169,10 @@ class Block(nn.Module):
 
 
 class ConvNeXt(nn.Module):
-    r""" ConvNeXt
-        A PyTorch impl of : `A ConvNet for the 2020s`  -
-          https://arxiv.org/pdf/2201.03545.pdf
+    r"""ConvNeXt
+
+    A PyTorch impl of : `A ConvNet for the 2020s`  - https://arxiv.org/pdf/2201.03545.pdf
+
     Args:
         in_chans (int): Number of input image channels. Default: 3
         num_classes (int): Number of classes for classification head. Default: 1000
@@ -161,21 +183,22 @@ class ConvNeXt(nn.Module):
         head_init_scale (float): Init scaling value for classifier weights and biases. Default: 1.
     """
 
-    def __init__(self,
-                 in_chans: int = 3,
-                 out_chans: int = 1000,
-                 depths: List[int] = [3, 3, 9, 3],
-                 dims: List[int] = [96, 192, 384, 768],
-                 drop_path_rate: float = 0.,
-                 layer_scale_init_value: float = 1e-6,
-                 head_init_scale: float = 1.
-                 ):
+    def __init__(
+        self,
+        in_chans: int = 3,
+        out_chans: int = 1000,
+        depths: List[int] = [3, 3, 9, 3],
+        dims: List[int] = [96, 192, 384, 768],
+        drop_path_rate: float = 0.0,
+        layer_scale_init_value: float = 1e-6,
+        head_init_scale: float = 1.0,
+    ):
         super().__init__()
 
         self.downsample_layers = nn.ModuleList()  # stem and 3 intermediate downsampling conv layers
         stem = nn.Sequential(
             nn.Conv2d(in_chans, dims[0], kernel_size=4, stride=4),
-            LayerNorm2(dims[0], eps=1e-6, data_format="channels_first")
+            LayerNorm2(dims[0], eps=1e-6, data_format="channels_first"),
         )
         self.downsample_layers.append(stem)
         for i in range(3):
@@ -190,8 +213,10 @@ class ConvNeXt(nn.Module):
         cur = 0
         for i in range(4):
             stage = nn.Sequential(
-                *[Block(dim=dims[i], drop_path=dp_rates[cur + j],
-                        layer_scale_init_value=layer_scale_init_value) for j in range(depths[i])]
+                *[
+                    Block(dim=dims[i], drop_path=dp_rates[cur + j], layer_scale_init_value=layer_scale_init_value)
+                    for j in range(depths[i])
+                ]
             )
             self.stages.append(stage)
             cur += depths[i]
@@ -206,7 +231,7 @@ class ConvNeXt(nn.Module):
 
     def _init_weights(self, m: Union[nn.Module, nn.Module, nn.Module]):
         if isinstance(m, (nn.Conv2d, nn.Linear)):
-            trunc_normal_(m.weight, std=.02)
+            trunc_normal_(m.weight, std=0.02)
             nn.init.constant_(m.bias, 0)
 
     def forward_features(self, x: Tensor) -> Tensor:
@@ -229,10 +254,15 @@ class ConvNeXt(nn.Module):
 
 
 class LayerNorm2(nn.Module):
-    r""" LayerNorm that supports two data formats: channels_last (default) or channels_first.
-    The ordering of the dimensions in the inputs. channels_last corresponds to inputs with
-    shape (batch_size, height, width, channels) while channels_first corresponds to inputs
-    with shape (batch_size, channels, height, width).
+    r"""LayerNorm
+
+    That supports two data formats:
+        channels_last (default) or channels_first.
+
+    Note:
+        The ordering of the dimensions in the inputs. channels_last corresponds to inputs with
+        shape (batch_size, height, width, channels) while channels_first corresponds to inputs
+        with shape (batch_size, channels, height, width).
     """
 
     def __init__(self, normalized_shape: int, eps: float = 1e-6, data_format: str = "channels_last"):
@@ -243,7 +273,7 @@ class LayerNorm2(nn.Module):
         self.data_format = data_format
         if self.data_format not in ["channels_last", "channels_first"]:
             raise NotImplementedError
-        self.normalized_shape = (normalized_shape, )
+        self.normalized_shape = (normalized_shape,)
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -263,20 +293,16 @@ class InformerEncoderLayer(nn.Module):
     """
     Informer Encoder Layer
     """
-    def __init__(self,
-                 attention: AttentionLayer,
-                 d_model: int,
-                 d_ff: int = None,
-                 dropout: float = 0.1,
-                 activation: str = "relu"):
+
+    def __init__(
+        self, attention: AttentionLayer, d_model: int, d_ff: int = None, dropout: float = 0.1, activation: str = "relu"
+    ):
         super().__init__()
 
         d_ff = d_ff or 4 * d_model
         self.attention = attention
-        self.conv1 = nn.Conv1d(in_channels=d_model,
-                               out_channels=d_ff, kernel_size=1)
-        self.conv2 = nn.Conv1d(
-            in_channels=d_ff, out_channels=d_model, kernel_size=1)
+        self.conv1 = nn.Conv1d(in_channels=d_model, out_channels=d_ff, kernel_size=1)
+        self.conv2 = nn.Conv1d(in_channels=d_ff, out_channels=d_model, kernel_size=1)
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.dropout = nn.Dropout(dropout)
@@ -284,6 +310,8 @@ class InformerEncoderLayer(nn.Module):
 
     def forward(self, q: Tensor, kv: Tensor) -> Tensor:
         """
+        順伝播を定義する関数
+
         How to use'
             x = encoder_layer(x)
             (original) x, attn = attn_layer(x, attn_mask=attn_mask)
@@ -293,10 +321,7 @@ class InformerEncoderLayer(nn.Module):
         #     x, x, x,
         #     attn_mask = attn_mask
         # ))
-        new_x, attn = self.attention(
-            q, kv, kv,
-            attn_mask=None
-        )
+        new_x, attn = self.attention(q, kv, kv, attn_mask=None)
         q = q + self.dropout(new_x)
 
         y = q = self.norm1(q)
@@ -307,7 +332,7 @@ class InformerEncoderLayer(nn.Module):
 
 
 class PositionwiseFeedForward(torch.nn.Module):
-    "Implements FFN equation."
+    """Implements FFN equation."""
 
     def __init__(self, d_model, d_ff, dropout=0.1):
         super().__init__()

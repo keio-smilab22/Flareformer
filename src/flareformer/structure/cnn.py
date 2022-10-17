@@ -1,17 +1,17 @@
 """学習に用いるCNNモデルを定義するモジュール"""
 from typing import Callable, Optional
-from torch import nn
-from torch import Tensor
+
+from torch import Tensor, nn
 
 
 class CNNModel(nn.Module):
     """CNN Model"""
+
     def __init__(self, output_channel=4, size=2, pretrain=False):
         super().__init__()
 
         self.pretrain = pretrain
-        self.conv1 = nn.Conv2d(1, 16, kernel_size=7,
-                               stride=2, padding=3, bias=False)
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(16)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -20,9 +20,7 @@ class CNNModel(nn.Module):
             conv1x1(16, 8 * 4, 1),
             nn.BatchNorm2d(8 * 4),
         )
-        self.layer1 = Bottleneck(
-            16, 8, 1, downsample=downsample, norm_layer=nn.BatchNorm2d
-        )
+        self.layer1 = Bottleneck(16, 8, 1, downsample=downsample, norm_layer=nn.BatchNorm2d)
 
         self.avgpool = nn.AdaptiveAvgPool2d((size, size))
         self.flatten = nn.Flatten()
@@ -63,6 +61,7 @@ class CNNModel(nn.Module):
 
 class Bottleneck(nn.Module):
     """Bottleneck"""
+
     expansion: int = 4
 
     def __init__(

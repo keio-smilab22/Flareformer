@@ -1,22 +1,21 @@
 """
-Train and eval functions used in main.py
+Train and eval functions used in main.py .
 """
 
-from typing import Dict, Tuple, Any
+from typing import Any, Dict, Tuple
+
 import torch
-from utils.losses import Losser
-from utils.statistics import Stat
-from tqdm import tqdm
 from torch.optim.adam import Adam
 from torch.utils.data.dataloader import DataLoader
+from tqdm import tqdm
+from utils.losses import Losser
+from utils.statistics import Stat
 
 
-def train_epoch(model: torch.nn.Module,
-                optimizer: Adam,
-                train_dl: DataLoader,
-                losser: Losser,
-                stat: Stat) -> Tuple[Dict[str, Any], float]:
-    """train one epoch"""
+def train_epoch(
+    model: torch.nn.Module, optimizer: Adam, train_dl: DataLoader, losser: Losser, stat: Stat
+) -> Tuple[Dict[str, Any], float]:
+    """Train one epoch."""
     model.train()
     losser.clear()
     stat.clear_all()
@@ -35,11 +34,8 @@ def train_epoch(model: torch.nn.Module,
     return score, losser.get_mean_loss()
 
 
-def eval_epoch(model: torch.nn.Module,
-               val_dl: DataLoader,
-               losser: Losser,
-               stat: Stat) -> Tuple[Dict[str, Any], float]:
-    """evaluate the given model"""
+def eval_epoch(model: torch.nn.Module, val_dl: DataLoader, losser: Losser, stat: Stat) -> Tuple[Dict[str, Any], float]:
+    """Evaluate the given model."""
     model.eval()
     losser.clear()
     stat.clear_all()

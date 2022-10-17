@@ -1,9 +1,9 @@
 """損失関数を定義するモジュール"""
 from dataclasses import dataclass
-import torch
+
 import numpy as np
-from torch import nn
-from torch import Tensor
+import torch
+from torch import Tensor, nn
 
 
 @dataclass
@@ -11,6 +11,7 @@ class LossConfig:
     """
     LossConfig class
     """
+
     lambda_bss: float
     lambda_gmgs: float
     score_mtx: torch.Tensor  # for GMGS
@@ -20,6 +21,7 @@ class Losser:
     """
     Losser class
     """
+
     def __init__(self, config: LossConfig, device: str = "cuda"):
         self.ce_loss = nn.CrossEntropyLoss().to(device)
         self.config = config
@@ -32,9 +34,7 @@ class Losser:
         loss = self.ce_loss(y_pred, torch.argmax(y_true, dim=1))
         gmgs_loss = self.calc_gmgs_loss(y_pred, y_true)
         bss_loss = self.calc_bss_loss(y_pred, y_true)
-        loss = loss + \
-            self.config.lambda_bss * bss_loss + \
-            self.config.lambda_gmgs * gmgs_loss
+        loss = loss + self.config.lambda_bss * bss_loss + self.config.lambda_gmgs * gmgs_loss
         self.accum.append(loss.clone().detach().cpu().item())
         return loss
 

@@ -1,24 +1,25 @@
 """Flareformerのメインモジュール"""
 
-import json
 import argparse
+import json
 from argparse import Namespace
-from typing import Dict, Optional, Tuple, Any
+from typing import Any, Dict, Optional, Tuple
+
+import colored_traceback.always
+import numpy as np
 import structure.structure
 import torch
+from dataloader.dataloader import prepare_dataloaders
+from dataloader.flare import OneshotDataset
+from engine import eval_epoch, train_epoch
 from torch import nn
 from torch.utils.data import DataLoader
 from torchinfo import summary
-import numpy as np
-import colored_traceback.always
+from utils.logs import Log, Logger
+from utils.losses import LossConfig, Losser
+from utils.server import CallbackServer
 from utils.statistics import Stat
 from utils.utils import adjust_learning_rate, fix_seed, inject_args
-from utils.losses import LossConfig, Losser
-from utils.logs import Log, Logger
-from utils.server import CallbackServer
-from dataloader.dataloader import prepare_dataloaders
-from dataloader.flare import OneshotDataset
-from engine import train_epoch, eval_epoch
 
 
 def parse_params(dump: bool = False) -> Tuple[Namespace, Dict[str, Any]]:
@@ -26,19 +27,19 @@ def parse_params(dump: bool = False) -> Tuple[Namespace, Dict[str, Any]]:
     コマンドライン引数をパース
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mode', default="train")
-    parser.add_argument('--wandb', action='store_true')
-    parser.add_argument('--model', default='Flareformer')
-    parser.add_argument('--params', default='config/params_2017.json')
-    parser.add_argument('--project_name', default='flare_transformer_test')
-    parser.add_argument('--model_name', default='id1_2017')
-    parser.add_argument('--warmup_epochs', default=5, type=int)
-    parser.add_argument('--without_schedule', action='store_false')
-    parser.add_argument('--lr_for_2stage', default=0.000008, type=float)
-    parser.add_argument('--epoch_for_2stage', default=25, type=int)
-    parser.add_argument('--detail_summary', action='store_true')
-    parser.add_argument('--imbalance', action='store_true')
-    parser.add_argument('--debug', action='store_true')
+    parser.add_argument("--mode", default="train")
+    parser.add_argument("--wandb", action="store_true")
+    parser.add_argument("--model", default="Flareformer")
+    parser.add_argument("--params", default="config/params_2017.json")
+    parser.add_argument("--project_name", default="flare_transformer_test")
+    parser.add_argument("--model_name", default="id1_2017")
+    parser.add_argument("--warmup_epochs", default=5, type=int)
+    parser.add_argument("--without_schedule", action="store_false")
+    parser.add_argument("--lr_for_2stage", default=0.000008, type=float)
+    parser.add_argument("--epoch_for_2stage", default=25, type=int)
+    parser.add_argument("--detail_summary", action="store_true")
+    parser.add_argument("--imbalance", action="store_true")
+    parser.add_argument("--debug", action="store_true")
 
     # read params/params.json
     args = parser.parse_args()
@@ -53,7 +54,7 @@ def parse_params(dump: bool = False) -> Tuple[Namespace, Dict[str, Any]]:
     return args, params
 
 
-class FlareformerManager():
+class FlareformerManager:
     """
     Manager class for Flareformer
     """
@@ -96,16 +97,11 @@ class FlareformerManager():
                 adjust_learning_rate(self.optimizer, epoch, epochs, lr, self.args)
 
             # train
-            train_score, train_loss = train_epoch(self.model,
-                                                  self.optimizer,
-                                                  train_dl,
-                                                  losser=self.losser,
-                                                  stat=self.stat)
+            train_score, train_loss = train_epoch(
+                self.model, self.optimizer, train_dl, losser=self.losser, stat=self.stat
+            )
             # validation
-            valid_score, valid_loss = eval_epoch(self.model,
-                                                 val_dl,
-                                                 losser=self.losser,
-                                                 stat=self.stat)
+            valid_score, valid_loss = eval_epoch(self.model, val_dl, losser=self.losser, stat=self.stat)
             # test
             test_score, test_loss = valid_score, valid_loss
 
@@ -113,9 +109,14 @@ class FlareformerManager():
             self.save_model(self.args.save_model_path)
 
             # log
-            self.logger.write(epoch, [Log("train", np.mean(train_loss), train_score),
-                                      Log("valid", np.mean(valid_loss), valid_score),
-                                      Log("test", np.mean(test_loss), test_score)])
+            self.logger.write(
+                epoch,
+                [
+                    Log("train", np.mean(train_loss), train_score),
+                    Log("valid", np.mean(valid_loss), valid_score),
+                    Log("test", np.mean(test_loss), test_score),
+                ],
+            )
 
             print(f"Epoch {epoch}: Train loss:{train_loss:.4f}  Valid loss:{valid_loss:.4f}", test_score)
 
@@ -144,10 +145,7 @@ class FlareformerManager():
         Test model
         """
         (_, _, test_dl) = self.dataloaders
-        test_score, _ = eval_epoch(self.model,
-                                   test_dl,
-                                   losser=self.losser,
-                                   stat=self.stat)
+        test_score, _ = eval_epoch(self.model, test_dl, losser=self.losser, stat=self.stat)
         print(test_score)
 
     def predict_oneshot(self, imgs: torch.Tensor, feats: np.ndarray):
@@ -188,17 +186,19 @@ class FlareformerManager():
         Build model, losser, optimizer, stat
         """
         print("Prepare model and optimizer", end="")
-        loss_config = LossConfig(lambda_bss=args.factor["BS"],
-                                 lambda_gmgs=args.factor["GMGS"],
-                                 score_mtx=args.dataset["GMGS_score_matrix"])
+        loss_config = LossConfig(
+            lambda_bss=args.factor["BS"], lambda_gmgs=args.factor["GMGS"], score_mtx=args.dataset["GMGS_score_matrix"]
+        )
 
         # Model
         Model = self._get_model_class(args.model)
-        model = Model(input_channel=args.input_channel,
-                      output_channel=args.output_channel,
-                      sfm_params=args.SFM,
-                      mm_params=args.MM,
-                      window=args.dataset["window"]).to("cuda")
+        model = Model(
+            input_channel=args.input_channel,
+            output_channel=args.output_channel,
+            sfm_params=args.SFM,
+            mm_params=args.MM,
+            window=args.dataset["window"],
+        ).to("cuda")
 
         # Optimizer & Stat & Loss Function
         losser = Losser(loss_config)
@@ -223,7 +223,7 @@ class FlareformerManager():
 
 def main():
     """
-    main
+    Execute main process.
     """
     args, _ = parse_params(dump=True)
     flareformer = FlareformerManager(args)

@@ -20,7 +20,7 @@ def get_time(str_time: str):
     """
     Get time from string
     """
-    return datetime.datetime.strptime(str_time, '%d-%b-%Y %H')
+    return datetime.datetime.strptime(str_time, "%d-%b-%Y %H")
 
 
 def sub_1h(str_time):
@@ -29,5 +29,5 @@ def sub_1h(str_time):
     """
     time = get_time(str_time)
     next_time = time - datetime.timedelta(hours=1)
-    next_time = datetime.datetime.strftime(next_time, '%d-%b-%Y %H')
+    next_time = datetime.datetime.strftime(next_time, "%d-%b-%Y %H")
     return next_time

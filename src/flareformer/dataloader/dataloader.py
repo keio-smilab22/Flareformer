@@ -1,8 +1,9 @@
 """太陽フレア向けの学習データを読み込むモジュール"""
 from argparse import Namespace
-from torch.utils.data import DataLoader
+
 from dataloader.flare import FlareDataset
 from dataloader.sampler import TrainBalancedBatchSampler
+from torch.utils.data import DataLoader
 
 
 def load_datasets(args: Namespace, debug: bool):
