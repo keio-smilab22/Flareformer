@@ -57,8 +57,8 @@ class CallbackServer:
             CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"]
         )
 
-        @fapi.post("/", responses={200: {"content": {"application/json": {"example": {}}}}})
-        def execute_oneshot(
+        @fapi.post("/oneshot/full", responses={200: {"content": {"application/json": {"example": {}}}}})
+        def execute_oneshot_full(
             image_feats: List[UploadFile] = File(description="four magnetogram images"),
             physical_feats: List[str] = Form(description="physical features"),
         ):
@@ -68,7 +68,7 @@ class CallbackServer:
             prob = callback(imgs, phys).tolist()
             return JSONResponse(content={"probability": {"OCMX"[i]: prob[i] for i in range(len(prob))}})
 
-        @fapi.post("/simple", responses={200: {"content": {"application/json": {"example": {}}}}})
+        @fapi.post("/oneshot/simple", responses={200: {"content": {"application/json": {"example": {}}}}})
         def execute_oneshot_simple(date: Date):
             locale.setlocale(locale.LC_TIME, "en_US.UTF-8")
             jsonl_database_path = "data/ft_database_all17.jsonl"
