@@ -70,10 +70,7 @@ class CallbackServer:
 
         @fapi.get("/oneshot/simple", responses={200: {"content": {"application/json": {"example": {}}}}})
         def execute_oneshot_simple(date: str):
-            # ISO8601の基本形式から拡張形式へ変換
-            s_date = datetime.datetime.strptime(date, '%Y%m%dT%H%M%S').isoformat()
-            # datetime型に変換する
-            f_date = datetime.datetime.fromisoformat(s_date)
+            f_date = datetime.datetime.fromisoformat(date.replace('Z', '+00:00')) 
             query_date = f_date.strftime("%Y-%m-%d-%H")
             jsonl_database_path = "data/ft_database_all17.jsonl"
             targets = []
@@ -102,18 +99,15 @@ class CallbackServer:
 
         @fapi.get("/images/path", responses={200: {"content": {"application/json": {"example": {}}}}})
         def execute_oneshot_images_path(date: str):
-            # ISO8601の基本形式から拡張形式へ変換
-            s_date = datetime.datetime.strptime(date, '%Y%m%dT%H%M%S').isoformat()
-            # datetime型に変換する
-            f_date = datetime.datetime.fromisoformat(s_date)
+            f_date = datetime.datetime.fromisoformat(date.replace('Z', '+00:00')) 
             query_date = f_date.strftime("%Y-%m-%d-%H")
             jsonl_database_path = "data/ft_database_all17.jsonl"
-            finish_date = query_date + datetime.timedelta(hours=24)
+            finish_date = (f_date + datetime.timedelta(hours=24)).strftime("%Y-%m-%d-%H")
             targets = []
             with open(jsonl_database_path, "r") as f:
                 for line in f.readlines():
                     data = json.loads(line)
-                    target_date = datetime.datetime.strptime(data["time"], "%d-%b-%Y %H")
+                    target_date = (datetime.datetime.strptime(data["time"], "%d-%b-%Y %H")).strftime("%Y-%m-%d-%H")
                     if query_date < target_date <= finish_date:
                         targets.append(data)
 
