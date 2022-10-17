@@ -74,12 +74,12 @@ class CallbackServer:
             s_date = datetime.datetime.strptime(date, '%Y%m%dT%H%M%S').isoformat()
             # datetime型に変換する
             f_date = datetime.datetime.fromisoformat(s_date)
+            query_date = f_date.strftime("%Y-%m-%d-%H")
             jsonl_database_path = "data/ft_database_all17.jsonl"
             targets = []
             prob = []
             status = "failed"
             with open(jsonl_database_path, "r") as f:
-                query_date = f_date.strftime("%Y-%m-%d-%H")
                 for line in f.readlines():
                     data = json.loads(line)
                     targets.append(data)
