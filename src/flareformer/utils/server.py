@@ -96,7 +96,7 @@ class CallbackServer:
             with open(jsonl_database_path, "r") as f:
                 for line in f.readlines():
                     data = json.loads(line)
-                    target_date = (datetime.datetime.strptime(data["time"], "%d-%b-%Y %H")).strftime("%Y-%m-%d-%H")
+                    target_date = datetime.datetime.strptime(data["time"], "%d-%b-%Y %H").strftime("%Y-%m-%d-%H")
                     if query_date < target_date <= finish_date:
                         targets.append(data)
 
