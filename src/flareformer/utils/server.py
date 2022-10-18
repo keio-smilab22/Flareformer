@@ -26,11 +26,6 @@ class CallbackServer:
         return parsed_date
 
     @staticmethod
-    def make_str_date_list(date, time_range, type):
-        """指定した日時から指定時間幅だけ1時間毎に文字列変換し、リストに格納する"""
-        return date
-
-    @staticmethod
     def get_tensor_image(img_buff):
         """画像のRAWデータをTensorに変換"""
         transform = transforms.Compose([transforms.ToTensor()])
@@ -86,7 +81,7 @@ class CallbackServer:
             
             target_date_list = []
             for number in range(0, 4, 1):
-                calc_date = f_date + datetime.timedelta(hours=-number)
+                calc_date = f_date - datetime.timedelta(hours=number)
                 target_date_list.insert(0, calc_date)
 
             targets = []
@@ -110,16 +105,16 @@ class CallbackServer:
         @fapi.get("/images/path", responses={200: {"content": {"application/json": {"example": {}}}}})
         def execute_images_path(date: str):
             f_date = cls.parse_iso_time(date)
-            query_date = f_date.strftime("%Y-%m-%d-%H")
-            jsonl_database_path = "data/ft_database_all17.jsonl"
-            finish_date = (f_date + datetime.timedelta(hours=24)).strftime("%Y-%m-%d-%H")
+
+            target_date_list = []
+            for number in range(1, 25, 1):
+                calc_date = f_date + datetime.timedelta(hours=number)
+                target_date_list.append(calc_date)
+
             targets = []
-            with open(jsonl_database_path, "r") as f:
-                for line in f.readlines():
-                    data = json.loads(line)
-                    target_date = datetime.datetime.strptime(data["time"], "%d-%b-%Y %H").strftime("%Y-%m-%d-%H")
-                    if query_date < target_date <= finish_date:
-                        targets.append(data)
+            for target_date in target_date_list:
+                if target_date.strftime("%Y-%m-%d-%H") in date_dic:
+                    targets.append(date_dic[target_date.strftime("%Y-%m-%d-%H")])
 
             if len(targets) == 0:
                 status = "failed"
