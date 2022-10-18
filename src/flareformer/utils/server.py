@@ -93,7 +93,7 @@ class CallbackServer:
             )
 
         @fapi.get("/images/path", responses={200: {"content": {"application/json": {"example": {}}}}})
-        def execute_oneshot_images_path(date: str):
+        def execute_images_path(date: str):
             f_date = cls.parse_iso_time(date)
             query_date = f_date.strftime("%Y-%m-%d-%H")
             jsonl_database_path = "data/ft_database_all17.jsonl"
@@ -117,7 +117,7 @@ class CallbackServer:
             return JSONResponse(content={"images": paths, "get_image_status": status})
 
         @fapi.get("/images/bin", response_class=FileResponse)
-        def execute_oneshot_images_bin(path: str):
+        def execute_images_bin(path: str):
             path = os.path.join(os.getcwd(), path)
             return path
 
