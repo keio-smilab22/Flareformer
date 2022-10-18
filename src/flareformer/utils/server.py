@@ -57,7 +57,7 @@ class CallbackServer:
             image_feats: List[UploadFile] = File(description="four magnetogram images"),
             physical_feats: List[str] = Form(description="physical features"),
         ):
-            imgs = torch.cat([CallbackServer.get_tensor_image(io.file.read()) for io in image_feats])
+            imgs = torch.cat([cls.get_tensor_image(io.file.read()) for io in image_feats])
             phys = np.array([list(map(float, raw.split(","))) for raw in physical_feats])[:, :90]
             print(imgs.shape)
             prob = callback(imgs, phys).tolist()
@@ -80,7 +80,7 @@ class CallbackServer:
                     target_date = datetime.datetime.strptime(data["time"], "%d-%b-%Y %H").strftime("%Y-%m-%d-%H")
                     if query_date == target_date:
                         imgs = torch.cat(
-                            [CallbackServer.get_tensor_image_from_path(t["magnetogram"]) for t in targets]
+                            [cls.get_tensor_image_from_path(t["magnetogram"]) for t in targets]
                         )
                         phys = np.array([list(map(float, t["feature"].split(","))) for t in targets])[:, :90]
                         print(imgs.shape)
