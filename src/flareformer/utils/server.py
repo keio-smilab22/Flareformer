@@ -51,8 +51,12 @@ class CallbackServer:
         fapi.add_middleware(
             CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"]
         )
-        params = json.loads(open("config/params_2017.json").read())
-        feature_len = params['dataset']['window']
+        params = json.loads(open("config/params_server.json").read())
+        host_name = params['hostname']
+        port_num = params['port']
+
+        tmp_params = json.loads(open("config/params_2017.json").read())
+        feature_len = tmp_params['dataset']['window']
 
         @fapi.post("/oneshot/full", responses={200: {"content": {"application/json": {"example": {}}}}})
         def execute_oneshot_full(
@@ -123,6 +127,4 @@ class CallbackServer:
             path = os.path.join(os.getcwd(), path)
             return path
 
-        host_name = "0.0.0.0"
-        port_num = 8080
         uvicorn.run(fapi, host=host_name, port=port_num)
