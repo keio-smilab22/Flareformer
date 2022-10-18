@@ -245,7 +245,7 @@ def main():
             flareformer.train_model(lr=args.lr_for_2stage, epochs=args.epoch_for_2stage)
     elif args.mode == "server":
         flareformer.load_model(args.save_model_path)
-        CallbackServer.start_server(callback=flareformer.predict_oneshot)
+        CallbackServer.start_server(callback=flareformer.predict_oneshot, param_path=args.params)
     else:
         assert False, "Unknown mode"
 

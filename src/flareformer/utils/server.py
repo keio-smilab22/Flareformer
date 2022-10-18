@@ -43,7 +43,7 @@ class CallbackServer:
         return img.unsqueeze(0)
 
     @classmethod
-    def start_server(cls, callback):
+    def start_server(cls, callback, param_path):
         """
         Start http server.
         """
@@ -54,6 +54,8 @@ class CallbackServer:
         params = json.loads(open("config/params_server.json").read())
         host_name = params['hostname']
         port_num = params['port']
+        
+        # ft_databaseを全件読み込み、timeをキーとした辞書に格納する
         date_dic = {}
         with open(params['ft_database_path'], "r") as f:
             for line in f.readlines():
@@ -61,8 +63,9 @@ class CallbackServer:
                 str_date = datetime.datetime.strptime(line_data["time"], "%d-%b-%Y %H").strftime("%Y-%m-%d-%H")
                 date_dic[str_date] = line_data
 
-        tmp_params = json.loads(open("config/params_2017.json").read())
-        feature_len = tmp_params['dataset']['window']
+        # oneshotで用いる特徴量のサイズを学習パラメータから取得する
+        train_params = json.loads(open(param_path).read())
+        feature_len = train_params['dataset']['window']
 
         @fapi.post("/oneshot/full", responses={200: {"content": {"application/json": {"example": {}}}}})
         def execute_oneshot_full(
@@ -79,19 +82,23 @@ class CallbackServer:
         def execute_oneshot_simple(date: str):
             f_date = cls.parse_iso_time(date)
             
+            # カレンダーで指定した日時を含めて時刻を遡り、特徴量として用いる時刻をtarget_date_listに格納する
             target_date_list = []
-            for number in range(0, 4, 1):
+            for number in range(0, feature_len, 1):
                 calc_date = f_date - datetime.timedelta(hours=number)
                 target_date_list.insert(0, calc_date)
 
+            # target_date_listと合致するデータをtargetsに格納する
             targets = []
             for target_date in target_date_list:
                 if target_date.strftime("%Y-%m-%d-%H") in date_dic:
                     targets.append(date_dic[target_date.strftime("%Y-%m-%d-%H")])
 
-            if len(targets) != 4:
+            # 一発打ちに用いるデータが足りていない場合、failedとする
+            if len(targets) != feature_len:
                 return JSONResponse(content={"probability": {"OCMX": []}, "oneshot_status": "failed"})
         
+            # 一発打ちを実行する
             imgs = torch.cat(
                 [cls.get_tensor_image_from_path(t["magnetogram"]) for t in targets]
             )
@@ -106,16 +113,19 @@ class CallbackServer:
         async def execute_images_path(date: str):
             f_date = cls.parse_iso_time(date)
 
+            # カレンダーで指定した日時を含めずに1時間毎に時刻を取得し、計24時間分をtarget_date_listに格納する
             target_date_list = []
             for number in range(1, 25, 1):
                 calc_date = f_date + datetime.timedelta(hours=number)
                 target_date_list.append(calc_date)
 
+            # target_date_listと合致するデータをtargetsに格納する
             targets = []
             for target_date in target_date_list:
                 if target_date.strftime("%Y-%m-%d-%H") in date_dic:
                     targets.append(date_dic[target_date.strftime("%Y-%m-%d-%H")])
 
+            # 合致した件数によってstatusを決定する
             if len(targets) == 0:
                 status = "failed"
             elif len(targets) < 24:
@@ -123,7 +133,9 @@ class CallbackServer:
             else:
                 status = "success"
 
+            # 画像パスのリストを作成する
             paths = [t["magnetogram"] for t in targets]
+
             return JSONResponse(content={"images": paths, "get_image_status": status})
 
         @fapi.get("/images/bin", response_class=FileResponse)
