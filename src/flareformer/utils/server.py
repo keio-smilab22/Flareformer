@@ -103,7 +103,7 @@ class CallbackServer:
             )
 
         @fapi.get("/images/path", responses={200: {"content": {"application/json": {"example": {}}}}})
-        def execute_images_path(date: str):
+        async def execute_images_path(date: str):
             f_date = cls.parse_iso_time(date)
 
             target_date_list = []
@@ -127,7 +127,7 @@ class CallbackServer:
             return JSONResponse(content={"images": paths, "get_image_status": status})
 
         @fapi.get("/images/bin", response_class=FileResponse)
-        def execute_images_bin(path: str):
+        async def execute_images_bin(path: str):
             path = os.path.join(os.getcwd(), path)
             return path
 
