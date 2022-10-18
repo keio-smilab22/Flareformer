@@ -52,12 +52,12 @@ class CallbackServer:
             CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"]
         )
         params = json.loads(open("config/params_server.json").read())
-        host_name = params['hostname']
-        port_num = params['port']
-        
+        host_name = params["hostname"]
+        port_num = params["port"]
+
         # ft_databaseを全件読み込み、timeをキーとした辞書に格納する
         date_dic = {}
-        with open(params['ft_database_path'], "r") as f:
+        with open(params["ft_database_path"], "r") as f:
             for line in f.readlines():
                 line_data = json.loads(line)
                 str_date = datetime.datetime.strptime(line_data["time"], "%d-%b-%Y %H").strftime("%Y-%m-%d-%H")
@@ -65,7 +65,7 @@ class CallbackServer:
 
         # oneshotで用いる特徴量のサイズを学習パラメータから取得する
         train_params = json.loads(open(param_path).read())
-        feature_len = train_params['dataset']['window']
+        feature_len = train_params["dataset"]["window"]
 
         @fapi.post("/oneshot/full", responses={200: {"content": {"application/json": {"example": {}}}}})
         def execute_oneshot_full(
@@ -81,7 +81,7 @@ class CallbackServer:
         @fapi.get("/oneshot/simple", responses={200: {"content": {"application/json": {"example": {}}}}})
         def execute_oneshot_simple(date: str):
             f_date = cls.parse_iso_time(date)
-            
+
             # カレンダーで指定した日時を含めて時刻を遡り、特徴量として用いる時刻をtarget_date_listに格納する
             target_date_list = []
             for number in range(0, feature_len, 1):
@@ -97,11 +97,9 @@ class CallbackServer:
             # 一発打ちに用いるデータが足りていない場合、failedとする
             if len(targets) != feature_len:
                 return JSONResponse(content={"probability": {"OCMX": []}, "oneshot_status": "failed"})
-        
+
             # 一発打ちを実行する
-            imgs = torch.cat(
-                [cls.get_tensor_image_from_path(t["magnetogram"]) for t in targets]
-            )
+            imgs = torch.cat([cls.get_tensor_image_from_path(t["magnetogram"]) for t in targets])
             phys = np.array([list(map(float, t["feature"].split(","))) for t in targets])[:, :90]
             prob = callback(imgs, phys).tolist()
 
