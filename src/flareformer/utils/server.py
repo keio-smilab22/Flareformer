@@ -54,6 +54,12 @@ class CallbackServer:
         params = json.loads(open("config/params_server.json").read())
         host_name = params['hostname']
         port_num = params['port']
+        date_dic = {}
+        with open(params['ft_database_path'], "r") as f:
+            for line in f.readlines():
+                line_data = json.loads(line)
+                str_date = datetime.datetime.strptime(line_data["time"], "%d-%b-%Y %H").strftime("%Y-%m-%d-%H")
+                date_dic[str_date] = line_data
 
         tmp_params = json.loads(open("config/params_2017.json").read())
         feature_len = tmp_params['dataset']['window']
