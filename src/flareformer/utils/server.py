@@ -26,13 +26,17 @@ class CallbackServer:
         return parsed_date
 
     @staticmethod
+    def cast_date_to_string(datetime_date):
+        """datetime型の日時を指定フォーマとの文字列に変換する"""
+        return datetime_date.strftime("%Y-%m-%d-%H")
+
+    @staticmethod
     def make_targets_list(date_dic, target_date_list):
         """データセットとターゲット日時のリストが合致するデータをリストに格納し返却する"""
         targets = []
         for target_date in target_date_list:
-            if target_date.strftime("%Y-%m-%d-%H") in date_dic:
-                targets.append(date_dic[target_date.strftime("%Y-%m-%d-%H")])
-
+            if CallbackServer.cast_date_to_string(target_date) in date_dic:
+                targets.append(date_dic[CallbackServer.cast_date_to_string(target_date)])
         return targets
 
     @staticmethod
