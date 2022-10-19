@@ -14,7 +14,8 @@ parser.add_argument('--model', type=str, required=True, default='informer',help=
 parser.add_argument('--data', type=str, required=True, default='Flare', help='data')
 parser.add_argument('--root_path', type=str, default='./data/', help='root path of the data file')
 parser.add_argument('--feat_path', type=str, default='data_all_v2.csv', help='feat file')
-parser.add_argument('--magnetogram_path', type=str, default='data_magnetogram_256.npy', help='magnetogram file')    
+parser.add_argument('--magnetogram_path', type=str, default='data_magnetogram_256.npy', help='magnetogram file')
+parser.add_argument('--csv_name', type=str, default='magnetogram_logxmax1h_all_years.csv', help='csv name')
 parser.add_argument('--features', type=str, default='MS', help='forecasting task, options:[M, S, MS]; M:multivariate predict multivariate, S:univariate predict univariate, MS:multivariate predict univariate')
 parser.add_argument('--target', type=str, default='logXmax1h', help='target feature in S or MS task')
 parser.add_argument('--freq', type=str, default='h', help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
@@ -94,6 +95,7 @@ if args.use_gpu and args.use_multi_gpu:
 data_parser = {
     'Flare':{'data':'data_feat_v2.csv','T':'logXmax1h','M':[95,95,95],'S':[1,1,1],'MS':[95,95,1]},
     'Flare_stddev':{'data':'data_feat_v2.csv','T':'logXmax1h','M':[91,91,91],'S':[1,1,1],'MS':[91,91,1]},
+    'Flare_sunpy':{'data':'magnetogram_logxmax1h_all_years.csv','T':'logxmax1h','M':[2,2,2],'S':[1,1,1],'MS':[2,2,1]},
 }
 if args.data in data_parser.keys():
     data_info = data_parser[args.data]
