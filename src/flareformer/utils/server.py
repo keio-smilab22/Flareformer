@@ -47,17 +47,16 @@ class CallbackServer:
         """
         Start http server.
         """
+        GET_IMAGE_LEN = 24
         fapi = FastAPI()
         fapi.add_middleware(
             CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"]
         )
-        params = json.loads(open("config/params_server.json").read())
-        host_name = params["hostname"]
-        port_num = params["port"]
+        server_params = json.loads(open("config/params_server.json").read())
 
         # ft_databaseを全件読み込み、timeをキーとした辞書に格納する
         date_dic = {}
-        with open(params["ft_database_path"], "r") as f:
+        with open(server_params["ft_database_path"], "r") as f:
             for line in f.readlines():
                 line_data = json.loads(line)
                 str_date = datetime.datetime.strptime(line_data["time"], "%d-%b-%Y %H").strftime("%Y-%m-%d-%H")
@@ -65,7 +64,7 @@ class CallbackServer:
 
         # oneshotで用いる特徴量のサイズを学習パラメータから取得する
         train_params = json.loads(open(param_path).read())
-        feature_len = train_params["dataset"]["window"]
+        data_window_len = train_params["dataset"]["window"]
 
         @fapi.post("/oneshot/full", responses={200: {"content": {"application/json": {"example": {}}}}})
         def execute_oneshot_full(
@@ -84,8 +83,8 @@ class CallbackServer:
 
             # カレンダーで指定した日時を含めて時刻を遡り、特徴量として用いる時刻をtarget_date_listに格納する
             target_date_list = []
-            for number in range(0, feature_len, 1):
-                calc_date = f_date - datetime.timedelta(hours=number)
+            for offset in range(data_window_len):
+                calc_date = f_date - datetime.timedelta(hours=offset)
                 target_date_list.insert(0, calc_date)
 
             # target_date_listと合致するデータをtargetsに格納する
@@ -95,7 +94,7 @@ class CallbackServer:
                     targets.append(date_dic[target_date.strftime("%Y-%m-%d-%H")])
 
             # 一発打ちに用いるデータが足りていない場合、failedとする
-            if len(targets) != feature_len:
+            if len(targets) != data_window_len:
                 return JSONResponse(content={"probability": {"OCMX": []}, "oneshot_status": "failed"})
 
             # 一発打ちを実行する
@@ -108,13 +107,13 @@ class CallbackServer:
             )
 
         @fapi.get("/images/path", responses={200: {"content": {"application/json": {"example": {}}}}})
-        async def execute_images_path(date: str):
+        async def get_images_path(date: str):
             f_date = cls.parse_iso_time(date)
 
             # カレンダーで指定した日時を含めずに1時間毎に時刻を取得し、計24時間分をtarget_date_listに格納する
             target_date_list = []
-            for number in range(1, 25, 1):
-                calc_date = f_date + datetime.timedelta(hours=number)
+            for offset in range(GET_IMAGE_LEN):
+                calc_date = f_date + datetime.timedelta(hours=offset + 1)
                 target_date_list.append(calc_date)
 
             # target_date_listと合致するデータをtargetsに格納する
@@ -126,7 +125,7 @@ class CallbackServer:
             # 合致した件数によってstatusを決定する
             if len(targets) == 0:
                 status = "failed"
-            elif len(targets) < 24:
+            elif len(targets) < GET_IMAGE_LEN:
                 status = "warning"
             else:
                 status = "success"
@@ -137,8 +136,8 @@ class CallbackServer:
             return JSONResponse(content={"images": paths, "get_image_status": status})
 
         @fapi.get("/images/bin", response_class=FileResponse)
-        async def execute_images_bin(path: str):
+        async def get_images_bin(path: str):
             path = os.path.join(os.getcwd(), path)
             return path
 
-        uvicorn.run(fapi, host=host_name, port=port_num)
+        uvicorn.run(fapi, host=server_params["hostname"], port=server_params["port"])
