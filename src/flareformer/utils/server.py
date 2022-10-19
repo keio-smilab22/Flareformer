@@ -21,6 +21,25 @@ class CallbackServer:
 
     GET_IMAGE_LEN = 24
 
+    def __init__(self, args):
+        """Init."""
+        with open(args.server_params, "r") as f:
+            server_params = json.load(f)
+
+        # ft_databaseを全件読み込み、timeをキーとした辞書に格納する
+        self.date_dic = {}
+        with open(server_params["ft_database_path"], "r") as f:
+            for line in f.readlines():
+                line_data = json.loads(line)
+                str_date = self.cast_date_to_string(datetime.datetime.strptime(line_data["time"], "%d-%b-%Y %H"))
+                self.date_dic[str_date] = line_data
+
+        self.host = server_params["hostname"]
+        self.port = server_params["port"]
+
+        # 一度のインファレンスで入力するデータ数。4であれば、4時間分のデータを入力する
+        self.data_window_len = args.dataset["window"]
+
     @staticmethod
     def parse_iso_time(iso_date):
         """ISO8601拡張形式の文字列をdatetime型に変換する"""
@@ -32,13 +51,13 @@ class CallbackServer:
         """datetime型の日時を指定フォーマとの文字列に変換する"""
         return datetime_date.strftime("%Y-%m-%d-%H")
 
-    @staticmethod
-    def make_targets_list(date_dic, target_date_list):
+    @classmethod
+    def make_targets_list(cls, date_dic, target_date_list):
         """データセットとターゲット日時のリストが合致するデータをリストに格納し返却する"""
         targets = []
         for target_date in target_date_list:
-            if CallbackServer.cast_date_to_string(target_date) in date_dic:
-                targets.append(date_dic[CallbackServer.cast_date_to_string(target_date)])
+            if cls.cast_date_to_string(target_date) in date_dic:
+                targets.append(date_dic[cls.cast_date_to_string(target_date)])
         return targets
 
     @staticmethod
@@ -58,8 +77,7 @@ class CallbackServer:
         img = transform(img_pil)[0, :, :].unsqueeze(0)
         return img.unsqueeze(0)
 
-    @classmethod
-    def start_server(cls, callback, args):
+    def start_server(self, callback):
         """
         Start http server.
         """
@@ -67,26 +85,13 @@ class CallbackServer:
         fapi.add_middleware(
             CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"]
         )
-        with open(args.server_params, "r") as f:
-            server_params = json.load(f)
-
-        # ft_databaseを全件読み込み、timeをキーとした辞書に格納する
-        date_dic = {}
-        with open(server_params["ft_database_path"], "r") as f:
-            for line in f.readlines():
-                line_data = json.loads(line)
-                str_date = cls.cast_date_to_string(datetime.datetime.strptime(line_data["time"], "%d-%b-%Y %H"))
-                date_dic[str_date] = line_data
-
-        # 一度のインファレンスで入力するデータ数。4であれば、4時間分のデータを入力する
-        data_window_len = args.dataset["window"]
 
         @fapi.post("/oneshot/full", responses={200: {"content": {"application/json": {"example": {}}}}})
         def execute_oneshot_full(
             image_feats: List[UploadFile] = File(description="four magnetogram images"),
             physical_feats: List[str] = Form(description="physical features"),
         ):
-            imgs = torch.cat([cls.get_tensor_image(io.file.read()) for io in image_feats])
+            imgs = torch.cat([CallbackServer.get_tensor_image(io.file.read()) for io in image_feats])
             phys = np.array([list(map(float, raw.split(","))) for raw in physical_feats])[:, :90]
             print(imgs.shape)
             prob = callback(imgs, phys).tolist()
@@ -94,24 +99,24 @@ class CallbackServer:
 
         @fapi.get("/oneshot/simple", responses={200: {"content": {"application/json": {"example": {}}}}})
         def execute_oneshot_simple(date: str):
-            f_date = cls.parse_iso_time(date)
+            f_date = CallbackServer.parse_iso_time(date)
 
             # カレンダーで指定した日時を含めて時刻を遡り、一度のインファレンスで入力する時刻をtarget_date_listに格納する
             target_date_list = []
-            for offset in range(data_window_len):
+            for offset in range(self.data_window_len):
                 calc_date = f_date - datetime.timedelta(hours=offset)
                 target_date_list.append(calc_date)
             target_date_list.reverse()
 
             # target_date_listと合致するデータをtargetsに格納する
-            targets = cls.make_targets_list(date_dic, target_date_list)
+            targets = CallbackServer.make_targets_list(self.date_dic, target_date_list)
 
             # 一発打ちに用いるデータが足りていない場合、failedとする
-            if len(targets) != data_window_len:
+            if len(targets) != self.data_window_len:
                 return JSONResponse(content={"probability": {"OCMX": []}, "oneshot_status": "failed"})
 
             # 一発打ちを実行する
-            imgs = torch.cat([cls.get_tensor_image_from_path(t["magnetogram"]) for t in targets])
+            imgs = torch.cat([CallbackServer.get_tensor_image_from_path(t["magnetogram"]) for t in targets])
             phys = np.array([list(map(float, t["feature"].split(","))) for t in targets])[:, :90]
             prob = callback(imgs, phys).tolist()
 
@@ -121,21 +126,21 @@ class CallbackServer:
 
         @fapi.get("/images/path", responses={200: {"content": {"application/json": {"example": {}}}}})
         async def get_images_path(date: str):
-            f_date = cls.parse_iso_time(date)
+            f_date = CallbackServer.parse_iso_time(date)
 
             # カレンダーで指定した日時を含めずに1時間毎に時刻を取得し、計24時間分をtarget_date_listに格納する
             target_date_list = []
-            for offset in range(cls.GET_IMAGE_LEN):
+            for offset in range(CallbackServer.GET_IMAGE_LEN):
                 calc_date = f_date + datetime.timedelta(hours=offset + 1)
                 target_date_list.append(calc_date)
 
             # target_date_listと合致するデータをtargetsに格納する
-            targets = cls.make_targets_list(date_dic, target_date_list)
+            targets = CallbackServer.make_targets_list(self.date_dic, target_date_list)
 
             # 合致した件数によってstatusを決定する
-            if len(targets) == cls.GET_IMAGE_LEN:
+            if len(targets) == CallbackServer.GET_IMAGE_LEN:
                 status = "success"
-            elif 0 < len(targets) < cls.GET_IMAGE_LEN:
+            elif 0 < len(targets) < CallbackServer.GET_IMAGE_LEN:
                 status = "warning"
             else:
                 status = "failed"
@@ -150,4 +155,4 @@ class CallbackServer:
             path = os.path.join(os.getcwd(), path)
             return path
 
-        uvicorn.run(fapi, host=server_params["hostname"], port=server_params["port"])
+        uvicorn.run(fapi, host=self.host, port=self.port)
