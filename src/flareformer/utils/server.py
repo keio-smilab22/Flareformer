@@ -26,6 +26,17 @@ class CallbackServer:
         return parsed_date
 
     @staticmethod
+    def make_targets_list(date_dic, target_date_list):
+        """データセットとターゲット日時のリストが合致するデータをリストに格納し返却する"""
+        targets = []
+        for target_date in target_date_list:
+            if target_date.strftime("%Y-%m-%d-%H") in date_dic:
+                targets.append(date_dic[target_date.strftime("%Y-%m-%d-%H")])
+
+        return targets
+
+
+    @staticmethod
     def get_tensor_image(img_buff):
         """画像のRAWデータをTensorに変換"""
         transform = transforms.Compose([transforms.ToTensor()])
@@ -88,10 +99,7 @@ class CallbackServer:
                 target_date_list.insert(0, calc_date)
 
             # target_date_listと合致するデータをtargetsに格納する
-            targets = []
-            for target_date in target_date_list:
-                if target_date.strftime("%Y-%m-%d-%H") in date_dic:
-                    targets.append(date_dic[target_date.strftime("%Y-%m-%d-%H")])
+            targets = cls.make_targets_list(date_dic, target_date_list)
 
             # 一発打ちに用いるデータが足りていない場合、failedとする
             if len(targets) != data_window_len:
@@ -117,10 +125,7 @@ class CallbackServer:
                 target_date_list.append(calc_date)
 
             # target_date_listと合致するデータをtargetsに格納する
-            targets = []
-            for target_date in target_date_list:
-                if target_date.strftime("%Y-%m-%d-%H") in date_dic:
-                    targets.append(date_dic[target_date.strftime("%Y-%m-%d-%H")])
+            targets = cls.make_targets_list(date_dic, target_date_list)
 
             # 合致した件数によってstatusを決定する
             if len(targets) == 0:
