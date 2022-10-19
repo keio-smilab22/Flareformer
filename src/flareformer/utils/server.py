@@ -35,7 +35,6 @@ class CallbackServer:
 
         return targets
 
-
     @staticmethod
     def get_tensor_image(img_buff):
         """画像のRAWデータをTensorに変換"""
@@ -96,7 +95,8 @@ class CallbackServer:
             target_date_list = []
             for offset in range(data_window_len):
                 calc_date = f_date - datetime.timedelta(hours=offset)
-                target_date_list.insert(0, calc_date)
+                target_date_list.append(calc_date)
+            target_date_list.reverse()
 
             # target_date_listと合致するデータをtargetsに格納する
             targets = cls.make_targets_list(date_dic, target_date_list)
