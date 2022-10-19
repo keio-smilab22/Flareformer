@@ -1,23 +1,23 @@
-from src.Dataloader import Dataset_Custom, Dataset_Custom_Stddev, Dataset_Pred
-from exp.exp_basic import Exp_Basic
-from src.model_informer import *
-
-from utils.tools import EarlyStopping, adjust_learning_rate
-from utils.metrics import metric
-
-import numpy as np
-
-import torch
-import torch.nn as nn
-from torch import optim
-from torch.utils.data import DataLoader
-
 import os
 import time
-import wandb
-from torchinfo import summary
-
 import warnings
+
+import numpy as np
+import torch
+import torch.nn as nn
+import wandb
+from src.Dataloader import (Dataset_Custom, Dataset_Custom_Stddev,
+                            Dataset_Custom_Sunpy, Dataset_Pred)
+from src.model_informer import *
+from src.SkipMissingValueSampler import SkipMissingValueBatchSampler
+from torch import optim
+from torch.utils.data import DataLoader
+from torchinfo import summary
+from utils.metrics import metric
+from utils.tools import EarlyStopping, adjust_learning_rate
+
+from exp.exp_basic import Exp_Basic
+
 warnings.filterwarnings('ignore')
 
 class Exp_Informer(Exp_Basic):
@@ -93,6 +93,7 @@ class Exp_Informer(Exp_Basic):
         data_dict = {
             'Flare':Dataset_Custom,
             'Flare_stddev':Dataset_Custom_Stddev,
+            'Flare_sunpy':Dataset_Custom_Sunpy,
         }
         Data = data_dict[self.args.data]
         timeenc = 0 if args.embed!='timeF' else 1
@@ -104,7 +105,32 @@ class Exp_Informer(Exp_Basic):
             Data = Dataset_Pred
         else:
             shuffle_flag = True; drop_last = True; batch_size = args.batch_size; freq=args.freq
-        data_set = Data(
+        
+        if self.args.data == 'Flare_sunpy':
+            data_set = Data(
+            root_path=args.root_path,
+            csv_name=args.csv_name,
+            flag=flag,
+            size=[args.seq_len, args.label_len, args.pred_len],
+            features=args.features,
+            target=args.target,
+            inverse=args.inverse,
+            timeenc=timeenc,
+            freq=freq,
+            cols=args.cols,
+            year=args.year,
+            )
+            print(flag, len(data_set))
+            batch_sampler = SkipMissingValueBatchSampler(data_set, batch_size, shuffle=shuffle_flag, drop_last=drop_last)
+            data_loader = DataLoader(
+                data_set,
+                batch_sampler=batch_sampler,
+                num_workers=args.num_workers
+            )
+
+        
+        else:
+            data_set = Data(
             root_path=args.root_path,
             feat_path=args.feat_path,
             magnetogram_path=args.magnetogram_path,
@@ -117,14 +143,14 @@ class Exp_Informer(Exp_Basic):
             freq=freq,
             cols=args.cols,
             year=args.year,
-        )
-        print(flag, len(data_set))
-        data_loader = DataLoader(
-            data_set,
-            batch_size=batch_size,
-            shuffle=shuffle_flag,
-            num_workers=args.num_workers,
-            drop_last=drop_last)
+            )
+            print(flag, len(data_set))
+            data_loader = DataLoader(
+                data_set,
+                batch_size=batch_size,
+                shuffle=shuffle_flag,
+                num_workers=args.num_workers,
+                drop_last=drop_last)
 
         return data_set, data_loader
 
@@ -185,6 +211,9 @@ class Exp_Informer(Exp_Basic):
                 # true = true[:,-1:,:]
                 # print(f"pred: {pred.shape}, true: {true.shape}")
                 # print(f"true: {true}")
+
+                # calculate loss without missing value
+
                 loss = criterion(pred, true)
                 train_loss.append(loss.item())
                 
@@ -386,17 +415,11 @@ class Exp_Informer(Exp_Basic):
             dec_inp = torch.ones([batch_y.shape[0], self.args.pred_len, batch_y.shape[-1]]).float()
         dec_inp = torch.cat([batch_y[:,:self.args.label_len,:], dec_inp], dim=1).float().to(self.device)
         # encoder - decoder
-        if self.args.use_amp:
-            with torch.cuda.amp.autocast():
-                if self.args.output_attention:
-                    outputs = self.model(batch_x, batch_mag, batch_x_mark, dec_inp, batch_y_mark)[0]
-                else:
-                    outputs = self.model(batch_x, batch_mag, batch_x_mark, dec_inp, batch_y_mark)
+        
+        if self.args.output_attention:
+            outputs = self.model(batch_x, batch_mag, batch_x_mark, dec_inp, batch_y_mark)[0]
         else:
-            if self.args.output_attention:
-                outputs = self.model(batch_x, batch_mag, batch_x_mark, dec_inp, batch_y_mark)[0]
-            else:
-                outputs = self.model(batch_x, batch_mag, batch_x_mark, dec_inp, batch_y_mark)
+            outputs = self.model(batch_x, batch_mag, batch_x_mark, dec_inp, batch_y_mark)
         if self.args.inverse:
             outputs = dataset_object.inverse_transform(outputs)
         f_dim = -1 if self.args.features=='MS' else 0
