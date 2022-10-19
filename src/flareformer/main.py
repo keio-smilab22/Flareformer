@@ -31,6 +31,7 @@ def parse_params(dump: bool = False) -> Tuple[Namespace, Dict[str, Any]]:
     parser.add_argument("--wandb", action="store_true")
     parser.add_argument("--model", default="Flareformer")
     parser.add_argument("--params", default="config/params_2017.json")
+    parser.add_argument("--server_params", default="config/params_server.json")
     parser.add_argument("--project_name", default="flare_transformer_test")
     parser.add_argument("--model_name", default="id1_2017")
     parser.add_argument("--warmup_epochs", default=5, type=int)
@@ -245,7 +246,7 @@ def main():
             flareformer.train_model(lr=args.lr_for_2stage, epochs=args.epoch_for_2stage)
     elif args.mode == "server":
         flareformer.load_model(args.save_model_path)
-        CallbackServer.start_server(callback=flareformer.predict_oneshot, param_path=args.params)
+        CallbackServer.start_server(callback=flareformer.predict_oneshot, args=args)
     else:
         assert False, "Unknown mode"
 

@@ -43,7 +43,7 @@ class CallbackServer:
         return img.unsqueeze(0)
 
     @classmethod
-    def start_server(cls, callback, param_path):
+    def start_server(cls, callback, args):
         """
         Start http server.
         """
@@ -52,7 +52,8 @@ class CallbackServer:
         fapi.add_middleware(
             CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"]
         )
-        server_params = json.loads(open("config/params_server.json").read())
+        with open(args.server_params, "r") as f:
+            server_params = json.load(f)
 
         # ft_databaseを全件読み込み、timeをキーとした辞書に格納する
         date_dic = {}
@@ -63,8 +64,7 @@ class CallbackServer:
                 date_dic[str_date] = line_data
 
         # oneshotで用いる特徴量のサイズを学習パラメータから取得する
-        train_params = json.loads(open(param_path).read())
-        data_window_len = train_params["dataset"]["window"]
+        data_window_len = args.dataset["window"]
 
         @fapi.post("/oneshot/full", responses={200: {"content": {"application/json": {"example": {}}}}})
         def execute_oneshot_full(
