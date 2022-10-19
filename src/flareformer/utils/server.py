@@ -19,6 +19,8 @@ from torchvision import transforms
 class CallbackServer:
     """一発打ち・画像取得のためのコールバックを定義し、サーバを起動するクラス"""
 
+    GET_IMAGE_LEN = 24
+
     @staticmethod
     def parse_iso_time(iso_date):
         """ISO8601拡張形式の文字列をdatetime型に変換する"""
@@ -61,7 +63,6 @@ class CallbackServer:
         """
         Start http server.
         """
-        GET_IMAGE_LEN = 24
         fapi = FastAPI()
         fapi.add_middleware(
             CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"]
@@ -74,10 +75,10 @@ class CallbackServer:
         with open(server_params["ft_database_path"], "r") as f:
             for line in f.readlines():
                 line_data = json.loads(line)
-                str_date = datetime.datetime.strptime(line_data["time"], "%d-%b-%Y %H").strftime("%Y-%m-%d-%H")
+                str_date = cls.cast_date_to_string(datetime.datetime.strptime(line_data["time"], "%d-%b-%Y %H"))
                 date_dic[str_date] = line_data
 
-        # oneshotで用いる特徴量のサイズを学習パラメータから取得する
+        # 一度のインファレンスで入力するデータ数。4であれば、4時間分のデータを入力する
         data_window_len = args.dataset["window"]
 
         @fapi.post("/oneshot/full", responses={200: {"content": {"application/json": {"example": {}}}}})
@@ -95,7 +96,7 @@ class CallbackServer:
         def execute_oneshot_simple(date: str):
             f_date = cls.parse_iso_time(date)
 
-            # カレンダーで指定した日時を含めて時刻を遡り、特徴量として用いる時刻をtarget_date_listに格納する
+            # カレンダーで指定した日時を含めて時刻を遡り、一度のインファレンスで入力する時刻をtarget_date_listに格納する
             target_date_list = []
             for offset in range(data_window_len):
                 calc_date = f_date - datetime.timedelta(hours=offset)
@@ -124,7 +125,7 @@ class CallbackServer:
 
             # カレンダーで指定した日時を含めずに1時間毎に時刻を取得し、計24時間分をtarget_date_listに格納する
             target_date_list = []
-            for offset in range(GET_IMAGE_LEN):
+            for offset in range(cls.GET_IMAGE_LEN):
                 calc_date = f_date + datetime.timedelta(hours=offset + 1)
                 target_date_list.append(calc_date)
 
@@ -132,12 +133,12 @@ class CallbackServer:
             targets = cls.make_targets_list(date_dic, target_date_list)
 
             # 合致した件数によってstatusを決定する
-            if len(targets) == 0:
-                status = "failed"
-            elif len(targets) < GET_IMAGE_LEN:
+            if len(targets) == cls.GET_IMAGE_LEN:
+                status = "success"
+            elif 0 < len(targets) < cls.GET_IMAGE_LEN:
                 status = "warning"
             else:
-                status = "success"
+                status = "failed"
 
             # 画像パスのリストを作成する
             paths = [t["magnetogram"] for t in targets]
