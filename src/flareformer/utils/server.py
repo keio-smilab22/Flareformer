@@ -19,7 +19,7 @@ from torchvision import transforms
 class CallbackServer:
     """一発打ち・画像取得のためのコールバックを定義し、サーバを起動するクラス"""
 
-    GET_IMAGE_LEN = 24
+    GET_IMAGE_LEN = 24  # 予測結果が表している時間の幅
 
     def __init__(self, args):
         """Init."""
@@ -51,15 +51,6 @@ class CallbackServer:
         """datetime型の日時を指定フォーマとの文字列に変換する"""
         return datetime_date.strftime("%Y-%m-%d-%H")
 
-    @classmethod
-    def make_targets_list(cls, date_dic, target_date_list):
-        """データセットとターゲット日時のリストが合致するデータをリストに格納し返却する"""
-        targets = []
-        for target_date in target_date_list:
-            if cls.cast_date_to_string(target_date) in date_dic:
-                targets.append(date_dic[cls.cast_date_to_string(target_date)])
-        return targets
-
     @staticmethod
     def get_tensor_image(img_buff):
         """画像のRAWデータをTensorに変換"""
@@ -77,6 +68,14 @@ class CallbackServer:
         img = transform(img_pil)[0, :, :].unsqueeze(0)
         return img.unsqueeze(0)
 
+    def make_targets_list(self, target_date_list):
+        """データセットとターゲット日時のリストが合致するデータをリストに格納し返却する"""
+        targets = []
+        for target_date in target_date_list:
+            if self.cast_date_to_string(target_date) in self.date_dic:
+                targets.append(self.date_dic[self.cast_date_to_string(target_date)])
+        return targets
+
     def start_server(self, callback):
         """
         Start http server.
@@ -91,7 +90,7 @@ class CallbackServer:
             image_feats: List[UploadFile] = File(description="four magnetogram images"),
             physical_feats: List[str] = Form(description="physical features"),
         ):
-            imgs = torch.cat([CallbackServer.get_tensor_image(io.file.read()) for io in image_feats])
+            imgs = torch.cat([self.get_tensor_image(io.file.read()) for io in image_feats])
             phys = np.array([list(map(float, raw.split(","))) for raw in physical_feats])[:, :90]
             print(imgs.shape)
             prob = callback(imgs, phys).tolist()
@@ -99,7 +98,7 @@ class CallbackServer:
 
         @fapi.get("/oneshot/simple", responses={200: {"content": {"application/json": {"example": {}}}}})
         def execute_oneshot_simple(date: str):
-            f_date = CallbackServer.parse_iso_time(date)
+            f_date = self.parse_iso_time(date)
 
             # カレンダーで指定した日時を含めて時刻を遡り、一度のインファレンスで入力する時刻をtarget_date_listに格納する
             target_date_list = []
@@ -109,14 +108,14 @@ class CallbackServer:
             target_date_list.reverse()
 
             # target_date_listと合致するデータをtargetsに格納する
-            targets = CallbackServer.make_targets_list(self.date_dic, target_date_list)
+            targets = self.make_targets_list(target_date_list)
 
             # 一発打ちに用いるデータが足りていない場合、failedとする
             if len(targets) != self.data_window_len:
                 return JSONResponse(content={"probability": {"OCMX": []}, "oneshot_status": "failed"})
 
             # 一発打ちを実行する
-            imgs = torch.cat([CallbackServer.get_tensor_image_from_path(t["magnetogram"]) for t in targets])
+            imgs = torch.cat([self.get_tensor_image_from_path(t["magnetogram"]) for t in targets])
             phys = np.array([list(map(float, t["feature"].split(","))) for t in targets])[:, :90]
             prob = callback(imgs, phys).tolist()
 
@@ -126,21 +125,21 @@ class CallbackServer:
 
         @fapi.get("/images/path", responses={200: {"content": {"application/json": {"example": {}}}}})
         async def get_images_path(date: str):
-            f_date = CallbackServer.parse_iso_time(date)
+            f_date = self.parse_iso_time(date)
 
             # カレンダーで指定した日時を含めずに1時間毎に時刻を取得し、計24時間分をtarget_date_listに格納する
             target_date_list = []
-            for offset in range(CallbackServer.GET_IMAGE_LEN):
+            for offset in range(self.GET_IMAGE_LEN):
                 calc_date = f_date + datetime.timedelta(hours=offset + 1)
                 target_date_list.append(calc_date)
 
             # target_date_listと合致するデータをtargetsに格納する
-            targets = CallbackServer.make_targets_list(self.date_dic, target_date_list)
+            targets = self.make_targets_list(target_date_list)
 
             # 合致した件数によってstatusを決定する
-            if len(targets) == CallbackServer.GET_IMAGE_LEN:
+            if len(targets) == self.GET_IMAGE_LEN:
                 status = "success"
-            elif 0 < len(targets) < CallbackServer.GET_IMAGE_LEN:
+            elif 0 < len(targets) < self.GET_IMAGE_LEN:
                 status = "warning"
             else:
                 status = "failed"
