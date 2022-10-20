@@ -64,3 +64,5 @@ class WebsiteUser(HttpUser):
             content = json.loads(response.content.decode())
             if content["oneshot_status"] == "failed":
                 response.failure("oneshot status is failed")
+            elif response.status_code != 200:
+                response.failure("statusCode is not 200")

@@ -65,3 +65,5 @@ class WebsiteUser(HttpUser):
             print(content["get_image_status"])
             if content["get_image_status"] == "failed":
                 response.failure("get image status is failed")
+            elif response.status_code != 200:
+                response.failure("statusCode is not 200")
