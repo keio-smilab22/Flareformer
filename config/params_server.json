@@ -1,0 +1,5 @@
+{
+    "ft_database_path": "data/ft_database_all17.jsonl",
+    "hostname": "0.0.0.0",
+    "port": 8080
+}

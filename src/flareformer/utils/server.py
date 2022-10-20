@@ -19,11 +19,36 @@ from torchvision import transforms
 class CallbackServer:
     """一発打ち・画像取得のためのコールバックを定義し、サーバを起動するクラス"""
 
+    GET_IMAGE_LEN = 24  # 予測結果が表している時間の幅
+
+    def __init__(self, args):
+        with open(args.server_params, "r") as f:
+            server_params = json.load(f)
+
+        # ft_databaseを全件読み込み、timeをキーとした辞書に格納する
+        self.date_dic = {}
+        with open(server_params["ft_database_path"], "r") as f:
+            for line in f.readlines():
+                line_data = json.loads(line)
+                str_date = self.to_str_key(datetime.datetime.strptime(line_data["time"], "%d-%b-%Y %H"))
+                self.date_dic[str_date] = line_data
+
+        self.host = server_params["hostname"]
+        self.port = server_params["port"]
+
+        # 一度のインファレンスで入力するデータ数。4であれば、4時間分のデータを入力する
+        self.data_window_len = args.dataset["window"]
+
     @staticmethod
     def parse_iso_time(iso_date):
         """ISO8601拡張形式の文字列をdatetime型に変換する"""
         parsed_date = datetime.datetime.fromisoformat(iso_date.replace("Z", "+00:00"))
         return parsed_date
+
+    @staticmethod
+    def to_str_key(datetime_date):
+        """datetime型の日時を指定フォーマとの文字列に変換する"""
+        return datetime_date.strftime("%Y-%m-%d-%H")
 
     @staticmethod
     def get_tensor_image(img_buff):
@@ -42,8 +67,15 @@ class CallbackServer:
         img = transform(img_pil)[0, :, :].unsqueeze(0)
         return img.unsqueeze(0)
 
-    @classmethod
-    def start_server(cls, callback):
+    def make_targets_list(self, target_date_list):
+        """データセットとターゲット日時のリストが合致するデータをリストに格納し返却する"""
+        targets = []
+        for target_date in target_date_list:
+            if self.to_str_key(target_date) in self.date_dic:
+                targets.append(self.date_dic[self.to_str_key(target_date)])
+        return targets
+
+    def start_server(self, callback):
         """
         Start http server.
         """
@@ -57,7 +89,7 @@ class CallbackServer:
             image_feats: List[UploadFile] = File(description="four magnetogram images"),
             physical_feats: List[str] = Form(description="physical features"),
         ):
-            imgs = torch.cat([CallbackServer.get_tensor_image(io.file.read()) for io in image_feats])
+            imgs = torch.cat([self.get_tensor_image(io.file.read()) for io in image_feats])
             phys = np.array([list(map(float, raw.split(","))) for raw in physical_feats])[:, :90]
             print(imgs.shape)
             prob = callback(imgs, phys).tolist()
@@ -65,62 +97,60 @@ class CallbackServer:
 
         @fapi.get("/oneshot/simple", responses={200: {"content": {"application/json": {"example": {}}}}})
         def execute_oneshot_simple(date: str):
-            f_date = cls.parse_iso_time(date)
-            query_date = f_date.strftime("%Y-%m-%d-%H")
-            jsonl_database_path = "data/ft_database_all17.jsonl"
-            targets = []
-            prob = []
-            status = "failed"
-            with open(jsonl_database_path, "r") as f:
-                for line in f.readlines():
-                    data = json.loads(line)
-                    targets.append(data)
-                    if len(targets) > 4:
-                        targets.pop(0)
-                    target_date = datetime.datetime.strptime(data["time"], "%d-%b-%Y %H").strftime("%Y-%m-%d-%H")
-                    if query_date == target_date:
-                        imgs = torch.cat(
-                            [CallbackServer.get_tensor_image_from_path(t["magnetogram"]) for t in targets]
-                        )
-                        phys = np.array([list(map(float, t["feature"].split(","))) for t in targets])[:, :90]
-                        print(imgs.shape)
-                        prob = callback(imgs, phys).tolist()
-                        status = "success"
-                        break
+            f_date = self.parse_iso_time(date)
+
+            # カレンダーで指定した日時を含めて時刻を遡り、一度のインファレンスで入力する時刻をtarget_date_listに格納する
+            target_date_list = []
+            for offset in range(self.data_window_len):
+                calc_date = f_date - datetime.timedelta(hours=offset)
+                target_date_list.append(calc_date)
+            target_date_list.reverse()
+
+            # target_date_listと合致するデータをtargetsに格納する
+            targets = self.make_targets_list(target_date_list)
+
+            # 一発打ちに用いるデータが足りていない場合、failedとする
+            if len(targets) != self.data_window_len:
+                return JSONResponse(content={"probability": {"OCMX": []}, "oneshot_status": "failed"})
+
+            # 一発打ちを実行する
+            imgs = torch.cat([self.get_tensor_image_from_path(t["magnetogram"]) for t in targets])
+            phys = np.array([list(map(float, t["feature"].split(","))) for t in targets])[:, :90]
+            prob = callback(imgs, phys).tolist()
 
             return JSONResponse(
-                content={"probability": {"OCMX"[i]: prob[i] for i in range(len(prob))}, "oneshot_status": status}
+                content={"probability": {"OCMX"[i]: prob[i] for i in range(len(prob))}, "oneshot_status": "success"}
             )
 
         @fapi.get("/images/path", responses={200: {"content": {"application/json": {"example": {}}}}})
-        def execute_oneshot_images_path(date: str):
-            f_date = cls.parse_iso_time(date)
-            query_date = f_date.strftime("%Y-%m-%d-%H")
-            jsonl_database_path = "data/ft_database_all17.jsonl"
-            finish_date = (f_date + datetime.timedelta(hours=24)).strftime("%Y-%m-%d-%H")
-            targets = []
-            with open(jsonl_database_path, "r") as f:
-                for line in f.readlines():
-                    data = json.loads(line)
-                    target_date = datetime.datetime.strptime(data["time"], "%d-%b-%Y %H").strftime("%Y-%m-%d-%H")
-                    if query_date < target_date <= finish_date:
-                        targets.append(data)
+        async def get_images_path(date: str):
+            f_date = self.parse_iso_time(date)
 
-            if len(targets) == 0:
-                status = "failed"
-            elif len(targets) < 24:
-                status = "warning"
-            else:
+            # カレンダーで指定した日時を含めずに1時間毎に時刻を取得し、計24時間分をtarget_date_listに格納する
+            target_date_list = []
+            for offset in range(self.GET_IMAGE_LEN):
+                calc_date = f_date + datetime.timedelta(hours=offset + 1)
+                target_date_list.append(calc_date)
+
+            # target_date_listと合致するデータをtargetsに格納する
+            targets = self.make_targets_list(target_date_list)
+
+            # 合致した件数によってstatusを決定する
+            if len(targets) == self.GET_IMAGE_LEN:
                 status = "success"
+            elif len(targets) == 0:
+                status = "failed"
+            else:
+                status = "warning"
 
+            # 画像パスのリストを作成する
             paths = [t["magnetogram"] for t in targets]
+
             return JSONResponse(content={"images": paths, "get_image_status": status})
 
         @fapi.get("/images/bin", response_class=FileResponse)
-        def execute_oneshot_images_bin(path: str):
+        async def get_images_bin(path: str):
             path = os.path.join(os.getcwd(), path)
             return path
 
-        host_name = "0.0.0.0"
-        port_num = 8080
-        uvicorn.run(fapi, host=host_name, port=port_num)
+        uvicorn.run(fapi, host=self.host, port=self.port)
