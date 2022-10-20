@@ -30,7 +30,7 @@ class CallbackServer:
         with open(server_params["ft_database_path"], "r") as f:
             for line in f.readlines():
                 line_data = json.loads(line)
-                str_date = self.get_string_formatted_date(datetime.datetime.strptime(line_data["time"], "%d-%b-%Y %H"))
+                str_date = self.to_str_key(datetime.datetime.strptime(line_data["time"], "%d-%b-%Y %H"))
                 self.date_dic[str_date] = line_data
 
         self.host = server_params["hostname"]
@@ -46,7 +46,7 @@ class CallbackServer:
         return parsed_date
 
     @staticmethod
-    def get_string_formatted_date(datetime_date):
+    def to_str_key(datetime_date):
         """datetime型の日時を指定フォーマとの文字列に変換する"""
         return datetime_date.strftime("%Y-%m-%d-%H")
 
@@ -71,8 +71,8 @@ class CallbackServer:
         """データセットとターゲット日時のリストが合致するデータをリストに格納し返却する"""
         targets = []
         for target_date in target_date_list:
-            if self.get_string_formatted_date(target_date) in self.date_dic:
-                targets.append(self.date_dic[self.get_string_formatted_date(target_date)])
+            if self.to_str_key(target_date) in self.date_dic:
+                targets.append(self.date_dic[self.to_str_key(target_date)])
         return targets
 
     def start_server(self, callback):
