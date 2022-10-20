@@ -22,7 +22,6 @@ class CallbackServer:
     GET_IMAGE_LEN = 24  # 予測結果が表している時間の幅
 
     def __init__(self, args):
-        """Init."""
         with open(args.server_params, "r") as f:
             server_params = json.load(f)
 
@@ -31,7 +30,7 @@ class CallbackServer:
         with open(server_params["ft_database_path"], "r") as f:
             for line in f.readlines():
                 line_data = json.loads(line)
-                str_date = self.cast_date_to_string(datetime.datetime.strptime(line_data["time"], "%d-%b-%Y %H"))
+                str_date = self.get_string_formatted_date(datetime.datetime.strptime(line_data["time"], "%d-%b-%Y %H"))
                 self.date_dic[str_date] = line_data
 
         self.host = server_params["hostname"]
@@ -47,7 +46,7 @@ class CallbackServer:
         return parsed_date
 
     @staticmethod
-    def cast_date_to_string(datetime_date):
+    def get_string_formatted_date(datetime_date):
         """datetime型の日時を指定フォーマとの文字列に変換する"""
         return datetime_date.strftime("%Y-%m-%d-%H")
 
@@ -72,8 +71,8 @@ class CallbackServer:
         """データセットとターゲット日時のリストが合致するデータをリストに格納し返却する"""
         targets = []
         for target_date in target_date_list:
-            if self.cast_date_to_string(target_date) in self.date_dic:
-                targets.append(self.date_dic[self.cast_date_to_string(target_date)])
+            if self.get_string_formatted_date(target_date) in self.date_dic:
+                targets.append(self.date_dic[self.get_string_formatted_date(target_date)])
         return targets
 
     def start_server(self, callback):
@@ -139,10 +138,10 @@ class CallbackServer:
             # 合致した件数によってstatusを決定する
             if len(targets) == self.GET_IMAGE_LEN:
                 status = "success"
-            elif 0 < len(targets) < self.GET_IMAGE_LEN:
-                status = "warning"
-            else:
+            elif len(targets) == 0:
                 status = "failed"
+            else:
+                status = "warning"
 
             # 画像パスのリストを作成する
             paths = [t["magnetogram"] for t in targets]
