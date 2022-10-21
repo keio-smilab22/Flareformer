@@ -30,15 +30,16 @@ protobuf = "^3.19.4"
 python-multipart = "^0.0.5"
 uvicorn = "^0.18.2"
 wandb = "^0.12.11"
-flake8-docstrings = "^1.6.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest-cov = "^3.0.0"
 black = "^22.3.0"
 isort = "^5.10.1"
 flake8 = "^4.0.1"
+flake8-docstrings = "^1.6.0"
 mypy = "^0.950"
 locust = "^2.12.2"
+
 
 [tool.black]
 line-length = 119
