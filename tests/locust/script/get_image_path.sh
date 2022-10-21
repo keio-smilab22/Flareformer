@@ -1,5 +1,5 @@
 # set test name
-test_name="oneshot_simple"
+test_name="get_image_path"
 
 # get date now
 test_date=`date "+%Y%m%d-%H%M%S"`
