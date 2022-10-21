@@ -2,8 +2,8 @@
 !/data/.gitkeep
 /models/*
 !/models/.gitkeep
-/tests/locust/result*
-!/tests/locust/.gitkeep
+/tests/locust/result/*
+!/tests/locust/result/.gitkeep
 /wandb
 
 # Byte-compiled / optimized / DLL files
