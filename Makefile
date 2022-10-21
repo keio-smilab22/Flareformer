@@ -1,4 +1,4 @@
-LINTING_DIRS    := src
+LINTING_DIRS    := src tests
 TEST_DIRS       := tests
 TEST_TARGET_DIR := src
 
@@ -9,17 +9,14 @@ black-check:
 .PHONY: black
 black:
 	poetry run black $(LINTING_DIRS)
-	poetry run black $(TEST_DIRS)
 
 .PHONY: flake8
 flake8:
 	poetry run flake8 $(LINTING_DIRS)
-	poetry run flake8 $(TEST_DIRS)
 
 .PHONY: isort-check
 isort-check:
 	poetry run isort --check-only $(LINTING_DIRS)
-	poetry run isort --check-only $(TEST_DIRS)
 
 .PHONY: isort
 isort:
