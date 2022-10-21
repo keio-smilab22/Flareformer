@@ -56,7 +56,7 @@ class WebsiteUser(HttpUser):
     wait_time = constant(60)
 
     @task
-    def test_get_image_bin(self):
+    def get_image_bin(self):
         rand_image_path = random.choice(image_path_list)
         with self.client.get(f"/images/bin?path={rand_image_path}", catch_response=True) as response:
             if response.status_code != 200:

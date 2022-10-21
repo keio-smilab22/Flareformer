@@ -18,7 +18,7 @@ sleep 10
 echo "** locust test start! **"
 
 # locust test run
-poetry run locust --config ${config_dir}/test_get_image_bin.conf --html ${result_dir}/locust.html
+poetry run locust --config ${config_dir}/get_image_bin.conf --html ${result_dir}/locust.html
 
 # kill gnome-terminal
 pkill -f "poetry run python src/flareformer/main.py"

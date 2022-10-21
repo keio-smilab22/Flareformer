@@ -58,7 +58,7 @@ class WebsiteUser(HttpUser):
     wait_time = constant(60)
 
     @task
-    def test_get_image_path(self):        
+    def get_image_path(self):        
         rand_dates = random.choice(date_list)
         with self.client.get(f"/images/path?date={rand_dates}", catch_response=True) as response:
             content = json.loads(response.content.decode())

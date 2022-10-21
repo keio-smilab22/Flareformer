@@ -58,7 +58,7 @@ class WebsiteUser(HttpUser):
     wait_time = constant(60)
 
     @task
-    def test_oneshot_simple(self):        
+    def oneshot_simple(self):        
         rand_dates = random.choice(date_list)
         with self.client.get(f"/oneshot/simple?date={rand_dates}", catch_response=True) as response:
             content = json.loads(response.content.decode())
