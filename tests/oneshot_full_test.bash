@@ -1,4 +1,4 @@
-
+#!/bin/bash -eu
 path="data/ft_database_all17.jsonl"
 args=""
 for i in `seq 1 4`
