@@ -62,7 +62,6 @@ class WebsiteUser(HttpUser):
         rand_dates = random.choice(date_list)
         with self.client.get(f"/images/path?date={rand_dates}", catch_response=True) as response:
             content = json.loads(response.content.decode())
-            print(content["get_image_status"])
             if content["get_image_status"] == "failed":
                 response.failure("get image status is failed")
             elif response.status_code != 200:
