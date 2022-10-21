@@ -13,8 +13,8 @@ test_date=$(date "+%Y%m%d-%H%M%S")
 
 # set path
 root_dir=$(readlink -f $(dirname $0)/../../../)
-script_dir=${root_dir}/tests/locust/script
-result_dir=${root_dir}/tests/locust/result/${test_date}_${test_name}
+script_dir=${root_dir}/tests/locust/scripts
+result_dir=${root_dir}/tests/locust/results/${test_date}_${test_name}
 config_path=${root_dir}/tests/locust/config/locust.conf
 
 # check test name
