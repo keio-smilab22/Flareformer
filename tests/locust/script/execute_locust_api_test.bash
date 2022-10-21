@@ -30,7 +30,7 @@ cd $root_dir
 mkdir -p $result_dir
 
 # start server
-gnome-terminal -- bash -c "poetry run python src/flareformer/main.py --mode=server --params=config/params_2017.json > ${result_dir}/server.log ; exit"
+gnome-terminal -- bash -c "poetry run python src/flareformer/main.py --mode=server --params=config/params_2017.json 2> ${result_dir}/oneshot_server.err.log | tee ${result_dir}/oneshot_server.log ; exit"
 
 # wait server starting
 echo "** wait server starting (10 sec) **"
@@ -38,7 +38,7 @@ sleep 10
 echo "** locust test start! (60 sec) **"
 
 # locust test run
-poetry run locust --config ${config_path} --locustfile ${script_dir}/${test_name}.py --html ${result_dir}/locust.html 2> ${result_dir}/console.log
+poetry run locust --config ${config_path} --locustfile ${script_dir}/${test_name}.py --html ${result_dir}/locust.html 2>&1 | tee ${result_dir}/locust.log
 
 # kill gnome-terminal
 pkill -f "poetry run python src/flareformer/main.py"
