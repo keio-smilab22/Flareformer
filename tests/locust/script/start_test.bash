@@ -1,8 +1,8 @@
 #!/bin/bash -eu
 # check argument
 if [ $# -ne 1 ]; then
-  echo "Set the test name as 1 argument"
-  exit 
+  echo "You must specify the test name as the 1st argument."
+  exit 1
 fi
 
 # set test name
@@ -20,7 +20,7 @@ config_path=${root_dir}/tests/locust/config/locust.conf
 # check test name
 if [ ! -e  "${script_dir}/${test_name}.py" ]; then
   echo "Test name is not correct."
-  exit
+  exit 1
 fi
 
 # change directory to root
@@ -39,7 +39,6 @@ echo "** locust test start! (60 sec) **"
 
 # locust test run
 poetry run locust --config ${config_path} -f ${script_dir}/${test_name}.py --html ${result_dir}/locust.html 2> ${result_dir}/console.log
-# poetry run locust --config ${config_dir}/${test_name}.conf -f ${script_dir}/${test_name}.py --html ${result_dir}/locust.html 2> ${result_dir}/console.log
 
 # kill gnome-terminal
 pkill -f "poetry run python src/flareformer/main.py"
