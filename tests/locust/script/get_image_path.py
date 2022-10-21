@@ -4,9 +4,9 @@ import random
 
 from locust import HttpUser, constant, task
 
-with open("tests/locust/config/sample_dates.json", "r") as f:
+with open("tests/locust/config/requestable_queries.json", "r") as f:
     date_json = json.load(f)
-    date_list = date_json["date_list"]
+    date_list = date_json["dates"]
 
 
 class WebsiteUser(HttpUser):

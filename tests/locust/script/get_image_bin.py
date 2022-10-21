@@ -4,9 +4,9 @@ import random
 
 from locust import HttpUser, constant, task
 
-with open("tests/locust/config/sample_image_paths.json", "r") as f:
+with open("tests/locust/config/requestable_queries.json", "r") as f:
     date_json = json.load(f)
-    image_path_list = date_json["image_path_list"]
+    image_path_list = date_json["image_paths"]
 
 
 class WebsiteUser(HttpUser):
