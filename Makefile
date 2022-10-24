@@ -1,4 +1,4 @@
-LINTING_DIRS    := src
+LINTING_DIRS    := src tests
 TEST_DIRS       := tests
 TEST_TARGET_DIR := src
 
