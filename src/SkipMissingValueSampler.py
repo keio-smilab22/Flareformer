@@ -22,6 +22,7 @@ class SkipMissingValueBatchSampler(BatchSampler):
         
         for idx in self.sampler:
             if idx in self.missing_value_indices:
+                # print(f'idx {idx} is missing value')
                 continue
             batch.append(idx)
             if len(batch) == self.batch_size:

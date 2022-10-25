@@ -36,7 +36,6 @@ def calc_score(y_pred, y_true, climatology):
     for y in y_pred:
         y_predl.append(np.argmax(y))
 
-    score["ACC"] = calc_acc4(y_predl, y_true)
     score["TSS-M"] = TSS(y_predl, y_true, 2)
     score["BSS-M"] = BSS(y_pred, y_true, climatology)
     score["GMGS"] = GMGS(y_predl, y_true)
@@ -141,6 +140,23 @@ def calc_tp_4(four_class_matrix, flare_class):
     return tn, fp, fn, tp
 
 
+def regression_to_class(pred: np.ndarray) -> np.ndarray:
+    """
+    Convert regression output to class
+    """
+    pred_class = np.zeros((pred.shape[0], 4))
+    print(pred_class.shape)
+    for i in range(len(pred)):
+        if pred[i, 0] >= 2:
+            pred_class[i, 3] = 1
+        elif pred[i, 0] >= 1 and pred[i, 0] < 2:
+            pred_class[i, 2] = 1
+        elif pred[i, 0] >= 0 and pred[i, 0] < 1:
+            pred_class[i, 1] = 1
+        else:
+            pred_class[i, 0] = 1
+    return pred_class
+
 
 
 
@@ -151,7 +167,31 @@ def metric(pred, true):
     mape = MAPE(pred, true)
     mspe = MSPE(pred, true)
 
+    # pred [N, 24, 1]
+    # true [N, 24, 1]
+
+    # convert [N, 24, 1] to [N, 1] with max
+    pred = np.max(pred, axis=1)
+    true = np.max(true, axis=1)
+
     # classification
+    pred_class = regression_to_class(pred)
+    true_class = regression_to_class(true)
+
+    pred_class_l = []
+    for y in pred_class:
+        pred_class_l.append(np.argmax(y))
+    pred_class_l = np.array(pred_class_l)
+
+    true_class_l = []
+    for y in true_class:
+        true_class_l.append(np.argmax(y))
+    true_class_l = np.array(true_class_l)
+
+
+    tss_m = TSS(pred_class_l, true_class_l, 2)
+    bss_m = BSS(pred_class, true_class_l, [0.9053,0.0947])
+    gmgs = GMGS(pred_class_l, true_class_l)
 
     
-    return mae,mse,rmse,mape,mspe
+    return mae,mse,rmse,mape,mspe, tss_m, bss_m, gmgs

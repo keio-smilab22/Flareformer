@@ -1254,6 +1254,7 @@ class Dataset_Custom_Sunpy(Dataset):
 
         year_dict = {
             2012:{'num_train': 365*24, 'num_test': 365*24, 'end_index': 26187},
+            2014:{'num_train': 365*24*2, 'num_test': 365*24, 'end_index': 34947},
             2015:{'num_train':31440, 'num_test':8760, 'end_index':48960},
             2016:{'num_train':40200, 'num_test':8784, 'end_index':57744},
             2017:{'num_train':48960, 'num_test':8692, 'end_index':66437},
@@ -1309,7 +1310,7 @@ class Dataset_Custom_Sunpy(Dataset):
             data = df_data.values
             # print(f"data: {data}")
         
-        self.keep_index_with_missing_value_patternA(df_data[border1:border2])
+        self.keep_index_with_missing_value_patternB(df_data[border1:border2])
         df_stamp = df_raw[['Time']][border1:border2]
         df_stamp['Time'] = pd.to_datetime(df_stamp["Time"], format='%Y-%m-%d %H:%M:%S')
         data_stamp = time_features(df_stamp, timeenc=self.timeenc, freq=self.freq)
@@ -1387,6 +1388,7 @@ class Dataset_Custom_Sunpy(Dataset):
                 # keep index
                 missing_value_indices.append(i)
         print(f"len(missing_value_indices): {len(missing_value_indices)}")
+        print(f"missing_value_indices: {missing_value_indices}")
         self.missing_value_indices = missing_value_indices
 
     def keep_index_with_missing_value_patternB(self, df):

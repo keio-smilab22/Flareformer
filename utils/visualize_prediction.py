@@ -230,7 +230,7 @@ def visualize_prediction_std_sort(preds, trues, prev_seqs, base_dir):
 
 if __name__ == "__main__":
 
-    base_dir = 'results/FT_MAE_Flare_stddev_ftMS_sl4_ll2_pl24_dm128_nh8_el1_dl1_df16_atprob_fc5_ebtimeF_dtTrue_mxTrue_ffill_2016_0'
+    base_dir = 'results/FT_MAE_Flare_sunpy_ftS_sl8_ll4_pl24_dm128_nh8_el1_dl1_df16_atfull_fc5_ebtimeF_dtTrue_mxTrue_sunpy_0'
     image_dir = base_dir.replace('results', 'result_images')
     preds = np.load(os.path.join(base_dir, 'pred.npy'))
     trues = np.load(os.path.join(base_dir, 'true.npy'))

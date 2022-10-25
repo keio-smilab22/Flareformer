@@ -60,7 +60,7 @@ def seach_for_representative_image(path_dir, year=2011):
 
         # copy the file to a new directory
         path_origin = os.path.join(path_dir, f'{month:02d}')
-        # path_save_dir is upper directory
+        # path_save_dir is upper directory of path_origin_dir   
         path_save_dir = os.path.dirname(path_dir)
         path_save = os.path.join(path_save_dir, f'{year}', f'{month:02d}')
 
@@ -72,7 +72,9 @@ def seach_for_representative_image(path_dir, year=2011):
             if file is not None:
                 file = os.path.join(path_origin, os.path.basename(file))
                 new_file = os.path.join(path_save, os.path.basename(file))
-                shutil.copy(file, new_file)
+                
+                if not os.path.exists(new_file):
+                    shutil.copy(file, new_file)
                 # print(f'{file} copied')
         
 
@@ -169,7 +171,7 @@ if __name__ == '__main__':
     # argparse
     parser = argparse.ArgumentParser(description='Select magenetogram in csv file')
     parser.add_argument('--csv_path', type=str, help='path to csv file', default='./data/noaa/magnetogram/2013/time_magnetogram_2013.csv', required=False)
-    parser.add_argument('--dir_path', type=str, help='path to csv dir', default='./data/noaa/magnetogram/2013/', required=False)
+    parser.add_argument('--dir_path', type=str, help='path to csv dir', default='./data/noaa/magnetogram/2013', required=False)
     parser.add_argument('--year', type=int, help='year', default='2013', required=True)
     args = parser.parse_args()
 

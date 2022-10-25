@@ -78,10 +78,10 @@ def merge_sunpy_and_phys(path_sunpy_csv, path_phys_csv, path_save):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--logxmax1h_csv', type=str, default='./data/noaa/xrs_downsampled_2013_no_process.csv')
-    parser.add_argument('--magnetogram_csv', type=str, default='./data/noaa/magnetogram/2013/time_magnetogram_2013.csv')
-    parser.add_argument('--save_csv', type=str, default='./data/noaa/magnetogram_logxmax1h_2013.csv')
+    parser.add_argument('--logxmax1h_csv', type=str, default='./data/noaa/xrs_downsampled_2018_no_process.csv')
+    parser.add_argument('--magnetogram_csv', type=str, default='./data/noaa/magnetogram/2018/time_magnetogram_2018.csv')
+    parser.add_argument('--save_csv', type=str, default='./data/noaa/magnetogram_logxmax1h_2018.csv')
     args = parser.parse_args()
 
-    merge_logxmax1h_magnetogram_csv(args.logxmax1h_csv, args.magnetogram_csv, args.save_csv)
-    concatenate_csv(2013)
+    # merge_logxmax1h_magnetogram_csv(args.logxmax1h_csv, args.magnetogram_csv, args.save_csv)
+    concatenate_csv(2014)

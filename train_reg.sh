@@ -59,24 +59,17 @@
 #     done
 # done
 
-for seq_len in 4
-do
-    # for y in 2017 2016 2015
-    # do
+# for seq_len in 4
+# do
 
-    # label_len=$((${seq_len}/2))
+#     for y in 2017 2016 2015
+#     do
 
-    # python main_informer.py --model FT_MAE --data Flare_stddev --des ${y}_mae_corrected --batch_size 4 --feat_path data_all_stddev_ffill.csv --magnetogram_path data_magnetogram_256_stddev.npy --lradj none --train_epochs 20 --learning_rate 1e-6 --year ${y} --seq_len ${seq_len} --label_len ${label_len}
-    # done
+#     label_len=$((${seq_len}/2))
 
-    for y in 2017 2016 2015
-    do
-
-    label_len=$((${seq_len}/2))
-
-    python main_informer.py --model FT --data Flare_stddev --des ${y}_ft_corrected --batch_size 64 --feat_path data_all_stddev_ffill.csv --magnetogram_path data_magnetogram_256_stddev.npy --lradj none --train_epochs 20 --learning_rate 1e-6 --year ${y} --seq_len ${seq_len} --label_len ${label_len} --attn full
-    done
-done
+#     python main_informer.py --model FT --data Flare_stddev --des ${y}_ft_corrected --batch_size 64 --feat_path data_all_stddev_ffill.csv --magnetogram_path data_magnetogram_256_stddev.npy --lradj none --train_epochs 20 --learning_rate 1e-6 --year ${y} --seq_len ${seq_len} --label_len ${label_len} --attn full
+#     done
+# done
 
 
 # for l in 2 3 1
@@ -86,3 +79,9 @@ done
 #     python main_informer.py --model FT_MAE --data Flare_stddev --des lays_${y} --batch_size 8 --feat_path data_all_stddev_ffill.csv --magnetogram_path data_magnetogram_256_stddev.npy --lradj none --train_epochs 20 --learning_rate 1e-6 --year ${y} --e_layers ${l} --d_layers ${l}
 #     done
 # done
+
+# python main_informer.py --model FT --data Flare_sunpy --des sunpy --batch_size 4 --lradj none --train_epochs 20 --learning_rate 1e-6 --year 2012 --seq_len 12 --label_len 6 --attn full --root_path ./data/noaa --features S --pred_len 24
+python main_informer.py --model FT --data Flare_sunpy --des sunpy --batch_size 4 --lradj none --train_epochs 20 --learning_rate 1e-6 --year 2012 --seq_len 12 --label_len 6 --attn full --root_path ./data/noaa --features S --pred_len 48
+
+
+# python main_informer_test.py --model FT_MAE --data Flare_sunpy --des sunpy --batch_size 4 --lradj none --train_epochs 20 --learning_rate 1e-6 --year 2012 --seq_len 8 --label_len 4 --attn full --root_path ./data/noaa --features S

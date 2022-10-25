@@ -1,6 +1,8 @@
 import datetime
+import glob
 import os
 import time
+
 import astropy.units as u
 import cv2
 import matplotlib.pyplot as plt
@@ -50,10 +52,16 @@ def create_magentogram(path_save, year=2011, month=1):
         
     for day in tqdm(range(1, month_span[month] + 1), desc="day"):
         start_date = f"{year}/{month:02d}/{day:02d}"
+        
         # next datetime
         start_date = datetime.datetime.strptime(start_date, "%Y/%m/%d")
         end_date = start_date + datetime.timedelta(days=1)
         end_date = end_date.strftime("%Y/%m/%d")
+
+        file_path = glob.glob(os.path.join(path_save, f"{month:02d}", f"hmi_m_45s_{year}_{month:02d}_{day:02d}_*"))
+        if len(file_path) > 0:
+            print(f"file exists: {file_path}")
+            continue
         
         # end_date = f'{year}/{month+1:02d}/{1:02d}'
         result = Fido.search(
@@ -71,7 +79,7 @@ def create_magentogram(path_save, year=2011, month=1):
                 time.sleep(5)
                 break
 
-            downloaded_file = Fido.fetch(downloaded_file, max_conn=100, overwrite=False)
+            downloaded_file = Fido.fetch(downloaded_file, max_conn=10, overwrite=False)
 
         fig, ax = plt.subplots(frameon=False)
         
@@ -89,6 +97,7 @@ def create_magentogram(path_save, year=2011, month=1):
                 if os.path.exists(os.path.join(save_dir, os.path.basename(filename))):
                     print(f"{filename} already exist")
                     # time.sleep(5)
+                    os.remove(file)
                     continue
                 else:
                     # Plot the map. Since are not interested in the exact map coordinates, we can
@@ -120,10 +129,12 @@ def create_magentogram(path_save, year=2011, month=1):
                     print(f"{filename} saved")
                     plt.cla()
                     # plt.close(figure)
+                    os.remove(file)
 
             except Exception as e:
                 print(e)
                 plt.cla()
+                os.remove(file)
                 time.sleep(5)
                 continue
         # plt.show()
@@ -151,11 +162,11 @@ def test_magnetogram(path_d):
 
 
 if __name__ == "__main__":
-    for year in range(2014, 2021):
+    for year in range(2013, 2014):
         path_save = f"data/noaa/magnetogram/{year}_5m/"
         if not os.path.isdir(path_save):
             os.makedirs(path_save)
 
-        for i in range(3, 13):
+        for i in range(4, 5):
             create_magentogram(path_save=path_save, year=year, month=i)
             print(f"Month {i} done")

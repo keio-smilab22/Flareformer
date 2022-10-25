@@ -118,8 +118,10 @@ def create_data_noaa_with_sunpy_new(year=2010, thr=3):
     df.loc[df['xrsb'] <= 0, 'xrsb'] = np.nan
     # only keep {year}/01/01 to {year}/12/31
     start_time = datetime(year, 1, 1)
-    end_time = datetime(year, 12, 31)
+    end_time = datetime(year+1, 1, 1)
     df = df[(df.index >= start_time) & (df.index <= end_time)]
+
+    print(df.tail())
 
 
     df.index = df.index.round('S')
