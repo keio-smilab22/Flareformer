@@ -11,12 +11,16 @@ PyTorch training code for **Flareformer**.
 - Python >= 3.8.10
 - CUDA >= 11.1
 - PyTorch >= 1.8.2
-
+- Pyenv
+- Poetry
 ### Installation
 
 1. `git clone git@github.com:keio-smilab22/Flareformer.git`
 2. `cd Flareformer`
-3. `pip install -r requirements.txt`
+3. `CONFIGURE_OPTS=--enable-shared pyenv install 3.8.10`
+4. `pyenv shell 3.8.10`
+5. `poetry env use 3.8.10`
+6. `poetry install`
 
 
 ## Data preparation
@@ -50,7 +54,7 @@ $ tar -zxvf data/magnetogram_images.tar.gz
 
 ## Training
 
-- To train Flareformer with warmup and [cRT](https://arxiv.org/abs/1910.09217) using `config/params_2014.json`: 
+- To train Flareformer with warmup and [cRT](https://arxiv.org/abs/1910.09217) using `config/params_2014.json`:
 
     - `python main.py --params config/params_2014.json --warmup_epochs=5 --imbalance --wandb`
 
@@ -60,7 +64,7 @@ $ tar -zxvf data/magnetogram_images.tar.gz
 
 ### Qualitative Results
   * The figure below shows line-of-sight magnetograms from September 3th, 2017 23:00 UT to September 5th, 2017, 23:00 UT. An X-class solar flare occurred at 12:02 on September 6, 2017, and the model was able to predict the correct maximum solar flare class.
-  
+
     ![magnetogram_256](https://user-images.githubusercontent.com/75234574/148938052-5d2a017e-c8fd-4f4f-9c10-0226e447c939.gif)
 
 
@@ -73,6 +77,3 @@ Hardware
 - RAM: 64 GB
 Libraries
 - CUDA 11.1
-
-
-
