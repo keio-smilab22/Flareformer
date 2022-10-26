@@ -22,29 +22,35 @@ PyTorch training code for **Flareformer**.
 5. `poetry env use 3.8.10`
 6. `poetry install`
 
-
 ## Data preparation
 
 - The required data files should be put under ```data/``` folder.
-- Visit http://wdc.nict.go.jp/IONO/wdc/solarflare/index.html and download the database of physical features.
+- download the database of physical features from the path.
+  - data.tar.gz: NAS08 01DB/20220607Flareformer/
 
 ```
-$ cd ~/work/flare_transformer
-$ mv ~/data.zip data/
-$ unzip data/data.zip
+$ cd Flareformer/data
+$ tar xf data.tar.gz
+$ mv data/* ./
+$ rmdir data
 ```
 
-- Visit https://sdo.gsfc.nasa.gov/data/ and download hourly magnetograms.
+- Download hourly magnetograms from the path.
+  - magnetogram_part1 / part2: NAS03 59DB/20210720DeFN/data20210720/
 ```
-$ mv ~/magnetogram_images.tar.gz data/
-$ tar -zxvf data/magnetogram_images.tar.gz
+$ cd Flareformer/data
+$ tar xf magnetogram_part1.tar.gz
+$ tar xf magnetogram_part2.tar.gz
+$ mv magnetogram_part1 magnetogram
+$ mv magnetogram_part2/* magnetogram
+$ rmdir magnetogram_part2
 ```
 
 ## Preprocess
 
 - Preprocess the physical features and magnetogram images by the following procedure (parallel processing).
 
-    - `python preprocess/main.py --magnetogram --physical --label --window`
+    - `poetry run python preprocess/main.py --magnetogram --physical --label --window`
 
 - The following data files should be created under ```data/```.
   -  data/data_20XX_magnetogram_256.npy
@@ -56,7 +62,7 @@ $ tar -zxvf data/magnetogram_images.tar.gz
 
 - To train Flareformer with warmup and [cRT](https://arxiv.org/abs/1910.09217) using `config/params_2014.json`:
 
-    - `python main.py --params config/params_2014.json --warmup_epochs=5 --imbalance --wandb`
+    - `poetry run python src/flareformer/main.py --params config/params_2014.json --warmup_epochs=5 --epoch_for_2stage=3 --imbalance --wandb`
 
 ## License
 
