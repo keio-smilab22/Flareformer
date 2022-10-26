@@ -9,7 +9,7 @@ fi
 test_name=$1
 
 # get date now
-test_date=$(date "+%Y%m%d-%H%M%S")
+test_date=$(date "+%Y%m%dT%H%M%S")
 
 # set path
 root_dir=$(readlink -f $(dirname $0)/../../../)
