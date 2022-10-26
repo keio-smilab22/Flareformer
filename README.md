@@ -11,39 +11,34 @@ PyTorch training code for **Flareformer**.
 - Python >= 3.8.10
 - CUDA >= 11.1
 - PyTorch >= 1.8.2
-- Pyenv
-- Poetry
+- Pyenv >= 2.3.5
+- Poetry >= 1.2.2
 ### Installation
 
-1. `git clone git@github.com:keio-smilab22/Flareformer.git`
-2. `cd Flareformer`
-3. `CONFIGURE_OPTS=--enable-shared pyenv install 3.8.10`
-4. `pyenv shell 3.8.10`
-5. `poetry env use 3.8.10`
-6. `poetry install`
+```
+$ git clone git@github.com:keio-smilab22/Flareformer.git
+$ cd Flareformer
+$ CONFIGURE_OPTS=--enable-shared pyenv install 3.8.10
+$ pyenv shell 3.8.10
+$ poetry env use 3.8.10
+$ poetry install
+```
 
 ## Data preparation
 
 - The required data files should be put under ```data/``` folder.
-- download the database of physical features from the path.
-  - data.tar.gz: NAS08 01DB/20220607Flareformer/
+- Visit http://wdc.nict.go.jp/IONO/wdc/solarflare/index.html and download the database of physical features.
 
 ```
-$ cd Flareformer/data
-$ tar xf data.tar.gz
-$ mv data/* ./
-$ rmdir data
+$ cd ~/work/flare_transformer
+$ mv ~/data.zip data/
+$ unzip data/data.zip
 ```
 
-- Download hourly magnetograms from the path.
-  - magnetogram_part1 / part2: NAS03 59DB/20210720DeFN/data20210720/
+- Visit https://sdo.gsfc.nasa.gov/data/ and download hourly magnetograms.
 ```
-$ cd Flareformer/data
-$ tar xf magnetogram_part1.tar.gz
-$ tar xf magnetogram_part2.tar.gz
-$ mv magnetogram_part1 magnetogram
-$ mv magnetogram_part2/* magnetogram
-$ rmdir magnetogram_part2
+$ mv ~/magnetogram_images.tar.gz data/
+$ tar -zxvf data/magnetogram_images.tar.gz
 ```
 
 ## Preprocess
