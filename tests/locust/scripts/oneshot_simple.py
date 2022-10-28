@@ -19,8 +19,12 @@ class WebsiteUser(HttpUser):
         """日付から一発打ちの結果を取得する"""
         rand_dates = random.choice(date_list)
         with self.client.get(f"/oneshot/simple?date={rand_dates}", catch_response=True) as response:
-            content = json.loads(response.content.decode())
-            if content["oneshot_status"] == "failed":
-                response.failure("oneshot status is failed")
-            elif response.status_code != 200:
-                response.failure("statusCode is not 200")
+            if response.status_code != 200:
+                response.failure(f"StatusCode is not 200 but {response.status_code}")
+            else:
+                try:
+                    content = json.loads(response.content.decode())
+                    if content["oneshot_status"] == "failed":
+                        response.failure("oneshot status is failed")
+                except json.JSONDecodeError as error:
+                    response.failure(f"JSONDecodeError: {error.doc}")
