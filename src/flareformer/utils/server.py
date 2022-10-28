@@ -15,6 +15,9 @@ from PIL import Image
 from starlette.middleware.cors import CORSMiddleware
 from torchvision import transforms
 
+import threading
+import queue
+import copy
 
 class CallbackServer:
     """一発打ち・画像取得のためのコールバックを定義し、サーバを起動するクラス"""
@@ -75,6 +78,12 @@ class CallbackServer:
                 targets.append(self.date_dic[self.to_str_key(target_date)])
         return targets
 
+    def put_probability_in_queue(self, callback, imgs, phys, q):
+        """put_probability_into_queue"""
+        prob = callback(imgs, phys).tolist()
+        prob_cp = copy.deepcopy(prob)
+        q.put(prob_cp)
+
     def start_server(self, callback):
         """
         Start http server.
@@ -109,17 +118,39 @@ class CallbackServer:
             # target_date_listと合致するデータをtargetsに格納する
             targets = self.make_targets_list(target_date_list)
 
+            ## **CHECK**
+            assert len(targets) == 4
+
+
             # 一発打ちに用いるデータが足りていない場合、failedとする
             if len(targets) != self.data_window_len:
                 return JSONResponse(content={"probability": {"OCMX": []}, "oneshot_status": "failed"})
 
             # 一発打ちを実行する
+            torch.set_printoptions(edgeitems=1000)
             imgs = torch.cat([self.get_tensor_image_from_path(t["magnetogram"]) for t in targets])
+            ## **CHECK**
+            assert imgs.dim() == 4
+            assert list(imgs.shape) == [4, 1, 256, 256]
+            assert imgs.dtype == torch.float32
+
             phys = np.array([list(map(float, t["feature"].split(","))) for t in targets])[:, :90]
-            prob = callback(imgs, phys).tolist()
+            ## **CHECK**
+            assert phys.shape == (4,90)
+            assert phys.dtype == np.float64
+
+            # 排他ロックをかける
+            q = queue.Queue()
+            th = threading.Thread(target=self.put_probability_in_queue, args=(callback, imgs, phys, q))
+            th.start()
+            th.join()
+            prob_cp = q.get()
+
+            ## **CHECK**
+            assert len(prob_cp) == 4 , ""
 
             return JSONResponse(
-                content={"probability": {"OCMX"[i]: prob[i] for i in range(len(prob))}, "oneshot_status": "success"}
+                content={"probability": {"OCMX"[i]: prob_cp[i] for i in range(len(prob_cp))}, "oneshot_status": "success"}
             )
 
         @fapi.get("/images/path", responses={200: {"content": {"application/json": {"example": {}}}}})
