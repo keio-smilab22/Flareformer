@@ -97,8 +97,12 @@ class CallbackServer:
             imgs = torch.cat([self.get_tensor_image(io.file.read()) for io in image_feats])
             phys = np.array([list(map(float, raw.split(","))) for raw in physical_feats])[:, :90]
             print(imgs.shape)
-            prob = callback(imgs, phys).tolist()
-            return JSONResponse(content={"probability": {"OCMX"[i]: prob[i] for i in range(len(prob))}})
+            # コールバックの使用に対するロック
+            with self.lock_for_callback:
+                prob = callback(imgs, phys).tolist()
+                prob_cp = copy.deepcopy(prob)
+
+            return JSONResponse(content={"probability": {"OCMX"[i]: prob_cp[i] for i in range(len(prob_cp))}})
 
         @fapi.get("/oneshot/simple", responses={200: {"content": {"application/json": {"example": {}}}}})
         def execute_oneshot_simple(date: str):
