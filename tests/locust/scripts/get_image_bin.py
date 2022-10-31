@@ -20,4 +20,4 @@ class WebsiteUser(HttpUser):
         rand_image_path = random.choice(image_path_list)
         with self.client.get(f"/images/bin?path={rand_image_path}", catch_response=True) as response:
             if response.status_code != 200:
-                response.failure("statusCode is not 200")
+                response.failure(f"StatusCode is not 200 but {response.status_code}")
