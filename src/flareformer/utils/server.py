@@ -1,9 +1,11 @@
 """
 Callback server
 """
+import copy
 import datetime
 import json
 import os
+import threading
 from typing import List
 
 import numpy as np
@@ -15,8 +17,6 @@ from PIL import Image
 from starlette.middleware.cors import CORSMiddleware
 from torchvision import transforms
 
-import threading
-import copy
 
 class CallbackServer:
     """一発打ち・画像取得のためのコールバックを定義し、サーバを起動するクラス"""
@@ -42,7 +42,7 @@ class CallbackServer:
         self.data_window_len = args.dataset["window"]
 
         # Lockのインスタンスを作成する
-        self.tlock = threading.Lock()
+        self.lock_for_callback = threading.Lock()
 
     @staticmethod
     def parse_iso_time(iso_date):
@@ -122,13 +122,16 @@ class CallbackServer:
             imgs = torch.cat([self.get_tensor_image_from_path(t["magnetogram"]) for t in targets])
             phys = np.array([list(map(float, t["feature"].split(","))) for t in targets])[:, :90]
 
-            # 排他ロックをかける
-            with self.tlock:
+            # コールバックの使用に対するロック
+            with self.lock_for_callback:
                 prob = callback(imgs, phys).tolist()
                 prob_cp = copy.deepcopy(prob)
 
             return JSONResponse(
-                content={"probability": {"OCMX"[i]: prob_cp[i] for i in range(len(prob_cp))}, "oneshot_status": "success"}
+                content={
+                    "probability": {"OCMX"[i]: prob_cp[i] for i in range(len(prob_cp))},
+                    "oneshot_status": "success",
+                }
             )
 
         @fapi.get("/images/path", responses={200: {"content": {"application/json": {"example": {}}}}})
@@ -158,7 +161,7 @@ class CallbackServer:
             return JSONResponse(content={"images": paths, "get_image_status": status})
 
         @fapi.get("/images/bin", response_class=FileResponse)
-        async def get_images_bin(path: str):
+        def get_images_bin(path: str):
             path = os.path.join(os.getcwd(), path)
             return path
 
