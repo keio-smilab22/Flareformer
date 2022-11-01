@@ -1,9 +1,11 @@
 """
 Callback server
 """
+import copy
 import datetime
 import json
 import os
+import threading
 from typing import List
 
 import numpy as np
@@ -38,6 +40,9 @@ class CallbackServer:
 
         # 一度のインファレンスで入力するデータ数。4であれば、4時間分のデータを入力する
         self.data_window_len = args.dataset["window"]
+
+        # callback関数向けの排他ロックを生成
+        self.callback_lock = threading.Lock()
 
     @staticmethod
     def parse_iso_time(iso_date):
@@ -92,7 +97,11 @@ class CallbackServer:
             imgs = torch.cat([self.get_tensor_image(io.file.read()) for io in image_feats])
             phys = np.array([list(map(float, raw.split(","))) for raw in physical_feats])[:, :90]
             print(imgs.shape)
-            prob = callback(imgs, phys).tolist()
+            # callback関数の実行を排他する
+            with self.callback_lock:
+                prob_raw = callback(imgs, phys).tolist()
+                prob = copy.deepcopy(prob_raw)
+
             return JSONResponse(content={"probability": {"OCMX"[i]: prob[i] for i in range(len(prob))}})
 
         @fapi.get("/oneshot/simple", responses={200: {"content": {"application/json": {"example": {}}}}})
@@ -116,10 +125,17 @@ class CallbackServer:
             # 一発打ちを実行する
             imgs = torch.cat([self.get_tensor_image_from_path(t["magnetogram"]) for t in targets])
             phys = np.array([list(map(float, t["feature"].split(","))) for t in targets])[:, :90]
-            prob = callback(imgs, phys).tolist()
+
+            # callback関数の実行を排他する
+            with self.callback_lock:
+                prob_raw = callback(imgs, phys).tolist()
+                prob = copy.deepcopy(prob_raw)
 
             return JSONResponse(
-                content={"probability": {"OCMX"[i]: prob[i] for i in range(len(prob))}, "oneshot_status": "success"}
+                content={
+                    "probability": {"OCMX"[i]: prob[i] for i in range(len(prob))},
+                    "oneshot_status": "success",
+                }
             )
 
         @fapi.get("/images/path", responses={200: {"content": {"application/json": {"example": {}}}}})
@@ -149,7 +165,7 @@ class CallbackServer:
             return JSONResponse(content={"images": paths, "get_image_status": status})
 
         @fapi.get("/images/bin", response_class=FileResponse)
-        async def get_images_bin(path: str):
+        def get_images_bin(path: str):
             path = os.path.join(os.getcwd(), path)
             return path
 
