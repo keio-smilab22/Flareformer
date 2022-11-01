@@ -20,5 +20,5 @@ class WebsiteUser(HttpUser):
         """画像パスから画像バイナリデータを取得する"""
         rand_image_path = random.choice(image_path_list)
         with self.client.get(f"/images/bin?path={rand_image_path}", catch_response=True) as response:
-            if response.status_code != http.HTTPStatus.OK.value:
+            if response.status_code != http.HTTPStatus.OK:
                 response.failure(f"StatusCode is not 200 but {response.status_code}")
