@@ -41,8 +41,8 @@ class CallbackServer:
         # 一度のインファレンスで入力するデータ数。4であれば、4時間分のデータを入力する
         self.data_window_len = args.dataset["window"]
 
-        # Lockのインスタンスを作成する
-        self.lock_for_callback = threading.Lock()
+        # callback関数向けの排他ロックを生成
+        self.callback_lock = threading.Lock()
 
     @staticmethod
     def parse_iso_time(iso_date):
@@ -97,12 +97,12 @@ class CallbackServer:
             imgs = torch.cat([self.get_tensor_image(io.file.read()) for io in image_feats])
             phys = np.array([list(map(float, raw.split(","))) for raw in physical_feats])[:, :90]
             print(imgs.shape)
-            # コールバックの使用に対するロック
-            with self.lock_for_callback:
-                prob = callback(imgs, phys).tolist()
-                prob_cp = copy.deepcopy(prob)
+            # callback関数の実行を排他する
+            with self.callback_lock:
+                prob_raw = callback(imgs, phys).tolist()
+                prob = copy.deepcopy(prob_raw)
 
-            return JSONResponse(content={"probability": {"OCMX"[i]: prob_cp[i] for i in range(len(prob_cp))}})
+            return JSONResponse(content={"probability": {"OCMX"[i]: prob[i] for i in range(len(prob))}})
 
         @fapi.get("/oneshot/simple", responses={200: {"content": {"application/json": {"example": {}}}}})
         def execute_oneshot_simple(date: str):
@@ -127,13 +127,13 @@ class CallbackServer:
             phys = np.array([list(map(float, t["feature"].split(","))) for t in targets])[:, :90]
 
             # コールバックの使用に対するロック
-            with self.lock_for_callback:
-                prob = callback(imgs, phys).tolist()
-                prob_cp = copy.deepcopy(prob)
+            with self.callback_lock:
+                prob_raw = callback(imgs, phys).tolist()
+                prob = copy.deepcopy(prob_raw)
 
             return JSONResponse(
                 content={
-                    "probability": {"OCMX"[i]: prob_cp[i] for i in range(len(prob_cp))},
+                    "probability": {"OCMX"[i]: prob[i] for i in range(len(prob))},
                     "oneshot_status": "success",
                 }
             )
