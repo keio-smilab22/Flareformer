@@ -5,27 +5,36 @@ from sklearn import metrics
 
 
 def RSE(pred, true):
-    return np.sqrt(np.sum((true-pred)**2)) / np.sqrt(np.sum((true-true.mean())**2))
+    return np.sqrt(np.sum((true - pred) ** 2)) / np.sqrt(
+        np.sum((true - true.mean()) ** 2)
+    )
+
 
 def CORR(pred, true):
-    u = ((true-true.mean(0))*(pred-pred.mean(0))).sum(0) 
-    d = np.sqrt(((true-true.mean(0))**2*(pred-pred.mean(0))**2).sum(0))
-    return (u/d).mean(-1)
+    u = ((true - true.mean(0)) * (pred - pred.mean(0))).sum(0)
+    d = np.sqrt(((true - true.mean(0)) ** 2 * (pred - pred.mean(0)) ** 2).sum(0))
+    return (u / d).mean(-1)
+
 
 def MAE(pred, true):
-    return np.mean(np.abs(pred-true))
+    return np.mean(np.abs(pred - true))
+
 
 def MSE(pred, true):
-    return np.mean((pred-true)**2)
+    return np.mean((pred - true) ** 2)
+
 
 def RMSE(pred, true):
     return np.sqrt(MSE(pred, true))
 
+
 def MAPE(pred, true):
     return np.mean(np.abs((pred - true) / true))
 
+
 def MSPE(pred, true):
     return np.mean(np.square((pred - true) / true))
+
 
 def calc_score(y_pred, y_true, climatology):
     """
@@ -48,9 +57,9 @@ def TSS(y_predl, y_true, flare_class):
     Compute TSS
     """
     tn, fp, fn, tp = calc_tp_4(
-        metrics.confusion_matrix(y_true, y_predl,
-                                 labels=[0, 1, 2, 3]), flare_class)
-    tss = (tp / (tp+fn)) - (fp / (fp + tn))
+        metrics.confusion_matrix(y_true, y_predl, labels=[0, 1, 2, 3]), flare_class
+    )
+    tss = (tp / (tp + fn)) - (fp / (fp + tn))
     if math.isnan(tss):
         return 0
     return float(tss)
@@ -81,8 +90,7 @@ def BSS(y_pred, y_true, climatology):
     y_pred2 = np.reshape(np.sum(y_pred2, axis=1), (-1, 2))
     bs = 0
     bsc = 0
-    for p, t in zip(y_pred2.tolist(),
-                    np.array(y_truel).tolist()):
+    for p, t in zip(y_pred2.tolist(), np.array(y_truel).tolist()):
         bs += (p[1] - t[1]) ** 2
     bs = bs / len(y_true)
     bsc = climatology[0] * climatology[1]
@@ -158,8 +166,6 @@ def regression_to_class(pred: np.ndarray) -> np.ndarray:
     return pred_class
 
 
-
-
 def metric(pred, true):
     mae = MAE(pred, true)
     mse = MSE(pred, true)
@@ -167,16 +173,20 @@ def metric(pred, true):
     mape = MAPE(pred, true)
     mspe = MSPE(pred, true)
 
-    # pred [N, 24, 1]
-    # true [N, 24, 1]
+    # pred:[N, 48, 1]
+    # true:[N, 48, 1]
+    # take the maximum every 24 hours.
+    # for i in range(0, len(pred), 24):
+    #     pred_max = np.max(pred[i : i + 24])
+    #     true_max = np.max(true[i : i + 24])
 
-    # convert [N, 24, 1] to [N, 1] with max
-    pred = np.max(pred, axis=1)
-    true = np.max(true, axis=1)
+
+    pred_max = np.max(pred, axis=1)
+    true_max = np.max(true, axis=1)
 
     # classification
-    pred_class = regression_to_class(pred)
-    true_class = regression_to_class(true)
+    pred_class = regression_to_class(pred_max)
+    true_class = regression_to_class(true_max)
 
     pred_class_l = []
     for y in pred_class:
@@ -188,10 +198,52 @@ def metric(pred, true):
         true_class_l.append(np.argmax(y))
     true_class_l = np.array(true_class_l)
 
-
     tss_m = TSS(pred_class_l, true_class_l, 2)
-    bss_m = BSS(pred_class, true_class_l, [0.9053,0.0947])
+    bss_m = BSS(pred_class, true_class_l, [0.9053, 0.0947])
     gmgs = GMGS(pred_class_l, true_class_l)
 
-    
-    return mae,mse,rmse,mape,mspe, tss_m, bss_m, gmgs
+    # only for 24 hours
+    pred_24 = pred[:, :24, :]
+    true_24 = true[:, :24, :]
+
+    mae_24 = MAE(pred_24, true_24)
+    mse_24 = MSE(pred_24, true_24)
+    rmse_24 = RMSE(pred_24, true_24)
+    mape_24 = MAPE(pred_24, true_24)
+    mspe_24 = MSPE(pred_24, true_24)
+
+    pred_class_24 = regression_to_class(pred_24)
+    true_class_24 = regression_to_class(true_24)
+
+    pred_class_l_24 = []
+    for y in pred_class_24:
+        pred_class_l_24.append(np.argmax(y))
+    pred_class_l_24 = np.array(pred_class_l_24)
+
+    true_class_l_24 = []
+    for y in true_class_24:
+        true_class_l_24.append(np.argmax(y))
+    true_class_l_24 = np.array(true_class_l_24)
+
+    tss_m_24 = TSS(pred_class_l_24, true_class_l_24, 2)
+    bss_m_24 = BSS(pred_class_24, true_class_l_24, [0.9053, 0.0947])
+    gmgs_24 = GMGS(pred_class_l_24, true_class_l_24)
+
+    return (
+        mae,
+        mse,
+        rmse,
+        mape,
+        mspe,
+        tss_m,
+        bss_m,
+        gmgs,
+        mae_24,
+        mse_24,
+        rmse_24,
+        mape_24,
+        mspe_24,
+        tss_m_24,
+        bss_m_24,
+        gmgs_24,
+    )

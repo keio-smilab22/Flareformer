@@ -6,6 +6,7 @@ from sklearn import metrics
 class GMGSRegressionLoss(nn.Module):
     def __init__(self):
         super(GMGSRegressionLoss, self).__init__()
+        self.mse = nn.MSELoss()
 
 
     def forward(self, pred:torch.Tensor, true:torch.Tensor):
@@ -41,9 +42,66 @@ class GMGSRegressionLoss(nn.Module):
 
         # calculate weighted mse
         # print(f"squared error: {torch.square(pred - true).shape}")
+        # print(f'gmgs_weight: {gmgs_weight.shape}')
+
+        gmgs_loss = torch.sum(torch.square(pred - true) * gmgs_weight.unsqueeze(-1)) / pred.shape[0]
+        loss = self.mse(pred, true) + 1 * gmgs_loss
+        return loss
+
+
+
+class GMGSRegressionLoss2(nn.Module):
+    """
+    24 or 48 でまとめる
+    """
+    def __init__(self):
+        super(GMGSRegressionLoss2, self).__init__()
+        self.mse = nn.MSELoss()
+
+
+    def forward(self, pred:torch.Tensor, true:torch.Tensor):
+        """
+        pred: (batch_size, 24 or 48, 1)
+        true: (batch_size, 24 or 48, 1)
+        """
+
+        # max
+        pred_max = torch.max(pred, dim=1).values
+        true_max = torch.max(true, dim=1).values
+        print(f"pred_max: {pred_max.shape}")
+        # print(f"pred_max: {pred}")
+
+        # convert to class
+        # pred_class : (batch_size, 1)
+        pred_class = convert_to_class2(pred_max)
+        true_class = convert_to_class2(true_max)
+
+        # calculate confusion matrix
+        print(f"pred_class: {pred_class.shape}")
+        print(f"true_class: {true_class.shape}")
+        # print(f"pred_class: {pred_class}")
+        confusion_matrix = metrics.confusion_matrix(true_class.detach().cpu().numpy(), pred_class.detach().cpu().numpy(), labels=[0, 1, 2, 3])
+
+        gmgs_matrix = calc_gmgs_matrix(confusion_matrix, 4)
+        gmgs_matrix = torch.Tensor(gmgs_matrix)
+        
+        print(f"gmgs_matrix: {gmgs_matrix.shape}")
+
+        # calculate gmgs loss
+        gmgs_weight = torch.zeros_like(true_class, device=true.device)
+        print(f"gmgs_weight: {gmgs_weight.shape}")
+        for i in range(true_class.shape[0]):
+            gmgs_weight[i] = gmgs_matrix[true_class[i].item(), pred_class[i].item()]
+
+        # calculate weighted mse
+        # print(f"squared error: {torch.square(pred - true).shape}")
+        # print(f'gmgs_weight: {gmgs_weight.shape}')
 
         gmgs_loss = torch.sum(torch.square(pred - true) * gmgs_weight) / pred.shape[0]
-        return gmgs_loss
+        loss = gmgs_loss
+        return loss
+
+
 
 def calc_gmgs_matrix(confusion_matrix, N):
     """
@@ -78,6 +136,26 @@ def convert_to_class(pred:torch.Tensor) -> torch.Tensor:
                 pred_class[i, j] = 1
             else:
                 pred_class[i, j] = 0
+
+    return pred_class
+
+
+def convert_to_class2(pred:torch.Tensor) -> torch.Tensor:
+    """
+    Convert regression output to class
+    """
+    pred_class = torch.zeros((pred.shape[0]), dtype=torch.long)
+
+    # print(pred_class.shape)
+    for i in range(pred.shape[0]):
+        if pred[i, 0] >= 2:
+            pred_class[i] = 3
+        elif pred[i, 0] >= 1 and pred[i, 0] < 2:
+            pred_class[i] = 2
+        elif pred[i, 0] >= 0 and pred[i, 0] < 1:
+            pred_class[i] = 1
+        else:
+            pred_class[i] = 0
 
     return pred_class
 

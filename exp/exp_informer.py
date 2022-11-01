@@ -6,8 +6,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 import wandb
-from src.Dataloader import (Dataset_Custom, Dataset_Custom_Stddev,
-                            Dataset_Custom_Sunpy, Dataset_Pred)
+from src.Dataloader import (
+    Dataset_Custom,
+    Dataset_Custom_Stddev,
+    Dataset_Custom_Sunpy,
+    Dataset_Pred,
+)
 from src.losses import *
 from src.model_informer import *
 from src.SkipMissingValueSampler import SkipMissingValueBatchSampler
@@ -171,7 +175,8 @@ class Exp_Informer(Exp_Basic):
 
     def _select_criterion(self):
         # criterion = nn.MSELoss()
-        criterion = GMGSRegressionLoss()
+        # criterion = GMGSRegressionLoss()
+        criterion = GMGSRegressionLoss2()
         return criterion
 
     def vali(self, vali_data, vali_loader, criterion):
@@ -200,10 +205,46 @@ class Exp_Informer(Exp_Basic):
         trues = trues.reshape(-1, trues.shape[-2], trues.shape[-1])
         print("test shape:", preds.shape, trues.shape)
 
-        mae, mse, rmse, mape, mspe, tss_m, bss_m, gmgs = metric(preds, trues)
+        (
+            mae,
+            mse,
+            rmse,
+            mape,
+            mspe,
+            tss_m,
+            bss_m,
+            gmgs,
+            mae_24,
+            mse_24,
+            rmse_24,
+            mape_24,
+            mspe_24,
+            tss_m_24,
+            bss_m_24,
+            gmgs_24,
+        ) = metric(preds, trues)
+
         total_loss = np.average(total_loss)
         self.model.train()
-        return total_loss, mae, mse, rmse, mape, mspe, tss_m, bss_m, gmgs
+        return (
+            total_loss,
+            mae,
+            mse,
+            rmse,
+            mape,
+            mspe,
+            tss_m,
+            bss_m,
+            gmgs,
+            mae_24,
+            mse_24,
+            rmse_24,
+            mape_24,
+            mspe_24,
+            tss_m_24,
+            bss_m_24,
+            gmgs_24,
+        )
 
     def train(self, setting):
         train_data, train_loader = self._get_data(flag="train")
@@ -293,6 +334,14 @@ class Exp_Informer(Exp_Basic):
                 tss_m_val,
                 bss_m_val,
                 gmgs_val,
+                mae_24_val,
+                mse_24_val,
+                rmse_24_val,
+                mape_24_val,
+                mspe_24_val,
+                tss_m_24_val,
+                bss_m_24_val,
+                gmgs_24_val,
             ) = self.vali(vali_data, vali_loader, criterion)
             (
                 test_loss,
@@ -304,6 +353,14 @@ class Exp_Informer(Exp_Basic):
                 tss_m_test,
                 bss_m_test,
                 gmgs_test,
+                mae_24_test,
+                mse_24_test,
+                rmse_24_test,
+                mape_24_test,
+                mspe_24_test,
+                tss_m_24_test,
+                bss_m_24_test,
+                gmgs_24_test,
             ) = self.vali(test_data, test_loader, criterion)
 
             print(
@@ -334,6 +391,22 @@ class Exp_Informer(Exp_Basic):
                     "tss_m_test": tss_m_test,
                     "bss_m_test": bss_m_test,
                     "gmgs_test": gmgs_test,
+                    "mae_24_val": mae_24_val,
+                    "mse_24_val": mse_24_val,
+                    "rmse_24_val": rmse_24_val,
+                    "mape_24_val": mape_24_val,
+                    "mspe_24_val": mspe_24_val,
+                    "tss_m_24_val": tss_m_24_val,
+                    "bss_m_24_val": bss_m_24_val,
+                    "gmgs_24_val": gmgs_24_val,
+                    "mae_24_test": mae_24_test,
+                    "mse_24_test": mse_24_test,
+                    "rmse_24_test": rmse_24_test,
+                    "mape_24_test": mape_24_test,
+                    "mspe_24_test": mspe_24_test,
+                    "tss_m_24_test": tss_m_24_test,
+                    "bss_m_24_test": bss_m_24_test,
+                    "gmgs_24_test": gmgs_24_test,
                 }
             )
             # if early_stopping.early_stop:
@@ -382,7 +455,24 @@ class Exp_Informer(Exp_Basic):
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
-        mae, mse, rmse, mape, mspe, tss_m, bss_m, gmgs = metric(preds, trues)
+        (
+            mae,
+            mse,
+            rmse,
+            mape,
+            mspe,
+            tss_m,
+            bss_m,
+            gmgs,
+            mae_24,
+            mse_24,
+            rmse_24,
+            mape_24,
+            mspe_24,
+            tss_m_24,
+            bss_m_24,
+            gmgs_24,
+        ) = metric(preds, trues)
         wandb.log(
             {
                 "mse": mse,
@@ -393,6 +483,14 @@ class Exp_Informer(Exp_Basic):
                 "tss_m": tss_m,
                 "bss_m": bss_m,
                 "gmgs": gmgs,
+                "mse_24": mse_24,
+                "mae_24": mae_24,
+                "rmse_24": rmse_24,
+                "mape_24": mape_24,
+                "mspe_24": mspe_24,
+                "tss_m_24": tss_m_24,
+                "bss_m_24": bss_m_24,
+                "gmgs_24": gmgs_24,
             }
         )
         print("mse:{}, mae:{}".format(mse, mae))
@@ -462,8 +560,44 @@ class Exp_Informer(Exp_Basic):
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
-        mae, mse, rmse, mape, mspe = metric(preds, trues)
-        wandb.log({"mse": mse, "mae": mae, "rmse": rmse, "mape": mape, "mspe": mspe})
+        (
+            mae,
+            mse,
+            rmse,
+            mape,
+            mspe,
+            tss_m,
+            bss_m,
+            gmgs,
+            mae_24,
+            mse_24,
+            rmse_24,
+            mape_24,
+            mspe_24,
+            tss_m_24,
+            bss_m_24,
+            gmgs_24,
+        ) = metric(preds, trues)
+        wandb.log(
+            {
+                "mse": mse,
+                "mae": mae,
+                "rmse": rmse,
+                "mape": mape,
+                "mspe": mspe,
+                "tss_m": tss_m,
+                "bss_m": bss_m,
+                "gmgs": gmgs,
+                "mse_24": mse_24,
+                "mae_24": mae_24,
+                "rmse_24": rmse_24,
+                "mape_24": mape_24,
+                "mspe_24": mspe_24,
+                "tss_m_24": tss_m_24,
+                "bss_m_24": bss_m_24,
+                "gmgs_24": gmgs_24,
+            }
+        )
         print("mse:{}, mae:{}".format(mse, mae))
 
         np.save(folder_path + "metrics.npy", np.array([mae, mse, rmse, mape, mspe]))

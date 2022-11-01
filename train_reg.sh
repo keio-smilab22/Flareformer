@@ -81,7 +81,7 @@
 # done
 
 # python main_informer.py --model FT --data Flare_sunpy --des sunpy --batch_size 4 --lradj none --train_epochs 20 --learning_rate 1e-6 --year 2012 --seq_len 12 --label_len 6 --attn full --root_path ./data/noaa --features S --pred_len 24
-python main_informer.py --model FT --data Flare_sunpy --des sunpy --batch_size 4 --lradj none --train_epochs 20 --learning_rate 1e-6 --year 2012 --seq_len 12 --label_len 6 --attn full --root_path ./data/noaa --features S --pred_len 48
+python main_informer.py --model FT --data Flare_sunpy --des gmgsloss2 --batch_size 16 --lradj none --train_epochs 20 --learning_rate 1e-6 --year 2012 --seq_len 12 --label_len 6 --attn full --root_path ./data/noaa --features S --pred_len 48
 
 
-# python main_informer_test.py --model FT_MAE --data Flare_sunpy --des sunpy --batch_size 4 --lradj none --train_epochs 20 --learning_rate 1e-6 --year 2012 --seq_len 8 --label_len 4 --attn full --root_path ./data/noaa --features S
+# python main_informer_test.py --model FT --data Flare_sunpy --des sunpy --batch_size 8 --lradj none --train_epochs 20 --learning_rate 1e-6 --year 2012 --seq_len 8 --label_len 4 --attn full --root_path ./data/noaa --features S
