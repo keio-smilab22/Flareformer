@@ -1,4 +1,5 @@
 """画像パス取得APIの負荷試験"""
+import http
 import json
 import random
 
@@ -19,12 +20,12 @@ class WebsiteUser(HttpUser):
         """日付から画像パスを取得する"""
         rand_dates = random.choice(date_list)
         with self.client.get(f"/images/path?date={rand_dates}", catch_response=True) as response:
-            if response.status_code != 200:
+            if response.status_code != http.HTTPStatus.OK.value:
                 response.failure(f"StatusCode is not 200 but {response.status_code}")
             else:
                 try:
                     content = json.loads(response.content.decode())
                     if content["get_image_status"] == "failed":
-                        response.failure("get image status is failed")
+                        response.failure("Failed to get image path list")
                 except json.JSONDecodeError as error:
-                    response.failure(f"JSONDecodeError: {error.doc}")
+                    response.failure(f"Failed to decode the response(discribed below) as json:\n{error.doc}")
