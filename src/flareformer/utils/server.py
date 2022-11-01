@@ -126,7 +126,7 @@ class CallbackServer:
             imgs = torch.cat([self.get_tensor_image_from_path(t["magnetogram"]) for t in targets])
             phys = np.array([list(map(float, t["feature"].split(","))) for t in targets])[:, :90]
 
-            # コールバックの使用に対するロック
+            # callback関数の実行を排他する
             with self.callback_lock:
                 prob_raw = callback(imgs, phys).tolist()
                 prob = copy.deepcopy(prob_raw)
