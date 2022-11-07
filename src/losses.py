@@ -68,7 +68,7 @@ class GMGSRegressionLoss2(nn.Module):
         # max
         pred_max = torch.max(pred, dim=1).values
         true_max = torch.max(true, dim=1).values
-        print(f"pred_max: {pred_max.shape}")
+        # print(f"pred_max: {pred_max.shape}")
         # print(f"pred_max: {pred}")
 
         # convert to class
@@ -77,19 +77,19 @@ class GMGSRegressionLoss2(nn.Module):
         true_class = convert_to_class2(true_max)
 
         # calculate confusion matrix
-        print(f"pred_class: {pred_class.shape}")
-        print(f"true_class: {true_class.shape}")
+        # print(f"pred_class: {pred_class.shape}")
+        # print(f"true_class: {true_class.shape}")
         # print(f"pred_class: {pred_class}")
         confusion_matrix = metrics.confusion_matrix(true_class.detach().cpu().numpy(), pred_class.detach().cpu().numpy(), labels=[0, 1, 2, 3])
 
         gmgs_matrix = calc_gmgs_matrix(confusion_matrix, 4)
         gmgs_matrix = torch.Tensor(gmgs_matrix)
         
-        print(f"gmgs_matrix: {gmgs_matrix.shape}")
+        # print(f"gmgs_matrix: {gmgs_matrix.shape}")
 
         # calculate gmgs loss
         gmgs_weight = torch.zeros_like(true_class, device=true.device)
-        print(f"gmgs_weight: {gmgs_weight.shape}")
+        # print(f"gmgs_weight: {gmgs_weight.shape}")
         for i in range(true_class.shape[0]):
             gmgs_weight[i] = gmgs_matrix[true_class[i].item(), pred_class[i].item()]
 
@@ -97,10 +97,100 @@ class GMGSRegressionLoss2(nn.Module):
         # print(f"squared error: {torch.square(pred - true).shape}")
         # print(f'gmgs_weight: {gmgs_weight.shape}')
 
-        gmgs_loss = torch.sum(torch.square(pred - true) * gmgs_weight) / pred.shape[0]
+        gmgs_loss = torch.sum(torch.square(pred - true) * (-gmgs_weight)) / pred.shape[0]
         loss = gmgs_loss
         return loss
 
+
+
+class GMGSRegressionLoss3(nn.Module):
+    """
+    24 or 48 でまとめる
+    """
+    def __init__(self):
+        super(GMGSRegressionLoss3, self).__init__()
+        self.mse = nn.MSELoss()
+
+
+    def forward(self, pred:torch.Tensor, true:torch.Tensor):
+        """
+        pred: (batch_size, 24 or 48, 1)
+        true: (batch_size, 24 or 48, 1)
+        """
+
+        # max
+        pred_max = torch.max(pred, dim=1).values
+        true_max = torch.max(true, dim=1).values
+
+        # convert to class
+        # pred_class : (batch_size, 1)
+        pred_class = convert_to_class2(pred_max)
+        true_class = convert_to_class2(true_max)
+
+        # calculate confusion matrix
+        confusion_matrix = metrics.confusion_matrix(true_class.detach().cpu().numpy(), pred_class.detach().cpu().numpy(), labels=[0, 1, 2, 3])
+
+        gmgs_matrix = calc_gmgs_matrix(confusion_matrix, 4)
+        gmgs_matrix = torch.Tensor(gmgs_matrix)
+        
+        # print(f"gmgs_matrix: {gmgs_matrix.shape}")
+
+        # calculate gmgs loss
+        gmgs_weight = torch.zeros_like(true_class, device=true.device)
+        # print(f"gmgs_weight: {gmgs_weight.shape}")
+        for i in range(true_class.shape[0]):
+            gmgs_weight[i] = gmgs_matrix[true_class[i].item(), pred_class[i].item()]
+
+        # calculate weighted mse
+        # print(f"squared error: {torch.square(pred - true).shape}")
+        # print(f'gmgs_weight: {gmgs_weight.shape}')
+
+        gmgs_loss = torch.sum(torch.square(pred - true) + (-gmgs_weight)) / pred.shape[0]
+        loss = gmgs_loss
+        return loss
+
+
+class GMGSRegressionLoss4(nn.Module):
+    """
+    24 or 48 でまとめる
+    """
+    def __init__(self, score_matrix):
+        super(GMGSRegressionLoss4, self).__init__()
+        self.mse = nn.MSELoss()
+        self.score_matrix = score_matrix
+
+
+    def forward(self, pred:torch.Tensor, true:torch.Tensor):
+        """
+        pred: (batch_size, 24 or 48, 1)
+        true: (batch_size, 24 or 48, 1)
+        """
+
+        # max
+        pred_max = torch.max(pred, dim=1).values
+        true_max = torch.max(true, dim=1).values
+
+        # convert to class
+        # pred_class : (batch_size, 1)
+        pred_class = convert_to_class2(pred_max)
+        true_class = convert_to_class2(true_max)
+
+        score_matrix = torch.Tensor(self.score_matrix)
+        # perform softmax on score matrix
+        exponetial_sum = torch.sum(torch.exp(-score_matrix))
+        score_matrix = torch.exp(-score_matrix) / exponetial_sum
+
+        # print(f"score_matrix: {score_matrix}")
+
+        gmgs_weight = torch.zeros_like(true_class, device=true.device, dtype=torch.float32)
+        for i in range(true_class.shape[0]):
+            gmgs_weight[i] = score_matrix[true_class[i].item(), pred_class[i].item()]
+
+        # print(f"gmgs_weight: {gmgs_weight}")
+
+        gmgs_loss = torch.sum(torch.square(pred - true) * gmgs_weight * 100) / pred.shape[0]
+        loss = gmgs_loss
+        return loss
 
 
 def calc_gmgs_matrix(confusion_matrix, N):

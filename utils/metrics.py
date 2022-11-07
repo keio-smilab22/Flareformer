@@ -247,3 +247,63 @@ def metric(pred, true):
         bss_m_24,
         gmgs_24,
     )
+
+if __name__ == "__main__":
+    cm = \
+    [[1979, 419,   21,    2],
+     [ 335, 1554,  453,   11],
+     [  23,  379,  495,  43],
+     [   0,   19,   82,   29]]
+
+    # for i in range(len(pred)):
+    #     if pred[i, 0] >= 2:
+    #         pred_class[i, 3] = 1
+    #     elif pred[i, 0] >= 1 and pred[i, 0] < 2:
+    #         pred_class[i, 2] = 1
+    #     elif pred[i, 0] >= 0 and pred[i, 0] < 1:
+    #         pred_class[i, 1] = 1
+    #     else:
+    #         pred_class[i, 0] = 1
+
+    # confusion matrix to prediction and true label
+    pred = []
+    true = []
+    for i in range(4):
+        for j in range(4):
+            for k in range(cm[i][j]):
+                pred.append(j-1)
+                true.append(i-1)
+
+    pred = np.array(pred)
+    true = np.array(true)
+    pred = pred.reshape(-1, 1)
+    true = true.reshape(-1, 1)
+    # [N, 1] -> [N, 24, 1]
+    pred = np.repeat(pred, 24, axis=1)
+    true = np.repeat(true, 24, axis=1)
+    pred = pred.reshape(-1, 24, 1)
+    true = true.reshape(-1, 24, 1)
+    print(pred[0])
+
+    pred_max = np.max(pred, axis=1)
+    true_max = np.max(true, axis=1)
+
+    # classification
+    pred_class = regression_to_class(pred_max)
+    true_class = regression_to_class(true_max)
+
+    pred_class_l = []
+    for y in pred_class:
+        pred_class_l.append(np.argmax(y))
+    pred_class_l = np.array(pred_class_l)
+
+    true_class_l = []
+    for y in true_class:
+        true_class_l.append(np.argmax(y))
+    true_class_l = np.array(true_class_l)
+
+    tss_m = TSS(pred_class_l, true_class_l, 2)
+    bss_m = BSS(pred_class, true_class_l, [0.9053, 0.0947])
+    gmgs = GMGS(pred_class_l, true_class_l)
+
+    print(gmgs)

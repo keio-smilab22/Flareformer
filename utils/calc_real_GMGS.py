@@ -37,11 +37,11 @@ from pprint import pprint
 # c:  0.29468447456843316
 # 0.26165390384207404
 
-# cm = \
-# [[1979, 419,   21,    2],
-#  [ 335, 1554,  453,   11],
-#  [  23,  379,  495,  43],
-#  [   0,   19,   82,   29]]
+cm = \
+[[1979, 419,   21,    2],
+ [ 335, 1554,  453,   11],
+ [  23,  379,  495,  43],
+ [   0,   19,   82,   29]]
 
 
 # cm = \
@@ -80,10 +80,10 @@ from pprint import pprint
 # ^ id19
 
 
-cm = \
-[[6412,  578,    0],
- [ 677,   37,    0],
- [  91,    0,    0]]
+# cm = \
+# [[6412,  578,    0],
+#  [ 677,   37,    0],
+#  [  91,    0,    0]]
 
 # cm = \
 # cm = \
@@ -184,6 +184,8 @@ def s_ij(p, N, i, j):
 
 def calc_gmgs_matrix(cm, N):
     p = [sum(x)/sum(map(sum, cm)) for x in cm]
+    # print(sum(map(sum, cm)))
+    print(f'p: {p}')
     gmgs_matrix = [ [0 for i in range(N)] for j in range(N) ]
     for i in range(1, N+1):
         for j in range(i, N+1):
@@ -191,11 +193,12 @@ def calc_gmgs_matrix(cm, N):
                 gmgs_matrix[i-1][i-1] = s_ii(p, N, i) 
             else:
                 gmgs_matrix[i-1][j-1] = gmgs_matrix[j-1][i-1] = s_ij(p, N, i, j)
-    print(gmgs_matrix)
+    print(f'{gmgs_matrix[0]}\n{gmgs_matrix[1]}\n{gmgs_matrix[2]}\n{gmgs_matrix[3]}')
     return gmgs_matrix
 
 if __name__ == "__main__":
-    print(calc_gmgs_matrix(cm, 3))
+    print(calc_gmgs_matrix(cm, 4))
+    print(calc_GMGS(cm))
     sys.exit()
 
     p = [sum(x)/sum(map(sum, cm)) for x in cm]

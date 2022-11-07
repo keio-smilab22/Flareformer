@@ -176,7 +176,24 @@ class Exp_Informer(Exp_Basic):
     def _select_criterion(self):
         # criterion = nn.MSELoss()
         # criterion = GMGSRegressionLoss()
-        criterion = GMGSRegressionLoss2()
+        # criterion = GMGSRegressionLoss2()
+        score_matrix = [
+            [0.5974482418921612, -0.05653783490999468, -0.6552385462294306, -1.0],
+            [
+                -0.05653783490999468,
+                0.6233108904611885,
+                0.024610179141752564,
+                -0.3201512746288169,
+            ],
+            [
+                -0.6552385462294306,
+                0.024610179141752564,
+                0.7766502576460392,
+                0.43188880387546985,
+            ],
+            [-1.0, -0.3201512746288169, 0.43188880387546985, 10.487828030394807],
+        ]
+        criterion = GMGSRegressionLoss4(score_matrix)
         return criterion
 
     def vali(self, vali_data, vali_loader, criterion):
