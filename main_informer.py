@@ -15,7 +15,7 @@ parser.add_argument('--data', type=str, required=True, default='Flare', help='da
 parser.add_argument('--root_path', type=str, default='./data/', help='root path of the data file')
 parser.add_argument('--feat_path', type=str, default='data_all_v2.csv', help='feat file')
 parser.add_argument('--magnetogram_path', type=str, default='data_magnetogram_256.npy', help='magnetogram file')
-parser.add_argument('--csv_name', type=str, default='magnetogram_logxmax1h_all_years.csv', help='csv name')
+parser.add_argument('--csv_name', type=str, default='magnetogram_logxmax1h_through_2018.csv', help='csv name')
 parser.add_argument('--features', type=str, default='MS', help='forecasting task, options:[M, S, MS]; M:multivariate predict multivariate, S:univariate predict univariate, MS:multivariate predict univariate')
 parser.add_argument('--target', type=str, default='logXmax1h', help='target feature in S or MS task')
 parser.add_argument('--freq', type=str, default='h', help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
