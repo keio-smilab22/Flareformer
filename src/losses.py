@@ -188,10 +188,45 @@ class GMGSRegressionLoss4(nn.Module):
 
         # print(f"gmgs_weight: {gmgs_weight}")
 
-        gmgs_loss = torch.sum(torch.square(pred - true) * gmgs_weight * 100) / pred.shape[0]
+        gmgs_loss = torch.sum(torch.square(pred - true) * gmgs_weight) / pred.shape[0]
         loss = gmgs_loss
         return loss
 
+
+class GMGSRegressionLoss5(nn.Module):
+
+    def __init__(self, score_matrix):
+        super(GMGSRegressionLoss5, self).__init__()
+        self.mse = nn.MSELoss()
+        self.score_matrix = score_matrix
+
+
+    def forward(self, pred:torch.Tensor, true:torch.Tensor):
+        """
+        pred: (batch_size, 24 or 48, 1)
+        true: (batch_size, 24 or 48, 1)
+        """
+
+        pred_class = convert_to_class(pred)
+        true_class = convert_to_class(true)
+
+        score_matrix = torch.Tensor(self.score_matrix)
+        # perform softmax on score matrix
+        exponetial_sum = torch.sum(torch.exp(-score_matrix))
+        score_matrix = torch.exp(-score_matrix) / exponetial_sum
+
+        # print(f"score_matrix: {score_matrix}")
+
+        gmgs_weight = torch.zeros_like(true_class, device=true.device, dtype=torch.float32)
+        for i in range(true_class.shape[0]):
+            for j in range(true_class.shape[1]):
+                gmgs_weight[i, j] = score_matrix[true_class[i, j].item(), pred_class[i, j].item()]
+
+        # print(f"gmgs_weight: {gmgs_weight}")
+
+        gmgs_loss = torch.sum(torch.square(pred - true) * gmgs_weight.unsqueeze(-1)) / pred.shape[0]
+        loss = gmgs_loss
+        return loss
 
 def calc_gmgs_matrix(confusion_matrix, N):
     """
