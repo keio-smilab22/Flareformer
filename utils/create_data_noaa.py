@@ -94,8 +94,8 @@ def create_data_noaa_with_sunpy_new(year=2010, thr=3):
 
     
     # goes = Fido.search(a.Time(f"{year}/01/01", f"{year}/12/31"), a.Instrument.xrs, a.goes.SatelliteNumber(15))
-    goes = Fido.search(a.Time(f"{year}/01/01", f"{year+1}/01/01"), a.Instrument.xrs, a.goes.SatelliteNumber(15)|a.goes.SatelliteNumber(14)|a.goes.SatelliteNumber(13))
-    # goes = Fido.search(a.Time(f"{year}/10/01", f"{year}/10/31"), a.Instrument.xrs, a.goes.SatelliteNumber(15)|a.goes.SatelliteNumber(14)|a.goes.SatelliteNumber(13)|a.goes.SatelliteNumber(16)|a.goes.SatelliteNumber(17))
+    # goes = Fido.search(a.Time(f"{year}/01/01", f"{year+1}/01/01"), a.Instrument.xrs, a.goes.SatelliteNumber(15)|a.goes.SatelliteNumber(14)|a.goes.SatelliteNumber(13))
+    goes = Fido.search(a.Time(f"{year}/01/01", f"{year+1}/01/01"), a.Instrument.xrs, a.goes.SatelliteNumber(15)|a.goes.SatelliteNumber(14)|a.goes.SatelliteNumber(13)|a.goes.SatelliteNumber(16)|a.goes.SatelliteNumber(17))
 
     print(goes)
     goes_files = Fido.fetch(goes, max_conn=10, overwrite=False)
@@ -243,7 +243,7 @@ if __name__ == "__main__":
     # create_data_noaa(path_data, path_save)
     # create_data_original_noaa("/tmp/tmp_2010.csv")
     for thr in [3.0, 2.5]:
-        for i in range(2010, 2022):
+        for i in range(2020, 2021):
             create_data_noaa_with_sunpy_new(year=i, thr=thr)
     # create_data_noaa_with_sunpy_new(year=2014, thr=0)
     
