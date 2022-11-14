@@ -1258,7 +1258,8 @@ class Dataset_Custom_Sunpy(Dataset):
             2015:{'num_train':31440, 'num_test':8760, 'end_index':48960},
             2016:{'num_train':40200, 'num_test':8784, 'end_index':57744},
             2017:{'num_train':48960, 'num_test':8692, 'end_index':66437},
-            2018:{'num_train':365*24*6+2, 'num_test':365*24, 'end_index':69987},
+            2018:{'num_train':365*24*6+24*2, 'num_test':365*24, 'end_index':69987},
+            2020:{'num_train':365*24*8+24*2, 'num_test':365*24+24*1, 'end_index': 87532},
         }
         # num_train = int(len(df_raw)*0.7)
         # num_test = int(len(df_raw)*0.2)
@@ -1318,10 +1319,13 @@ class Dataset_Custom_Sunpy(Dataset):
         
         self.data_x = data[border1:border2]
         self.data_magnetogram_filename = df_raw['filename'][border1:border2]
+        print(f"self.data_magnetogram_filename: \n{self.data_magnetogram_filename}")
         # create data_magnetogram
         images = []
         for i, filename in enumerate(self.data_magnetogram_filename):
             # example filename:hmi_m_45s_2011_05_19_06_06_00_tai_magnetogram.fits.png
+            if type(filename) != str:
+                print(f"filename: {filename}")
             year = filename.split('_')[3]
             month = filename.split('_')[4]
             dir_path = os.path.join(self.root_path, "magnetogram", year, month)

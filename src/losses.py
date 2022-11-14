@@ -228,6 +228,46 @@ class GMGSRegressionLoss5(nn.Module):
         loss = gmgs_loss
         return loss
 
+
+class GMGSRegressionLoss6(nn.Module):
+
+    def __init__(self, score_matrix, gamma):
+        super(GMGSRegressionLoss6, self).__init__()
+        self.mse = nn.MSELoss()
+        self.score_matrix = score_matrix
+        self.gamma = gamma
+
+
+    def forward(self, pred:torch.Tensor, true:torch.Tensor):
+        """
+        pred: (batch_size, 24 or 48, 1)
+        true: (batch_size, 24 or 48, 1)
+        """
+
+        pred_class = convert_to_class(pred)
+        true_class = convert_to_class(true)
+
+        score_matrix = torch.tensor(self.score_matrix, device=true.device)
+
+
+        gmgs_weight = torch.zeros_like(true_class, device=true.device, dtype=torch.float32)
+        
+        # for i in range(true_class.shape[0]):
+        #     for j in range(true_class.shape[1]):
+        #         gmgs_weight[i, j] = score_matrix[true_class[i, j].item(), pred_class[i, j].item()]
+
+        # not use for loop
+        gmgs_weight = score_matrix[true_class, pred_class]
+
+        # RBF kernel
+        rbf_kernel = torch.exp(-self.gamma*torch.square(pred - true)).to(true.device)
+
+        gmgs_loss = - torch.sum(rbf_kernel * gmgs_weight.unsqueeze(-1)) / pred.shape[0]
+
+        loss = gmgs_loss
+        return loss
+
+
 def calc_gmgs_matrix(confusion_matrix, N):
     """
     Calculate GMGS matrix

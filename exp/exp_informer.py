@@ -193,7 +193,7 @@ class Exp_Informer(Exp_Basic):
             ],
             [-1.0, -0.3201512746288169, 0.43188880387546985, 10.487828030394807],
         ]
-        criterion = GMGSRegressionLoss4(score_matrix)
+        criterion = GMGSRegressionLoss6(score_matrix, self.args.rbf_gamma)
         return criterion
 
     def vali(self, vali_data, vali_loader, criterion):
