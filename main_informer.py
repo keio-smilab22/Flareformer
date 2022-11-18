@@ -6,6 +6,7 @@ import wandb
 import numpy as np
 
 from exp.exp_informer import Exp_Informer
+from exp.exp_informer_multi import Exp_Informer_Multi
 
 parser = argparse.ArgumentParser(description='[Informer] Long Sequences Forecasting')
 
@@ -115,7 +116,7 @@ setting = '{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_at{}_fc{}_eb{}_dt{
                 args.d_model, args.n_heads, args.e_layers, args.d_layers, args.d_ff, args.attn, args.factor, 
                 args.embed, args.distil, args.mix, args.des)
 wandb.init(project='flare_transformer_regression', name=setting, config=args)
-Exp = Exp_Informer
+Exp = Exp_Informer_Multi
 
 for ii in range(args.itr):
     # setting record of experiments

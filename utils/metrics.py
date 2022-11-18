@@ -56,6 +56,7 @@ def TSS(y_predl, y_true, flare_class):
     """
     Compute TSS
     """
+
     tn, fp, fn, tp = calc_tp_4(
         metrics.confusion_matrix(y_true, y_predl, labels=[0, 1, 2, 3]), flare_class
     )
@@ -228,6 +229,11 @@ def metric(pred, true):
     tss_m_24 = TSS(pred_class_l_24, true_class_l_24, 2)
     bss_m_24 = BSS(pred_class_24, true_class_l_24, [0.9053, 0.0947])
     gmgs_24 = GMGS(pred_class_l_24, true_class_l_24)
+
+    confusion_matrix = calc_cm4(pred_class_l, true_class_l)
+    print(f'48h confusion matrix\n{confusion_matrix[0]}\n{confusion_matrix[1]}\n{confusion_matrix[2]}\n{confusion_matrix[3]}\n')
+    confusion_matrix_24 = calc_cm4(pred_class_l_24, true_class_l_24)
+    print(f'24h confusion matrix\n{confusion_matrix_24[0]}\n{confusion_matrix_24[1]}\n{confusion_matrix_24[2]}\n{confusion_matrix_24[3]}\n')
 
     return (
         mae,

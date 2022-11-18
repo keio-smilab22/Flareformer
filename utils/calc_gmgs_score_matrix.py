@@ -20,16 +20,22 @@ def calc_gmgs_score_matrix(path_sunpy_csv):
     # from df['Time'] = 2011-01-01 00:00:00 to 2016-12-31 23:00:00
     df_train = df[df['Time'] < '2016-01-01 00:00:00']
 
+    # from df['Time'] = 2017-01-01 00:00:00 to 2018-12-31 23:00:00
+    # df_train = df[df['Time'] >= '2017-01-01 00:00:00']
+
+
     # get logxmax1h
     logxmax1h = df_train['logxmax1h'].values
 
     labels = [] # 4 elements
-    for i in range(len(logxmax1h)):
-        if logxmax1h[i] < 0:
+    # the maximum value for 24 hours
+    for i in range(0, len(logxmax1h)):
+        max_value = max(logxmax1h[i:i+24])
+        if max_value < 0:
             labels.append(0)
-        elif logxmax1h[i] >= 0 and logxmax1h[i] < 1:
+        elif max_value >= 0 and max_value < 1:
             labels.append(1)
-        elif logxmax1h[i] >= 1 and logxmax1h[i] < 2:
+        elif max_value >= 1 and max_value < 2:
             labels.append(2)
         else:
             labels.append(3)
@@ -41,6 +47,7 @@ def calc_gmgs_score_matrix(path_sunpy_csv):
     p = []
     for i in range(4):
         p.append(cnt[i] / len(labels))
+    print(f'p = {p}')
 
     gmgs_matrix = [[0 for i in range(4)] for j in range(4)]
     for i in range(1, 5):

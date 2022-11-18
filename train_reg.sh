@@ -85,24 +85,46 @@
 # binary search for gamma from 0.01 to 100
 
 
-for gamma in 5
+for gamma in 0.01
 do
     python main_informer.py \
     --rbf_gamma ${gamma} \
-    --model FT \
+    --model FT_RegressionAndClassification \
     --data Flare_sunpy \
-    --des rbf_gamma_${gamma} \
+    --des rbf_gamma_${gamma}_multi \
     --batch_size 32 \
     --lradj none \
     --train_epochs 20 \
     --learning_rate 1e-6 \
-    --year 2020 \
-    --seq_len 12 --label_len 6 --attn full --root_path ./data/noaa --features S --pred_len 48
-
+    --year 2018 \
+    --seq_len 12 \
+    --label_len 6 \
+    --attn full \
+    --root_path ./data/noaa \
+    --features S \
+    --pred_len 48
 done
+
+# for gamma in 0.01
+# do
+#     python main_informer.py \
+#     --rbf_gamma ${gamma} \
+#     --model FT_RegressionAndClassification \
+#     --data Flare_sunpy \
+#     --des rbf_gamma_${gamma}_multi \
+#     --batch_size 32 \
+#     --lradj none \
+#     --train_epochs 20 \
+#     --learning_rate 1e-2 \
+#     --year 2018 \
+#     --seq_len 12 \
+#     --label_len 6 \
+#     --attn full \
+#     --root_path ./data/noaa \
+#     --features S \
+#     --pred_len 48
+# done
 
 # python main_informer.py --model FT --data Flare_sunpy --des rbf_10 --batch_size 32 --lradj none --train_epochs 20 --learning_rate 1e-6 --year 2018 --seq_len 12 --label_len 6 --attn full --root_path ./data/noaa --features S --pred_len 48
 
-
-
-# python main_informer_test.py --model FT --data Flare_sunpy --des sunpy --batch_size 8 --lradj none --train_epochs 20 --learning_rate 1e-6 --year 2012 --seq_len 8 --label_len 4 --attn full --root_path ./data/noaa --features S
+# python main_informer_test.py --model FT --data Flare_sunpy --des rbf_gamma_5_10k --batch_size 32 --lradj none --train_epochs 20 --learning_rate 1e-6 --year 2014 --seq_len 12 --label_len 6 --attn full --root_path ./data/noaa --features S --pred_len 48

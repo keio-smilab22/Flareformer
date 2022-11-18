@@ -1040,3 +1040,163 @@ class FlareTransformerRegressionMAEWithoutPhys(nn.Module):
         # print(f"self.pred_len: {self.pred_len}")
         return dec_out[:,-self.pred_len:,:] # [B, L, D]
         # return dec_out[:,-1:,:] # [B, L, D]
+
+
+class FlareTransformerRegressionAndClassification(nn.Module):
+    def __init__(self, enc_in, dec_in, c_out, seq_len, label_len, out_len, 
+                factor=5, d_model=128, n_heads=8, e_layers=3, d_layers=2, d_ff=512, 
+                dropout=0.0, attn='prob', embed='fixed', freq='h', activation='gelu', 
+                output_attention = False, distil=True, mix=True,
+                device=torch.device('cuda:0'), has_vit_head=True):
+        super(FlareTransformerRegressionAndClassification, self).__init__()
+        self.pred_len = out_len
+        self.attn = attn
+        self.output_attention = output_attention
+
+        # self.mae_encoder = mae_encoder
+        self.magnetogram_feature_extractor = CNNModel(
+            output_channel=24, pretrain=False) # NOTE output_channel is not used
+
+        # physical feature
+        self.linear_in_1 = torch.nn.Linear(
+            enc_in, d_model)  # 79 -> 256
+        self.bn1 = torch.nn.BatchNorm1d(seq_len) # 128
+        self.relu = torch.nn.ReLU()
+
+        # Encoding
+        # self.enc_embedding = DataEmbedding(enc_in, d_model, embed, freq, dropout)
+        self.dec_embedding = DataEmbedding(dec_in, d_model*2, embed, freq, dropout)
+
+
+        # Attention
+        Attn = ProbAttention if attn=='prob' else FullAttention
+        # Encoder
+        # self.magnetogram_encoder = InformerEncoderLayer(
+        #             AttentionLayer(Attn(False, factor, attention_dropout=dropout, output_attention=output_attention), 
+        #                         d_model, n_heads, mix=False),
+        #             d_model,
+        #             d_ff,
+        #             dropout=dropout,
+        #             activation=activation
+        # )
+        # self.sunspot_feature_encoder = InformerEncoderLayer(
+        #             AttentionLayer(Attn(False, factor, attention_dropout=dropout, output_attention=output_attention), 
+        #                         d_model, n_heads, mix=False),
+        #             d_model,
+        #             d_ff,
+        #             dropout=dropout,
+        #             activation=activation
+        # )
+
+        self.sunspot_feature_encoder = Encoder(
+            [
+                InformerEncoderLayer(
+                    AttentionLayer(Attn(False, factor, attention_dropout=dropout, output_attention=output_attention),
+                                d_model, n_heads, mix=False),
+                    d_model,
+                    d_ff,
+                    dropout=dropout,
+                    activation=activation
+                )
+                for l in range(e_layers)
+            ],
+            norm_layer=torch.nn.LayerNorm(d_model)
+        )
+
+        self.magnetogram_encoder = Encoder(
+            [
+                InformerEncoderLayer(
+                    AttentionLayer(Attn(False, factor, attention_dropout=dropout, output_attention=output_attention),
+                                d_model, n_heads, mix=False),
+                    d_model,
+                    d_ff,
+                    dropout=dropout,
+                    activation=activation
+                )
+                for l in range(e_layers)
+            ],
+            norm_layer=torch.nn.LayerNorm(d_model)
+        )
+        self.generator_phys = nn.Linear(d_model*seq_len, d_model)
+        self.generator_image = nn.Linear(d_model*seq_len, d_model)
+
+        # Decoder
+        self.decoder = Decoder(
+            [
+                InformerDecoderLayer(
+                    AttentionLayer(Attn(True, factor, attention_dropout=dropout, output_attention=False), 
+                                d_model*2, n_heads, mix=mix),
+                    AttentionLayer(FullAttention(False, factor, attention_dropout=dropout, output_attention=False), 
+                                d_model*2, n_heads, mix=False),
+                    d_model*2,
+                    d_ff,
+                    dropout=dropout,
+                    activation=activation,
+                )
+                for l in range(d_layers)
+            ],
+            norm_layer=torch.nn.LayerNorm(d_model*2)
+        )
+
+        self.linear1 = nn.Linear(seq_len, out_len)
+        self.projection = nn.Linear(d_model*2, c_out, bias=True)
+
+        # for classification
+        self.linear2 = nn.Linear(d_model*2, 4)
+        self.softmax = nn.Softmax(dim=-1)
+        
+    def forward(self, x_enc, x_mag, x_mark_enc, x_dec, x_mark_dec, 
+                enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None):
+        feat = x_enc
+        imgs = x_mag
+
+        # vit_head = self.vit_head or nn.Identity()
+        img_feat = []
+        # mae_feat = []
+        for i, img in enumerate(imgs):
+            img_out = self.magnetogram_feature_extractor(img)
+            # mae_out = vit_head(self.mae_encoder.encode(img))
+            img_feat.append(img_out)
+            # mae_feat.append(mae_out)
+        img_feat = torch.stack(img_feat, dim=0)
+        # mae_feat = torch.stack(mae_feat, dim=0)
+
+        # img_feat = torch.cat([img_feat, mae_feat], dim=2)
+
+        # physcal feat
+        phys_feat = self.linear_in_1(feat)
+        phys_feat = self.bn1(phys_feat)
+        phys_feat = self.relu(phys_feat)
+
+        # concat
+        merged_feat = torch.cat([phys_feat, img_feat], dim=1)
+
+        # SFM
+        feat_output = self.sunspot_feature_encoder(phys_feat, merged_feat)
+
+        # MM
+        img_output = self.magnetogram_encoder(img_feat, merged_feat)  #
+
+        # Late fusion
+        enc_out = torch.cat([feat_output, img_output], dim=-1)
+        
+        dec_out = self.dec_embedding(x_dec, x_mark_dec)
+        dec_out = self.decoder(dec_out, enc_out, x_mask=dec_self_mask, cross_mask=dec_enc_mask)
+
+        dec_out_reg = self.projection(dec_out)
+
+        # classification
+        dec_out_class = self.linear2(dec_out)
+        # print(f"dec_out_class_bf: {dec_out_class.shape}")
+        dec_out_class = self.softmax(dec_out_class)
+        # print(f"dec_out_class: {dec_out_class.shape}")
+
+        # if self.output_attention:
+        #     return dec_out[:,-self.pred_len:,:], attns
+        # else:
+        # print(f"self.pred_len: {self.pred_len}")
+        # return dec_out[:,-self.pred_len:,:] # [B, L, D]
+        # return dec_out[:,-1:,:] # [B, L, D]
+        # print(f"dec_out_reg[:,-self.pred_len:,:] shape: {dec_out_reg[:,-self.pred_len:,:].shape}")
+        # print(f"dec_out_class[:,-self.pred_len:,:] shape: {dec_out_class[:,-self.pred_len:,:].shape}")
+        return dec_out_reg[:,-self.pred_len:,:], dec_out_class[:,-self.pred_len:,:]

@@ -268,6 +268,57 @@ class GMGSRegressionLoss6(nn.Module):
         return loss
 
 
+class GMGSRegressionLoss7(nn.Module):
+    """
+    Regression Loss with GMGS and Classification Loss
+    """
+
+    def __init__(self, score_matrix, gamma):
+        super(GMGSRegressionLoss7, self).__init__()
+        self.mse = nn.MSELoss()
+        self.score_matrix = score_matrix
+        self.gamma = gamma
+
+
+    def forward(self, pred_reg:torch.Tensor, pred_cls:torch.Tensor, true:torch.Tensor):
+        """
+        pred: (batch_size, 24 or 48, 1)
+        true: (batch_size, 24 or 48, 1)
+        """
+
+        # Regression Loss
+        pred_class = convert_to_class(pred_reg)
+        true_class = convert_to_class(true)
+        
+        score_matrix = torch.tensor(self.score_matrix, device=true.device)
+
+
+        gmgs_weight = torch.zeros_like(true_class, device=true.device, dtype=torch.float32)
+        
+        # for i in range(true_class.shape[0]):
+        #     for j in range(true_class.shape[1]):
+        #         gmgs_weight[i, j] = score_matrix[true_class[i, j].item(), pred_class[i, j].item()]
+
+        # not use for loop
+        gmgs_weight = score_matrix[true_class, pred_class]
+
+        # RBF kernel
+        rbf_kernel = torch.exp(-self.gamma*torch.square(pred_reg - true)).to(true.device)
+
+        gmgs_loss = - torch.sum(rbf_kernel * gmgs_weight.unsqueeze(-1)) / pred_reg.shape[0]
+
+        true_class = true_class.to(true.device)
+        # Classification Loss
+        cls_loss_sum = 0
+        for i in range(pred_cls.shape[0]):
+            cls_loss = nn.CrossEntropyLoss()(pred_cls[i], true_class[i])
+            cls_loss_sum += cls_loss
+        # cls_loss = nn.CrossEntropyLoss()(pred_cls, true_class)
+
+        loss = gmgs_loss + cls_loss
+        return loss
+
+
 def calc_gmgs_matrix(confusion_matrix, N):
     """
     Calculate GMGS matrix

@@ -26,9 +26,9 @@ from exp.exp_basic import Exp_Basic
 warnings.filterwarnings("ignore")
 
 
-class Exp_Informer(Exp_Basic):
+class Exp_Informer_Multi(Exp_Basic):
     def __init__(self, args):
-        super(Exp_Informer, self).__init__(args)
+        super(Exp_Informer_Multi, self).__init__(args)
 
     def _build_model(self):
         model_dict = {
@@ -38,6 +38,7 @@ class Exp_Informer(Exp_Basic):
             "FT_MAE_linear": FlareTransformerRegressionrLastLinearMAE,
             "FT_IMG": FlareTransformerRegressionWithoutPhys,
             "FT_MAE_IMG": FlareTransformerRegressionMAEWithoutPhys,
+            "FT_RegressionAndClassification": FlareTransformerRegressionAndClassification,
         }
         # if self.args.model=='regression' or self.args.model=='regression_linear':
         #     e_layers = self.args.e_layers if self.args.model=='regression' or  self.args.model=='regression_linear' else self.args.s_layers
@@ -194,7 +195,7 @@ class Exp_Informer(Exp_Basic):
             # [-1.0, -0.3201512746288169, 0.43188880387546985, 10.487828030394807],
             # TODO X-O=-100000
             # TODO
-            [0.3950651590910783, 0.019626834008570054, -0.582839134794442, -1000000],
+            [0.3950651590910783, 0.019626834008570054, -0.582839134794442, -1],
             [
                 0.019626834008570054,
                 2.9918660665049983,
@@ -207,9 +208,9 @@ class Exp_Informer(Exp_Basic):
                 3.1355823258458826,
                 2.7184214606403247,
             ],
-            [-1000000, 1.9722392324964277, 2.7184214606403247, 4.3772275668148515],
+            [-1, 1.9722392324964277, 2.7184214606403247, 4.3772275668148515],
         ]
-        criterion = GMGSRegressionLoss6(score_matrix, self.args.rbf_gamma)
+        criterion = GMGSRegressionLoss7(score_matrix, self.args.rbf_gamma)
         return criterion
 
     def vali(self, vali_data, vali_loader, criterion):
@@ -225,11 +226,11 @@ class Exp_Informer(Exp_Basic):
             pred, true = self._process_one_batch(
                 vali_data, batch_x, batch_mag, batch_y, batch_x_mark, batch_y_mark
             )
-            loss = criterion(pred.detach().cpu(), true.detach().cpu())
 
-            print(f"pred: {pred.shape}, true: {true.shape}")
+            pred_reg, pred_cls = pred
+            loss = criterion(pred_reg.detach().cpu(), pred_cls.detach().cpu(), true.detach().cpu())
 
-            preds.append(pred.detach().cpu().numpy())
+            preds.append(pred_reg.detach().cpu().numpy())
             trues.append(true.detach().cpu().numpy())
             total_loss.append(loss)
 
@@ -317,9 +318,11 @@ class Exp_Informer(Exp_Basic):
                 iter_count += 1
 
                 model_optim.zero_grad()
-                pred, true = self._process_one_batch(
+                preds, true = self._process_one_batch(
                     train_data, batch_x, batch_mag, batch_y, batch_x_mark, batch_y_mark
                 )
+
+                pred_reg, pred_cls = preds
                 # NOTE:only y_t+24 is used
                 # pred = pred[:,-1:,:]
                 # true = true[:,-1:,:]
@@ -328,7 +331,7 @@ class Exp_Informer(Exp_Basic):
 
                 # calculate loss without missing value
 
-                loss = criterion(pred, true)
+                loss = criterion(pred_reg, pred_cls, true)
                 train_loss.append(loss.item())
 
                 if (i + 1) % 100 == 0:
@@ -475,7 +478,9 @@ class Exp_Informer(Exp_Basic):
             # NOTE:only y_t+24 is used
             # pred = pred[:,-1:,:]
             # true = true[:,-1:,:]
-            preds.append(pred.detach().cpu().numpy())
+            pred_reg, pred_cls = pred
+
+            preds.append(pred_reg.detach().cpu().numpy())
             trues.append(true.detach().cpu().numpy())
 
         preds = np.array(preds)
