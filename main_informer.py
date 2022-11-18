@@ -66,7 +66,7 @@ parser.add_argument('--devices', type=str, default='0,1,2,3',help='device ids of
 
 parser.add_argument('--year', type=int, default=2015, help='year of test data')
 parser.add_argument('--rbf_gamma', type=float, default=1, help='gamma of rbf kernel')
-
+# parser.add_argument('--score_matrix', type= 
 args = parser.parse_args()
 
 args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False
@@ -116,7 +116,7 @@ setting = '{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_at{}_fc{}_eb{}_dt{
                 args.d_model, args.n_heads, args.e_layers, args.d_layers, args.d_ff, args.attn, args.factor, 
                 args.embed, args.distil, args.mix, args.des)
 wandb.init(project='flare_transformer_regression', name=setting, config=args)
-Exp = Exp_Informer_Multi
+Exp = Exp_Informer
 
 for ii in range(args.itr):
     # setting record of experiments

@@ -18,7 +18,7 @@ def calc_gmgs_score_matrix(path_sunpy_csv):
 
     df = pd.read_csv(path_sunpy_csv)
     # from df['Time'] = 2011-01-01 00:00:00 to 2016-12-31 23:00:00
-    df_train = df[df['Time'] < '2016-01-01 00:00:00']
+    df_train = df[df['Time'] < '2018-01-01 00:00:00']
 
     # from df['Time'] = 2017-01-01 00:00:00 to 2018-12-31 23:00:00
     # df_train = df[df['Time'] >= '2017-01-01 00:00:00']
@@ -92,6 +92,6 @@ def a(p, i):
 
 
 if __name__ == '__main__':
-    path_sunpy_csv = 'data/noaa/magnetogram_logxmax1h_through_2018.csv'
+    path_sunpy_csv = 'data/noaa/magnetogram_logxmax1h_all_years.csv'
     gmgs_matrix = calc_gmgs_score_matrix(path_sunpy_csv)
     print(gmgs_matrix)

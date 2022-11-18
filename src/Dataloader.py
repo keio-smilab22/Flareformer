@@ -1259,7 +1259,7 @@ class Dataset_Custom_Sunpy(Dataset):
             2016:{'num_train':40200, 'num_test':8784, 'end_index':57744},
             2017:{'num_train':48960, 'num_test':8692, 'end_index':66437},
             2018:{'num_train':365*24*6+24*2, 'num_test':365*24, 'end_index':69987},
-            2020:{'num_train':365*24*8+24*2, 'num_test':365*24+24*1, 'end_index': 87532},
+            2020:{'num_train':69987, 'num_test':8760, 'end_index': 87531},
         }
         # num_train = int(len(df_raw)*0.7)
         # num_test = int(len(df_raw)*0.2)
