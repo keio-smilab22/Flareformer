@@ -168,22 +168,19 @@ def regression_to_class(pred: np.ndarray) -> np.ndarray:
 
 
 def metric(pred, true):
-    mae = MAE(pred, true)
-    mse = MSE(pred, true)
-    rmse = RMSE(pred, true)
-    mape = MAPE(pred, true)
-    mspe = MSPE(pred, true)
 
-    # pred:[N, 48, 1]
-    # true:[N, 48, 1]
-    # take the maximum every 24 hours.
-    # for i in range(0, len(pred), 24):
-    #     pred_max = np.max(pred[i : i + 24])
-    #     true_max = np.max(true[i : i + 24])
+    # from 24 hours to 48 hours after
+    pred_48 = pred[:, 24:, :]
+    true_48 = true[:, 24:, :]
 
+    mae = MAE(pred_48, true_48)
+    mse = MSE(pred_48, true_48)
+    rmse = RMSE(pred_48, true_48)
+    mape = MAPE(pred_48, true_48)
+    mspe = MSPE(pred_48, true_48)
 
-    pred_max = np.max(pred, axis=1)
-    true_max = np.max(true, axis=1)
+    pred_max = np.max(pred_48, axis=1)
+    true_max = np.max(true_48, axis=1)
 
     # classification
     pred_class = regression_to_class(pred_max)
@@ -203,7 +200,7 @@ def metric(pred, true):
     bss_m = BSS(pred_class, true_class_l, [0.9053, 0.0947])
     gmgs = GMGS(pred_class_l, true_class_l)
 
-    # only for 24 hours
+    # up to 24 hours later
     pred_24 = pred[:, :24, :]
     true_24 = true[:, :24, :]
 
@@ -213,8 +210,11 @@ def metric(pred, true):
     mape_24 = MAPE(pred_24, true_24)
     mspe_24 = MSPE(pred_24, true_24)
 
-    pred_class_24 = regression_to_class(pred_24)
-    true_class_24 = regression_to_class(true_24)
+    pred_max_24 = np.max(pred_24, axis=1)
+    true_max_24 = np.max(true_24, axis=1)
+
+    pred_class_24 = regression_to_class(pred_max_24)
+    true_class_24 = regression_to_class(true_max_24)
 
     pred_class_l_24 = []
     for y in pred_class_24:
