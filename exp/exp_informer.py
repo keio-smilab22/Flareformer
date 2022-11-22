@@ -207,13 +207,15 @@ class Exp_Informer(Exp_Basic):
                 [
                     -0.6053181202862116,
                     0.9416385991862359,
-                    1.8247627878491521,
-                    1.4300809081353638,
+                    182476.27878491521,
+                    143008.09081353638,
                 ],
-                [-1.0, 0.5469567194724475, 1.4300809081353638, 3.574559210121284],
+                [-1.0, 0.5469567194724475, 143008.09081353638, 357455.9210121284],
             ]
-            self.args.score_matrix = score_matrix
-            criterion = GMGSRegressionLoss6(self.args.score_matrix, self.args.rbf_gamma)
+
+            score_matrix = np.array([args.score_matrix_1, args.score_matrix_2, args.score_matrix_3, args.score_matrix_4])
+            print(score_matrix)
+            criterion = GMGSRegressionLoss6(score_matrix, args.rbf_gamma)
         return criterion
 
     def vali(self, vali_data, vali_loader, criterion):
@@ -231,7 +233,7 @@ class Exp_Informer(Exp_Basic):
             )
             loss = criterion(pred.detach().cpu(), true.detach().cpu())
 
-            print(f"pred: {pred.shape}, true: {true.shape}")
+            # print(f"pred: {pred.shape}, true: {true.shape}")
 
             preds.append(pred.detach().cpu().numpy())
             trues.append(true.detach().cpu().numpy())

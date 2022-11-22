@@ -85,46 +85,72 @@
 # binary search for gamma from 0.01 to 100
 
 
-for gamma in 0.01
+for gamma in 1
 do
     python main_informer.py \
     --rbf_gamma ${gamma} \
-    --model FT_RegressionAndClassification \
+    --model FT \
     --data Flare_sunpy \
-    --des rbf_gamma_${gamma}_multi \
+    --des gmgs6_${gamma}_notOC100 \
     --batch_size 32 \
     --lradj none \
     --train_epochs 20 \
     --learning_rate 1e-6 \
-    --year 2018 \
+    --year 2020 \
     --seq_len 12 \
     --label_len 6 \
     --attn full \
     --root_path ./data/noaa \
     --features S \
-    --pred_len 48
+    --pred_len 48 \
+    --loss gmgs6 \
+    --use_amp \
+    --score_matrix_1 0.354998803807886 -0.06988773489386695 -60.53181202862116 -100 \
+    --score_matrix_2 -0.06988773489386695 1.4770689845785805 94.16385991862359 54.69567194724475 \
+    --score_matrix_3 -60.53181202862116 94.16385991862359 182.47627878491521 143.00809081353638 \
+    --score_matrix_4 -100 54.69567194724475 143.00809081353638 357.4559210121284
 done
 
-# for gamma in 0.01
-# do
-#     python main_informer.py \
-#     --rbf_gamma ${gamma} \
-#     --model FT_RegressionAndClassification \
-#     --data Flare_sunpy \
-#     --des rbf_gamma_${gamma}_multi \
-#     --batch_size 32 \
-#     --lradj none \
-#     --train_epochs 20 \
-#     --learning_rate 1e-2 \
-#     --year 2018 \
-#     --seq_len 12 \
-#     --label_len 6 \
-#     --attn full \
-#     --root_path ./data/noaa \
-#     --features S \
-#     --pred_len 48
-# done
+for gamma in 1
+do
+    python main_informer.py \
+    --rbf_gamma ${gamma} \
+    --model FT \
+    --data Flare_sunpy \
+    --des gmgs6_${gamma}_predMX100k \
+    --batch_size 32 \
+    --lradj none \
+    --train_epochs 20 \
+    --learning_rate 1e-6 \
+    --year 2020 \
+    --seq_len 12 \
+    --label_len 6 \
+    --attn full \
+    --root_path ./data/noaa \
+    --features S \
+    --pred_len 48 \
+    --loss gmgs6 \
+    --use_amp \
+    --score_matrix_1 0.354998803807886 -0.06988773489386695 -60531.81202862116 -100000 \
+    --score_matrix_2 -0.06988773489386695 1.4770689845785805 94163.85991862359 54695.67194724475 \
+    --score_matrix_3 -0.6053181202862116 0.9416385991862359 182476.27878491521 143008.09081353638 \
+    --score_matrix_4 -1.0 0.5469567194724475 143008.09081353638 357455.9210121284
+done
+
+# [0.354998803807886, -0.06988773489386695, -0.6053181202862116, -1.0],
+# [
+#     -0.06988773489386695,
+#     1.4770689845785805,
+#     0.9416385991862359,
+#     0.5469567194724475,
+# ],
+# [
+#     -0.6053181202862116,
+#     0.9416385991862359,
+#     1.8247627878491521,
+#     1.4300809081353638,
+# ],
+# [-1.0, 0.5469567194724475, 1.4300809081353638, 3.574559210121284]
 
 # python main_informer.py --model FT --data Flare_sunpy --des rbf_10 --batch_size 32 --lradj none --train_epochs 20 --learning_rate 1e-6 --year 2018 --seq_len 12 --label_len 6 --attn full --root_path ./data/noaa --features S --pred_len 48
 
-# python main_informer_test.py --model FT --data Flare_sunpy --des rbf_gamma_5_10k --batch_size 32 --lradj none --train_epochs 20 --learning_rate 1e-6 --year 2014 --seq_len 12 --label_len 6 --attn full --root_path ./data/noaa --features S --pred_len 48

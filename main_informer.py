@@ -66,7 +66,10 @@ parser.add_argument('--devices', type=str, default='0,1,2,3',help='device ids of
 
 parser.add_argument('--year', type=int, default=2015, help='year of test data')
 parser.add_argument('--rbf_gamma', type=float, default=1, help='gamma of rbf kernel')
-# parser.add_argument('--score_matrix', type= 
+parser.add_argument('--score_matrix_1', nargs="*", type=float, help='a list of float variables')
+parser.add_argument('--score_matrix_2', nargs="*", type=float, help='a list of float variables')
+parser.add_argument('--score_matrix_3', nargs="*", type=float, help='a list of float variables')
+parser.add_argument('--score_matrix_4', nargs="*", type=float, help='a list of float variables')
 args = parser.parse_args()
 
 args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False
