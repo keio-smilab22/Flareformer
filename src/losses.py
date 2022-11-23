@@ -335,7 +335,7 @@ def calc_gmgs_matrix(confusion_matrix, N):
     return gmgs_matrix
 
 
-        
+@torch.jit.script
 def convert_to_class(pred:torch.Tensor) -> torch.Tensor:
     """
     Convert regression output to class
@@ -355,7 +355,7 @@ def convert_to_class(pred:torch.Tensor) -> torch.Tensor:
 
     return pred_class
 
-
+@torch.jit.script
 def convert_to_class2(pred:torch.Tensor) -> torch.Tensor:
     """
     Convert regression output to class
