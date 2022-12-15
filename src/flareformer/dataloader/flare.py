@@ -46,6 +46,8 @@ class FlareDataset(Dataset):
         # get feat
         print("Loading features ...")
         self.feat = self.get_multiple_year_data(start_year, end_year, "feat")[:, :90]
+        # add new axis
+        # self.feat = self.feat[:, np.newaxis]
 
         # get window
         print("Loading windows ...")
@@ -106,11 +108,12 @@ class FlareDataset(Dataset):
         """
         result = []
         for i, year in enumerate(tqdm(range(start_year, end_year + 1))):
-            data_path_256 = f"{self.path}{year}_{image_type}_256.npy"
+            data_path_256 = f"{self.path}{year}_{image_type}_256_replace_sunpy_17.npy"
             data_path_512 = f"{self.path}{year}_{image_type}.npy"
 
             if os.path.exists(data_path_256):
                 image_data = np.load(data_path_256)
+                print(f"Load {data_path_256} ...")
             else:
                 image_data = np.load(data_path_512)
                 N, C, H, W = image_data.shape
@@ -135,7 +138,7 @@ class FlareDataset(Dataset):
         """
         result = []
         for year in tqdm(range(start_year, end_year + 1)):
-            data_path = f"{self.path}{year}_{data_type}.csv"
+            data_path = f"{self.path}{year}_{data_type}_replace_sunpy_17.csv"
             data = np.loadtxt(data_path, delimiter=",")
             result.append(data)
         return np.concatenate(result, axis=0)
@@ -147,7 +150,7 @@ class FlareDataset(Dataset):
         result, N = [], 0
         for year in tqdm(range(start_year, end_year + 1)):
             data_path = f"{self.path}{year}_{data_type}.csv"
-            data_path = self.path + str(year) + "_" + data_type + ".csv"
+            data_path = self.path + str(year) + "_" + data_type + "_replace_sunpy_17.csv"
             data = np.loadtxt(data_path, delimiter=",")
             result.append(data + N)
             N += data.shape[0]

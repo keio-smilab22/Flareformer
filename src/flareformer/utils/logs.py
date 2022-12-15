@@ -20,7 +20,7 @@ class Logger:
 
     def __init__(self, args: Namespace, wandb: bool) -> None:
         if args.wandb:
-            wandb_runner.init(project=args.project_name, name=args.model_name)
+            wandb_runner.init(project=args.project_name, name=args.model_name, config=args)
 
         self.wandb_enabled = wandb
 

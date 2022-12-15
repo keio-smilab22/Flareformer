@@ -34,7 +34,7 @@ def train_epoch(
     return score, losser.get_mean_loss()
 
 
-def eval_epoch(model: torch.nn.Module, val_dl: DataLoader, losser: Losser, stat: Stat) -> Tuple[Dict[str, Any], float]:
+def eval_epoch(model: torch.nn.Module, val_dl: DataLoader, losser: Losser, stat: Stat, test: bool=False) -> Tuple[Dict[str, Any], float]:
     """Evaluate the given model."""
     model.eval()
     losser.clear()
@@ -48,5 +48,8 @@ def eval_epoch(model: torch.nn.Module, val_dl: DataLoader, losser: Losser, stat:
             _ = losser(output, gt)
             stat.collect(output, y)
 
-    score = stat.aggregate("valid")
+    if test:
+        score = stat.aggregate("test")
+    else:
+        score = stat.aggregate("valid")
     return score, losser.get_mean_loss()

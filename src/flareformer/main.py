@@ -4,6 +4,9 @@ import argparse
 import json
 from argparse import Namespace
 from typing import Any, Dict, Optional, Tuple
+import wandb
+from wandb import AlertLevel
+import datetime
 
 import colored_traceback.always
 import numpy as np
@@ -88,7 +91,7 @@ class FlareformerManager:
         Train model
         """
         lr = lr or self.args.lr
-        (train_dl, val_dl, _) = self.dataloaders
+        (train_dl, val_dl, test_dl) = self.dataloaders
         for epoch in range(epochs or self.args.epochs):
             print(f"====== Epoch {epoch} ======")
 
@@ -102,9 +105,9 @@ class FlareformerManager:
                 self.model, self.optimizer, train_dl, losser=self.losser, stat=self.stat
             )
             # validation
-            valid_score, valid_loss = eval_epoch(self.model, val_dl, losser=self.losser, stat=self.stat)
+            valid_score, valid_loss = eval_epoch(self.model, val_dl, losser=self.losser, stat=self.stat, test=False)
             # test
-            test_score, test_loss = valid_score, valid_loss
+            test_score, test_loss = eval_epoch(self.model, test_dl, losser=self.losser, stat=self.stat, test=True)
 
             # save
             self.save_model(self.args.save_model_path)
@@ -146,7 +149,7 @@ class FlareformerManager:
         Test model
         """
         (_, _, test_dl) = self.dataloaders
-        test_score, _ = eval_epoch(self.model, test_dl, losser=self.losser, stat=self.stat)
+        test_score, _ = eval_epoch(self.model, test_dl, losser=self.losser, stat=self.stat, test=True)
         print(test_score)
 
     def predict_oneshot(self, imgs: torch.Tensor, feats: np.ndarray):
@@ -244,6 +247,27 @@ def main():
             flareformer.load_dataloaders(args, imbalance=False)
             print("Start cRT (Classifier Re-training)\n")
             flareformer.train_model(lr=args.lr_for_2stage, epochs=args.epoch_for_2stage)
+        
+        # get unix time
+        now = datetime.datetime.now()
+        # datetime to int
+        now = int(now.timestamp())
+
+        # calc time
+        elapsed_time = now - wandb.run.start_time
+        
+        # transform to hours
+        elapsed_time = elapsed_time / 3600
+
+        # 3h以上かかったら、slackに通知
+        if elapsed_time > 3:
+            wandb.alert(
+                title="[Test]学習時間かかりすぎ注意報！！",
+                text=f"学習時間が {elapsed_time}時間 かかっています！学習時間が長いと、サイクルを回せない可能性があります。",
+                level=AlertLevel.WARN
+            )
+
+
     elif args.mode == "server":
         flareformer.load_model(args.save_model_path)
         callback_server = CallbackServer(args)

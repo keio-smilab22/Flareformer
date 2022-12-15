@@ -62,6 +62,8 @@ class Flareformer(nn.Module):
             ]
         )
 
+        self.dropout = nn.Dropout(0.99)
+
         # Image Feature Extractor
         self.img_embedder = ConvNeXt(
             in_chans=1, out_chans=mm_params["d_model"], depths=[2, 2, 2, 2], dims=[64, 128, 256, 512]
@@ -87,6 +89,7 @@ class Flareformer(nn.Module):
         img_feat = torch.cat([self.img_embedder(img).unsqueeze(0) for img in img_list])
 
         # physical feat
+        # feat = self.dropout(feat)
         phys_feat = self.linear1(feat)
         phys_feat = self.bn1(phys_feat)
         phys_feat = self.relu(phys_feat)
