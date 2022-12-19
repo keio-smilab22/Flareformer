@@ -62,7 +62,7 @@ class Flareformer(nn.Module):
             ]
         )
 
-        self.dropout = nn.Dropout(0.99)
+        self.dropout = nn.Dropout(0.9)
 
         # Image Feature Extractor
         self.img_embedder = ConvNeXt(
