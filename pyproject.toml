@@ -30,6 +30,7 @@ protobuf = "^3.19.4"
 python-multipart = "^0.0.5"
 uvicorn = "^0.18.2"
 wandb = "^0.12.11"
+pandas = "^1.5.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest-cov = "^3.0.0"
