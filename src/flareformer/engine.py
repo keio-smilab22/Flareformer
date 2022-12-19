@@ -13,43 +13,63 @@ from utils.statistics import Stat
 
 
 def train_epoch(
-    model: torch.nn.Module, optimizer: Adam, train_dl: DataLoader, losser: Losser, stat: Stat
-) -> Tuple[Dict[str, Any], float]:
+    model: torch.nn.Module, optimizer: Adam, train_dl: DataLoader, losser: Losser, stat_1h_12h: Stat, stat_12h_24h: Stat
+) -> Tuple[Dict[str, Any], Dict[str, Any], float]:
     """Train one epoch."""
     model.train()
     losser.clear()
-    stat.clear_all()
+    stat_1h_12h.clear_all()
+    stat_12h_24h.clear_all()
     for _, (x, y, _) in enumerate(tqdm(train_dl)):
         optimizer.zero_grad()
         imgs, feats = x
         imgs, feats = imgs.cuda().float(), feats.cuda().float()
         output, _ = model(imgs, feats)
-        gt = y.cuda().to(torch.float)
-        loss = losser(output, gt)
+        output_1h_12h, output_12h_24h = output
+        y_1h_12h, y_12h_24h = y
+        gt_1h_12h = y_1h_12h.cuda().to(torch.float)
+        loss_1h_12h = losser(output, gt_1h_12h)
+        gt_12h_24h = y_12h_24h.cuda().to(torch.float)
+        loss_12h_24h = losser(output, gt_12h_24h)
+        loss = loss_1h_12h + loss_12h_24h
         loss.backward()
         optimizer.step()
-        stat.collect(output, y)
+        stat_1h_12h.collect(output_1h_12h, y_1h_12h)
+        stat_12h_24h.collect(output_12h_24h, y_12h_24h)
 
-    score = stat.aggregate("train")
-    return score, losser.get_mean_loss()
+    score_1h_12h = stat_1h_12h.aggregate("train_1h_12h")
+    score_12h_24h = stat_12h_24h.aggregate("train_12h_24h")
+    return score_1h_12h, score_12h_24h, losser.get_mean_loss()
 
 
-def eval_epoch(model: torch.nn.Module, val_dl: DataLoader, losser: Losser, stat: Stat, test: bool=False) -> Tuple[Dict[str, Any], float]:
+def eval_epoch(
+    model: torch.nn.Module, val_dl: DataLoader, losser: Losser, stat_1h_12h: Stat, stat_12h_24h: Stat, test: bool=False
+) -> Tuple[Dict[str, Any], Dict[str, Any], float]:
     """Evaluate the given model."""
     model.eval()
     losser.clear()
-    stat.clear_all()
+    stat_1h_12h.clear_all()
+    stat_12h_24h.clear_all()
     with torch.no_grad():
         for _, (x, y, _) in enumerate(tqdm(val_dl)):
             imgs, feats = x
             imgs, feats = imgs.cuda().float(), feats.cuda().float()
             output, _ = model(imgs, feats)
-            gt = y.cuda().to(torch.float)
-            _ = losser(output, gt)
-            stat.collect(output, y)
+            output_1h_12h, output_12h_24h = output
+            y_1h_12h, y_12h_24h = y
+            gt_1h_12h = y_1h_12h.cuda().to(torch.float)
+            _ = losser(output, gt_1h_12h)
+            gt_12h_24h = y_12h_24h.cuda().to(torch.float)
+            _ = losser(output, gt_12h_24h)
+            stat_1h_12h.collect(output_1h_12h, y_1h_12h)
+            stat_12h_24h.collect(output_12h_24h, y_12h_24h)
 
     if test:
-        score = stat.aggregate("test")
+        score_1h_12h = stat_1h_12h.aggregate("test_1h_12h")
+        score_12h_24h = stat_12h_24h.aggregate("test_12h_24h")
+
     else:
-        score = stat.aggregate("valid")
-    return score, losser.get_mean_loss()
+        score_1h_12h = stat_1h_12h.aggregate("val_1h_12h")
+        score_12h_24h = stat_12h_24h.aggregate("val_12h_24h")
+
+    return score_1h_12h, score_12h_24h, losser.get_mean_loss()

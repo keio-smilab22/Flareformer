@@ -40,8 +40,11 @@ class FlareDataset(Dataset):
         self.img = torch.Tensor(self.img)
 
         # get label
-        print("Loading labels ...")
-        self.label = self.get_multiple_year_data(start_year, end_year, "label")
+        print("Loading labels 1h-12h ...")
+        self.label_1h_12h = self.get_multiple_year_data(start_year, end_year, "label_1h_12h")
+
+        print("Loading labels 12h-24h ...")
+        self.label_12h_24h = self.get_multiple_year_data(start_year, end_year, "label_12h_24h")
 
         # get feat
         print("Loading features ...")
@@ -58,11 +61,12 @@ class FlareDataset(Dataset):
             print(
                 f"img: {self.img.shape}\n",
                 f"feat: {self.feat.shape}\n",
-                f"label: {self.label.shape}\n",
+                f"label_1h_12h: {self.label_1h_12h.shape}\n",
+                f"label_12h_24h: {self.label_12h_24h.shape}\n",
                 f"window: {self.window.shape}\n",
             )
         else:
-            shapes = [self.img.shape, self.feat.shape, self.label.shape, self.window.shape]
+            shapes = [self.img.shape, self.feat.shape, self.label_1h_12h.shape, self.label_12h_24h.shape, self.window.shape]
             samples = shapes[0][0]
             print(f"Samples: {samples}")
             assert all(samples == shape[0] for shape in shapes), "The number of all samples must be equal."
@@ -74,7 +78,7 @@ class FlareDataset(Dataset):
         Returns:
             [int]: [length of sample]
         """
-        return len(self.label)
+        return len(self.label_1h_12h)
 
     def __getitem__(self, idx: int) -> Tuple[Tuple[Tensor, ndarray], ndarray, int]:
         """
@@ -87,7 +91,9 @@ class FlareDataset(Dataset):
         imgs, feats = self.img[window], self.feat[window]
         imgs = (imgs - self.mean) / self.std
         x = (imgs, feats)
-        y = self.label[idx]
+        y_1h_12h = self.label_1h_12h[idx]
+        y_12h_24h = self.label_12h_24h[idx]
+        y = (y_1h_12h, y_12h_24h)
 
         return x, y, idx
 
@@ -98,7 +104,9 @@ class FlareDataset(Dataset):
         imgs, feats = self.img[idx], self.feat[idx]
         imgs = (imgs - self.mean) / self.std
         x = (imgs, feats)
-        y = self.label[idx]
+        y_1h_12h = self.label_1h_12h[idx]
+        y_12h_24h = self.label_12h_24h[idx]
+        y = (y_1h_12h, y_12h_24h)
 
         return x, y, idx
 

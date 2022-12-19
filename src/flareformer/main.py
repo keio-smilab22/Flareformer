@@ -76,13 +76,14 @@ class FlareformerManager:
             sample = None
 
         # Prepare model and optimizer
-        model, losser, optimizer, stat = self._build(args, sample)
+        model, losser, optimizer, stat_1h_12h, stat_12h_24h = self.prepare_model(args, sample)
 
         self.model = model
         self.logger = logger
         self.losser = losser
         self.optimizer = optimizer
-        self.stat = stat
+        self.stat_1h_12h = stat_1h_12h
+        self.stat_12h_24h = stat_12h_24h
         self.args = args
         self.mock_sample = sample
 
@@ -101,13 +102,18 @@ class FlareformerManager:
                 adjust_learning_rate(self.optimizer, epoch, epochs, lr, self.args)
 
             # train
-            train_score, train_loss = train_epoch(
-                self.model, self.optimizer, train_dl, losser=self.losser, stat=self.stat
+            train_score_1h_12h, train_score_12h_24h, train_loss = train_epoch(
+                self.model, self.optimizer, train_dl, losser=self.losser, stat_1h_12h=self.stat_1h_12h, stat_12h_24h=self.stat_12h_24h
             )
             # validation
-            valid_score, valid_loss = eval_epoch(self.model, val_dl, losser=self.losser, stat=self.stat, test=False)
+            valid_score_1h_12h, valid_score_12h_24h, valid_loss = eval_epoch(
+                self.model, val_dl, losser=self.losser, stat_1h_12h=self.stat_1h_12h, stat_12h_24h=self.stat_12h_24h, test=False
+            )
+
             # test
-            test_score, test_loss = eval_epoch(self.model, test_dl, losser=self.losser, stat=self.stat, test=True)
+            test_score_1h_12h, test_score_12h_24h, test_loss = eval_epoch(
+                self.model, test_dl, losser=self.losser, stat_1h_12h=self.stat_1h_12h, stat_12h_24h=self.stat_12h_24h, test=True
+            )
 
             # save
             self.save_model(self.args.save_model_path)
@@ -116,13 +122,16 @@ class FlareformerManager:
             self.logger.write(
                 epoch,
                 [
-                    Log("train", np.mean(train_loss), train_score),
-                    Log("valid", np.mean(valid_loss), valid_score),
-                    Log("test", np.mean(test_loss), test_score),
+                    Log("train", np.mean(train_loss), train_score_1h_12h),
+                    Log("train", np.mean(train_loss), train_score_12h_24h),
+                    Log("valid", np.mean(valid_loss), valid_score_1h_12h),
+                    Log("valid", np.mean(valid_loss), valid_score_12h_24h),
+                    Log("test", np.mean(test_loss), test_score_1h_12h),
+                    Log("test", np.mean(test_loss), test_score_12h_24h),
                 ],
             )
 
-            print(f"Epoch {epoch}: Train loss:{train_loss:.4f}  Valid loss:{valid_loss:.4f}", test_score)
+            print(f"Epoch {epoch}: Train loss:{train_loss:.4f}  Valid loss:{valid_loss:.4f}", test_score_1h_12h, test_score_12h_24h)
 
     def save_model(self, path: str):
         """
@@ -149,8 +158,10 @@ class FlareformerManager:
         Test model
         """
         (_, _, test_dl) = self.dataloaders
-        test_score, _ = eval_epoch(self.model, test_dl, losser=self.losser, stat=self.stat, test=True)
-        print(test_score)
+        test_score_1h_12h, test_score_12h_24h, test_loss = eval_epoch(
+            self.model, test_dl, losser=self.losser, stat_1h_12h=self.stat_1h_12h, stat_12h_24h=self.stat_12h_24h, test=True
+        )
+        print(test_score_1h_12h, test_score_12h_24h)
 
     def predict_oneshot(self, imgs: torch.Tensor, feats: np.ndarray):
         """
@@ -185,7 +196,7 @@ class FlareformerManager:
         """
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr or self.args.lr)
 
-    def _build(self, args: Namespace, sample: Any) -> Tuple[nn.Module, Losser, torch.optim.Adam, Stat]:
+    def _build(self, args: Namespace, sample: Any) -> Tuple[nn.Module, Losser, torch.optim.Adam, Stat, Stat]:
         """
         Build model, losser, optimizer, stat
         """
@@ -207,7 +218,8 @@ class FlareformerManager:
         # Optimizer & Stat & Loss Function
         losser = Losser(loss_config)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-        stat = Stat(args.dataset["climatology"])
+        stat_1h_12h = Stat(args.dataset["climatology"])
+        stat_12h_24h = Stat(args.dataset["climatology"])
 
         print(" ... ok")
         if args.detail_summary:
@@ -215,7 +227,7 @@ class FlareformerManager:
         else:
             summary(model)
 
-        return model, losser, optimizer, stat
+        return model, losser, optimizer, stat_1h_12h, stat_12h_24h
 
     def _get_model_class(self, name: str) -> nn.Module:
         """
@@ -262,8 +274,8 @@ def main():
         # 3h以上かかったら、slackに通知
         if elapsed_time > 3:
             wandb.alert(
-                title="[Test]学習時間かかりすぎ注意報！！",
-                text=f"学習時間が {elapsed_time}時間 かかっています！学習時間が長いと、サイクルを回せない可能性があります。",
+                title="学習時間かかりすぎ注意報！！",
+                text=f"学習時間が {elapsed_time:.1f}h かかりました！学習時間が長いと、サイクルを回せない可能性があります。",
                 level=AlertLevel.WARN
             )
 
