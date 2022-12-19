@@ -134,32 +134,68 @@ def replace_sunpy_image2(dataset_path: str, csv_path: str, output_path: str):
         data_time = datetime.datetime.strptime(data_time, "%d-%b-%Y %H")
         data_time = data_time.replace(minute=0, second=0, microsecond=0)
 
-        # before "31-Dec-2016 23" skip
-        if data_time <= datetime.datetime.strptime("31-Dec-2016 23", "%d-%b-%Y %H"):
-            # print("skip", data_time)
+        if data_time < datetime.datetime.strptime("01-Jan-2011 00", "%d-%b-%Y %H"):
+            # remove i data
+            data.pop(i)
             continue
+        # elif data_time < datetime.datetime.strptime("01-Jan-2017 00", "%d-%b-%Y %H") and data_time >= datetime.datetime.strptime("01-Jan-2011 00", "%d-%b-%Y %H"):
+        #     # print("skip", data_time)
+        #     # replace sunpy data
+        #     # get row index of sunpy["Time"] which is same as data_time
+        #     sunpy_index = sunpy[sunpy["Time"] == data_time.strftime("%Y-%m-%d %H:%M:%S")].index
+        #     if len(sunpy_index) == 0:
+        #         continue
+                
+        #     # filename : hmi_m_45s_2011_01_01_00_01_30_tai_magnetogram.fits.png
+        #     year = int(sunpy["filename"].iloc[sunpy_index[0]].split("_")[3])
+        #     month = int(sunpy["filename"].iloc[sunpy_index[0]].split("_")[4])
+        #     data[i]["magnetogram"] = f"../flare_transformer/data/noaa/magnetogram/{year}/{month:02d}/{sunpy['filename'].iloc[sunpy_index[0]]}"
 
-        # replace sunpy data
-        # get row index of sunpy["Time"] which is same as data_time
-        sunpy_index = sunpy[sunpy["Time"] == data_time.strftime("%Y-%m-%d %H:%M:%S")].index
-        
-        data[i]["magnetogram"] = sunpy["filename"].iloc[sunpy_index[0]]
+        else:
+            # replace sunpy data
+            # get row index of sunpy["Time"] which is same as data_time
+            sunpy_index = sunpy[sunpy["Time"] == data_time.strftime("%Y-%m-%d %H:%M:%S")].index
+            if len(sunpy_index) == 0:
+                continue
 
-        # calculate flag
-        flag = [0, 0, 0, 0]
-        max_logxmax1h = max(sunpy["logxmax1h"].iloc[sunpy_index[0]:sunpy_index[0]+24])
-        if max_logxmax1h < 0:
-            flag[0] = 1
-        elif max_logxmax1h >= 0 and max_logxmax1h < 1:
-            flag[1] = 1
-        elif max_logxmax1h >= 1 and max_logxmax1h < 2:
-            flag[2] = 1
-        elif max_logxmax1h >= 2:
-            flag[3] = 1
+            # filename : hmi_m_45s_2011_01_01_00_01_30_tai_magnetogram.fits.png
+            year = int(sunpy["filename"].iloc[sunpy_index[0]].split("_")[3])
+            month = int(sunpy["filename"].iloc[sunpy_index[0]].split("_")[4])
+            
+            data[i]["magnetogram"] = f"../flare_transformer/data/noaa/magnetogram/{year}/{month:02d}/{sunpy['filename'].iloc[sunpy_index[0]]}"
 
-        flag = ",".join([str(f) for f in flag])
-        
-        data[i]["flag"] = flag
+            # calculate flag
+            flag_1h_12h = [0, 0, 0, 0]
+            max_logxmax1h = max(sunpy["logxmax1h"].iloc[sunpy_index[0]:sunpy_index[0]+12])
+            if max_logxmax1h < 0:
+                flag_1h_12h[0] = 1
+            elif max_logxmax1h >= 0 and max_logxmax1h < 1:
+                flag_1h_12h[1] = 1
+            elif max_logxmax1h >= 1 and max_logxmax1h < 2:
+                flag_1h_12h[2] = 1
+            elif max_logxmax1h >= 2:
+                flag_1h_12h[3] = 1
+
+            flag_1h_12h = ",".join([str(f) for f in flag_1h_12h])
+
+            flag_12h_24h = [0, 0, 0, 0]
+            max_logxmax1h_24h = max(sunpy["logxmax1h"].iloc[sunpy_index[0]+12:sunpy_index[0]+24])
+            if max_logxmax1h_24h < 0:
+                flag_12h_24h[0] = 1
+            elif max_logxmax1h_24h >= 0 and max_logxmax1h_24h < 1:
+                flag_12h_24h[1] = 1
+            elif max_logxmax1h_24h >= 1 and max_logxmax1h_24h < 2:
+                flag_12h_24h[2] = 1
+            elif max_logxmax1h_24h >= 2:
+                flag_12h_24h[3] = 1
+
+            flag_12h_24h = ",".join([str(f) for f in flag_12h_24h])
+
+            
+            data[i]["flag_1h_12h"] = flag_1h_12h
+            data[i]["flag_12h_24h"] = flag_12h_24h
+
+            # data[i]["feature"] = "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0"
 
     # save data in jsonl format using tqdm
     with open(output_path, "w") as f:
@@ -171,7 +207,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset_path", type=str, default="data/ft_database_all17.jsonl")
     parser.add_argument("--csv_path", type=str, default="data/noaa/magnetogram_logxmax1h_all_years.csv")
-    parser.add_argument("--output_path", type=str, default="data/ft_database_all18_replace_sunpy17.jsonl")
+    parser.add_argument("--output_path", type=str, default="data/ft_database_all17_replace_logxmax1h_2flags.jsonl")
     args = parser.parse_args()
 
     replace_sunpy_image2(**vars(args))
