@@ -21,12 +21,18 @@ def make_yearwise_dataset(
     print(f"> year: {year}")
     for sample in (pbar := tqdm(data)):
         pbar.set_description(f"> Processing {year}")
-        value = sample[data_type]
-        dataset.append(preprocess(value))
+        try:
+            value = sample[data_type]
+            dataset.append(preprocess(value))
+        except Exception as e:
+            print(e)
+            print(f"> Error: {sample['time']}")
+            # exit
+            exit(1)
 
     if need_save:
         prefix = make_prefix(args.output_path, year, "magnetogram")
-        suffix = f"_{args.size}_replace_sunpy_16" if args.size != 512 else ""
+        suffix = f"_{args.size}_replace_sunpy_17_split_label" if args.size != 512 else ""
         path = f"{prefix}{suffix}.npy"
         print(f"> Saved {path}")
         np.save(path, dataset)
@@ -126,7 +132,7 @@ def main():
         datasets = make_dataset("feature", database, args)
 
         for year, dataset in datasets.items():
-            prefix = make_prefix(output_path, year, "feat_replace_sunpy_16")
+            prefix = make_prefix(output_path, year, "feat_replace_sunpy_17_split_label")
             with open(f"{prefix}.csv", "w") as wf:
                 for sample in dataset:
                     wf.write(f"{sample}\n")
@@ -136,25 +142,7 @@ def main():
         print("Prepare labels ... ")
         datasets = make_dataset("flag", database, args)
         for year, dataset in datasets.items():
-            prefix = make_prefix(output_path, year, "label_replace_sunpy_16")
-            with open(f"{prefix}.csv", "w") as wf:
-                for sample in dataset:
-                    wf.write(f"{sample}\n")
-
-    # Label
-    if args.split_label:
-        print("Prepare labels 1h-12h... ")
-        datasets = make_dataset("flag_1h_12h", database, args)
-        for year, dataset in datasets.items():
-            prefix = make_prefix(output_path, year, "label_1h_12h")
-            with open(f"{prefix}.csv", "w") as wf:
-                for sample in dataset:
-                    wf.write(f"{sample}\n")
-
-        print("Prepare labels 13h-24h... ")
-        datasets = make_dataset("flag_12h_24h", database, args)
-        for year, dataset in datasets.items():
-            prefix = make_prefix(output_path, year, "label_12h_24h")
+            prefix = make_prefix(output_path, year, "label_replace_sunpy_17_split_label")
             with open(f"{prefix}.csv", "w") as wf:
                 for sample in dataset:
                     wf.write(f"{sample}\n")
@@ -166,7 +154,7 @@ def main():
         datasets = make_dataset("time", database, args)
         accm_times = []
         for year, times in tqdm(datasets.items()):
-            prefix = f"{output_path}/data_{year}_window_{args.horizon}_replace_sunpy_16"
+            prefix = f"{output_path}/data_{year}_window_{args.horizon}_replace_sunpy_17_split_label"
             accm_times.extend(times)
             with open(f"{prefix}.csv", "w") as wf:
                 for time in times:
@@ -176,6 +164,23 @@ def main():
                     wf.write(f"{window_str}\n")
                     idx += 1
 
+    # Label
+    if args.split_label:
+        print("Prepare labels 1h-12h... ")
+        datasets = make_dataset("flag_1h_12h", database, args)
+        for year, dataset in datasets.items():
+            prefix = make_prefix(output_path, year, "label_1h_12h_replace_sunpy_17_split_label")
+            with open(f"{prefix}.csv", "w") as wf:
+                for sample in dataset:
+                    wf.write(f"{sample}\n")
+
+        print("Prepare labels 13h-24h... ")
+        datasets = make_dataset("flag_12h_24h", database, args)
+        for year, dataset in datasets.items():
+            prefix = make_prefix(output_path, year, "label_12h_24h_replace_sunpy_17_split_label")
+            with open(f"{prefix}.csv", "w") as wf:
+                for sample in dataset:
+                    wf.write(f"{sample}\n")
 
 if __name__ == "__main__":
     main()

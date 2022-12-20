@@ -76,7 +76,7 @@ class FlareformerManager:
             sample = None
 
         # Prepare model and optimizer
-        model, losser, optimizer, stat_1h_12h, stat_12h_24h = self.prepare_model(args, sample)
+        model, losser, optimizer, stat_1h_12h, stat_12h_24h = self._build(args, sample)
 
         self.model = model
         self.logger = logger

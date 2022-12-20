@@ -69,7 +69,8 @@ class Flareformer(nn.Module):
             in_chans=1, out_chans=mm_params["d_model"], depths=[2, 2, 2, 2], dims=[64, 128, 256, 512]
         )
 
-        self.linear = nn.Linear(sfm_params["d_model"] + mm_params["d_model"], output_channel)
+        self.linear_1h_12h = nn.Linear(sfm_params["d_model"] + mm_params["d_model"], output_channel)
+        self.linear_12h_24h = nn.Linear(sfm_params["d_model"] + mm_params["d_model"], output_channel)
 
         self._linear = nn.Linear(window * mm_params["d_model"] * 2, sfm_params["d_model"])
         self.softmax = nn.Softmax(dim=1)
@@ -108,8 +109,13 @@ class Flareformer(nn.Module):
         img_feat = self.img_linear(img_feat.flatten(1))
 
         x = torch.cat((phys_feat, img_feat), 1)
-        output = self.linear(x)
-        output = self.softmax(output)
+        output_1h_12h = self.linear_1h_12h(x)
+        output_1h_12h = self.softmax(output_1h_12h)
+
+        output_12h_24h = self.linear_12h_24h(x)
+        output_12h_24h = self.softmax(output_12h_24h)
+
+        output = output_1h_12h, output_12h_24h
 
         return output, x
 
@@ -120,7 +126,9 @@ class Flareformer(nn.Module):
         for param in self.parameters():
             param.requires_grad = False  # 重み固定
 
-        for param in self.linear.parameters():
+        for param in self.linear_1h_12h.parameters():
+            param.requires_grad = True
+        for param in self.linear_12h_24h.parameters():
             param.requires_grad = True
 
 

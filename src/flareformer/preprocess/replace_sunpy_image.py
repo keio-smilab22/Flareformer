@@ -128,15 +128,18 @@ def replace_sunpy_image2(dataset_path: str, csv_path: str, output_path: str):
 
     print("Load csv ... ")
     sunpy = pd.read_csv(csv_path)
+    data_new = data.copy()
+
+    remove_index = []
 
     for i, d in tqdm(enumerate(data), total=len(data)):
-        data_time = d["time"]
+        data_time = data_new[i]["time"]
         data_time = datetime.datetime.strptime(data_time, "%d-%b-%Y %H")
         data_time = data_time.replace(minute=0, second=0, microsecond=0)
 
         if data_time < datetime.datetime.strptime("01-Jan-2011 00", "%d-%b-%Y %H"):
             # remove i data
-            data.pop(i)
+            remove_index.append(i)
             continue
         # elif data_time < datetime.datetime.strptime("01-Jan-2017 00", "%d-%b-%Y %H") and data_time >= datetime.datetime.strptime("01-Jan-2011 00", "%d-%b-%Y %H"):
         #     # print("skip", data_time)
@@ -156,14 +159,16 @@ def replace_sunpy_image2(dataset_path: str, csv_path: str, output_path: str):
             # get row index of sunpy["Time"] which is same as data_time
             sunpy_index = sunpy[sunpy["Time"] == data_time.strftime("%Y-%m-%d %H:%M:%S")].index
             if len(sunpy_index) == 0:
+                remove_index.append(i)
                 continue
+                # keep i index
 
             # filename : hmi_m_45s_2011_01_01_00_01_30_tai_magnetogram.fits.png
             year = int(sunpy["filename"].iloc[sunpy_index[0]].split("_")[3])
             month = int(sunpy["filename"].iloc[sunpy_index[0]].split("_")[4])
             
-            data[i]["magnetogram"] = f"../flare_transformer/data/noaa/magnetogram/{year}/{month:02d}/{sunpy['filename'].iloc[sunpy_index[0]]}"
-
+            # data[i]["magnetogram"] = f"../flare_transformer/data/noaa/magnetogram/{year}/{month:02d}/{sunpy['filename'].iloc[sunpy_index[0]]}"
+            data_new[i]["magnetogram"] = f"../flare_transformer/data/noaa/magnetogram/{year}/{month:02d}/{sunpy['filename'].iloc[sunpy_index[0]]}"
             # calculate flag
             flag_1h_12h = [0, 0, 0, 0]
             max_logxmax1h = max(sunpy["logxmax1h"].iloc[sunpy_index[0]:sunpy_index[0]+12])
@@ -192,14 +197,20 @@ def replace_sunpy_image2(dataset_path: str, csv_path: str, output_path: str):
             flag_12h_24h = ",".join([str(f) for f in flag_12h_24h])
 
             
-            data[i]["flag_1h_12h"] = flag_1h_12h
-            data[i]["flag_12h_24h"] = flag_12h_24h
+            # data[i]["flag_1h_12h"] = flag_1h_12h
+            # data[i]["flag_12h_24h"] = flag_12h_24h
+
+            data_new[i]["flag_1h_12h"] = flag_1h_12h
+            data_new[i]["flag_12h_24h"] = flag_12h_24h
+
 
             # data[i]["feature"] = "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0"
+    # remove data
+    data_new = [d for i, d in enumerate(data_new) if i not in remove_index]
 
     # save data in jsonl format using tqdm
     with open(output_path, "w") as f:
-        for d in tqdm(data, total=len(data)):
+        for d in tqdm(data_new, total=len(data_new)):
             f.write(json.dumps(d) + "\n")
 
 

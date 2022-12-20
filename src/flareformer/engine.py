@@ -28,9 +28,9 @@ def train_epoch(
         output_1h_12h, output_12h_24h = output
         y_1h_12h, y_12h_24h = y
         gt_1h_12h = y_1h_12h.cuda().to(torch.float)
-        loss_1h_12h = losser(output, gt_1h_12h)
+        loss_1h_12h = losser(output_1h_12h, gt_1h_12h)
         gt_12h_24h = y_12h_24h.cuda().to(torch.float)
-        loss_12h_24h = losser(output, gt_12h_24h)
+        loss_12h_24h = losser(output_12h_24h, gt_12h_24h)
         loss = loss_1h_12h + loss_12h_24h
         loss.backward()
         optimizer.step()
@@ -58,9 +58,9 @@ def eval_epoch(
             output_1h_12h, output_12h_24h = output
             y_1h_12h, y_12h_24h = y
             gt_1h_12h = y_1h_12h.cuda().to(torch.float)
-            _ = losser(output, gt_1h_12h)
+            _ = losser(output_1h_12h, gt_1h_12h)
             gt_12h_24h = y_12h_24h.cuda().to(torch.float)
-            _ = losser(output, gt_12h_24h)
+            _ = losser(output_12h_24h, gt_12h_24h)
             stat_1h_12h.collect(output_1h_12h, y_1h_12h)
             stat_12h_24h.collect(output_12h_24h, y_12h_24h)
 
