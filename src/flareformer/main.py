@@ -85,6 +85,7 @@ class FlareformerManager:
         self.stat = stat
         self.args = args
         self.mock_sample = sample
+        self.min_loss = np.inf
 
     def train_model(self, lr: Optional[float] = None, epochs: Optional[int] = None):
         """
@@ -111,6 +112,13 @@ class FlareformerManager:
 
             # save
             self.save_model(self.args.save_model_path)
+
+            # Save the model when validation loss is minimum
+            # if valid_loss < self.min_loss:
+            #     self.min_loss = valid_loss
+            #     best_model_path = self.args.save_model_path.replace(".pth", "_best.pth")
+            #     self.save_model(best_model_path)
+            #     print(f"Best model saved to {best_model_path}")
 
             # log
             self.logger.write(
@@ -237,6 +245,8 @@ def main():
         flareformer.train_model()
 
         print("\n========== eval ===========")
+        # best_model_path = args.save_model_path.replace(".pth", "_best.pth")
+        # flareformer.load_model(best_model_path)
         flareformer.load_model(args.save_model_path)
         flareformer.test_model()
 
